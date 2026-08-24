@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent;overflow:hidden}canvas{display:block}</style>
+</head>
+<body>
+<script src="three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 1000);
+camera.position.z = 4;
+const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+const sphere = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0x2266ff, wireframe: true })
+);
+scene.add(sphere);
+
+const styles = {
+  idle:      { color: 0x2266ff, pulse: 0.005, rotate: 0.002 },
+  listening: { color: 0x22ddff, pulse: 0.03,  rotate: 0.006 },
+  thinking:  { color: 0xaa44ff, pulse: 0.02,  rotate: 0.02  },
+  speaking:  { color: 0xffaa22, pulse: 0.04,  rotate: 0.01  },
+};
+let target = new THREE.Color(styles.idle.color), pulse = 0.005, rotate = 0.002, t = 0;
+
+function connect() {
+  const ws = new WebSocket("ws://127.0.0.1:8765");
+  ws.onmessage = (e) => {
+  const data = JSON.parse(e.data);
+  if (data.state) {
+    const s = styles[data.state] || styles.idle;
+    target = new THREE.Color(s.color); pulse = s.pulse; rotate = s.rotate;
+  }
+  if (data.visibility === "hide") { window.bridge && window.bridge.hideWindow(); }
+  if (data.visibility === "show") { window.bridge && window.bridge.showWindow(); }
+};
+  ws.onclose = () => setTimeout(connect, 1000);  // retry once a second if disconnected or never connected
+}
+connect();
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += pulse;
+  const scale = 1 + Math.sin(t) * 0.08;
+  sphere.scale.set(scale, scale, scale);
+  sphere.rotation.y += rotate;
+  sphere.material.color.lerp(target, 0.05);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+window.bridge = null;
+new QWebChannel(qt.webChannelTransport, (channel) => { window.bridge = channel.objects.bridge; });
+
+let dragging = false, lastX = 0, lastY = 0;
+document.body.addEventListener("mousedown", (e) => {
+  dragging = true; lastX = e.screenX; lastY = e.screenY;
+});
+document.addEventListener("mousemove", (e) => {
+  if (!dragging || !window.bridge) return;
+  window.bridge.moveBy(e.screenX - lastX, e.screenY - lastY);
+  lastX = e.screenX; lastY = e.screenY;
+});
+document.addEventListener("mouseup", () => { dragging = false; });
+</script>
+</body>
+</html>

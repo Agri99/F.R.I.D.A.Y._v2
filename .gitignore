@@ -1,0 +1,7 @@
+venv/
+__pychace__/
+*.pyc
+.env
+.pytest_cache
+*.wav
+*.json
