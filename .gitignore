@@ -1,9 +1,9 @@
 # Project-local files
 venv/
-__pychace__/
+__pycache__/
 *.pyc
 .env
-.pytest_cache
+.pytest_cache/
 *.wav
 *.json
 
@@ -49,7 +49,7 @@ htmlcov/
 .nox/
 .coverage
 .coverage.*
-.cache
+.cache/
 nosetests.xml
 coverage.xml
 *.cover
@@ -71,7 +71,7 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
-# Scrapy stuff
+# Scrapy
 .scrapy
 
 # Sphinx documentation
@@ -82,7 +82,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # IPython
 profile_default/
@@ -90,7 +90,7 @@ ipython_config.py
 
 # Environments
 .envrc
-.venv
+.venv/
 env/
 ENV/
 env.bak/
@@ -103,7 +103,7 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
+# mkdocs
 /site
 
 # mypy
@@ -111,10 +111,10 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
+# Pyre
 .pyre/
 
-# pytype static type analyzer
+# pytype
 .pytype/
 
 # Cython debug symbols
