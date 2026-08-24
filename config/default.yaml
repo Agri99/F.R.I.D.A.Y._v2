@@ -1,0 +1,36 @@
+# FRIDAY v2 — default configuration
+# This file is DATA, not code. The orchestrator never hardcodes a model
+# name or a risk threshold — it reads them from here (Principle E).
+
+app:
+  name: "FRIDAY"
+  offline_first: true          # core loop must work with network=off
+
+network:
+  # Set at runtime by a connectivity check; this is just the fallback
+  # assumption if the check hasn't run yet.
+  assume_online: false
+
+models:
+  # Each entry maps a ROLE (what the orchestrator asks for) to a
+  # PROVIDER + MODEL NAME (what actually answers). Business logic
+  # imports the role, never the model name.
+  reasoning:
+    provider: "ollama"
+    model: "qwen3:8b"
+  vision:
+    provider: "ollama"
+    model: "qwen3-vl:8b"
+
+security:
+  # Risk tiers straight from your v1 design. Anything not explicitly
+  # tagged defaults to the highest tier (fail closed, Principle G).
+  default_risk_tier: "RED"
+  auto_approve_tiers: ["GREEN"]
+  confirm_required_tiers: ["YELLOW", "ORANGE"]
+  hard_block_without_second_factor: ["RED"]
+
+paths:
+  data_dir: "./data"
+  audit_log: "./data/audit.log"
+  skills_dir: "./data/skills"
