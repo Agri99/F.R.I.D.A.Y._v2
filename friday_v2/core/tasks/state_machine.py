@@ -58,6 +58,14 @@ class Task:
     state: TaskState = TaskState.PENDING
     history: list[tuple[TaskState, str]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
+    # Orchestrator-owned, opaque to the state machine on purpose: holds the
+    # tool name/args/expiry while AWAITING_CONFIRMATION, and which stage of
+    # confirmation it's on (voice / passphrase). The state machine never
+    # inspects this - it just carries it between transitions.
+    pending: object | None = None
+    # Transient prompt for the caller to speak (e.g. "say the passphrase")
+    # that does NOT itself represent a state transition.
+    last_message: str | None = None
 
     def transition(self, new_state: TaskState, reason: str = "", on_transition=None) -> None:
         allowed = _ALLOWED_TRANSITIONS.get(self.state, set())

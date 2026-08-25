@@ -98,6 +98,8 @@ def register_legacy_tools(registry: ToolRegistry) -> list[str]:
             tier=tier,
             input_schema=_schema_for(legacy.func),
             handler=legacy.func,
+            preview=legacy.preview,
+            critical=legacy.critical,
         )
         try:
             registry.register(tool)

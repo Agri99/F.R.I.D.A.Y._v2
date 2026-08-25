@@ -24,6 +24,8 @@ class Tool:
     tier: RiskTier
     input_schema: dict          # JSON-schema-ish dict describing args
     handler: Callable[..., Any]  # the actual Python function that runs
+    preview: Callable[..., dict] | None = None   # optional: shows what would happen before confirming
+    critical: bool = False        # if True, needs passphrase on top of voice confirmation (v1 parity)
 
     def run(self, **kwargs) -> Any:
         return self.handler(**kwargs)
