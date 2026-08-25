@@ -3,12 +3,15 @@ main.py
 
 WHAT THIS IS FOR:
 The wiring script. Loads config, builds every subsystem, hands them
-to the orchestrator, runs one goal. This is intentionally thin — all
-real logic lives in core/. This file should never grow past "assemble
-and call".
-"""
+to the orchestrator. This file should never grow past "assemble and
+call" - all real logic lives in core/.
 
-import asyncio
+NOTE: voice + orb integration happens in run_friday_v2.py at the project
+root, not here. That script runs voice and the orchestrator in the same
+process (mirroring how test_voice.py already worked) and talks to the
+orb via your existing orb/state_server.py over its existing WebSocket -
+no separate interaction server needed.
+"""
 
 from config.settings import Settings
 from core.models.router import ModelRouter
@@ -16,8 +19,8 @@ from core.security.policy import PolicyEngine
 from core.tasks.state_machine import TaskManager
 from core.tools.registry import ToolRegistry
 from core.tools.base_tools import register_base_tools
+from core.tools.legacy_bridge import register_legacy_tools
 from core.orchestrator import AgentOrchestrator
-from core.interaction.server import InteractionServer
 
 
 def build_orchestrator(config_path: str = "config/default.yaml") -> AgentOrchestrator:
@@ -29,6 +32,7 @@ def build_orchestrator(config_path: str = "config/default.yaml") -> AgentOrchest
 
     tool_registry = ToolRegistry()
     register_base_tools(tool_registry)
+    register_legacy_tools(tool_registry)  # your real v1 tools: files, apps, screen, gmail, etc.
 
     task_manager = TaskManager()
 
@@ -45,6 +49,7 @@ def run_text_smoke_test() -> None:
     orch = build_orchestrator()
     reasoning = orch.models.get("reasoning")
     print(f"Reasoning model available: {reasoning.is_available()}")
+    print(f"Tools registered: {orch.tools.list_names()}")
 
     if not reasoning.is_available():
         print("Ollama not reachable at localhost:11434 — start Ollama and pull the model to run a real task.")
@@ -55,18 +60,5 @@ def run_text_smoke_test() -> None:
             print(f"  {state.value}: {reason}")
 
 
-async def run_server() -> None:
-    """Starts Core's /voice and /orb WebSocket endpoints (Section 23/24).
-    Run this, then start voice_adapter_stub.py and orb_adapter_stub.py
-    (with your real v1 code plugged in) as separate processes."""
-    orch = build_orchestrator()
-    server = InteractionServer(orch)
-    await server.serve_forever()
-
-
 if __name__ == "__main__":
-    import sys
-    if "--serve" in sys.argv:
-        asyncio.run(run_server())
-    else:
-        run_text_smoke_test()
+    run_text_smoke_test()

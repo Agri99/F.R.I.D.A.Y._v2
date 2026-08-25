@@ -95,27 +95,34 @@ def test_task_done_is_terminal():
         task.transition(TaskState.EXECUTING, "should not be allowed after DONE")
 
 
-def test_orb_command_whitelist_accepts_known_commands():
-    from core.interaction.contracts import OrbCommand
-    for name in ["show", "hide", "move", "set_state", "exit_ui"]:
-        assert OrbCommand(name) is not None
+# --- legacy tool bridge (v1 tools/*.py ported into the new registry) -----
+# `import llm` (triggered inside legacy_bridge) needs the project root on
+# sys.path, not just friday_v2/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
-def test_orb_command_whitelist_rejects_unknown_command():
-    from core.interaction.contracts import OrbCommand
-    with pytest.raises(ValueError):
-        OrbCommand("run_shell_command")  # not in the whitelist -> must raise
+@pytest.fixture
+def legacy_registry():
+    from core.tools.legacy_bridge import register_legacy_tools
+    r = ToolRegistry()
+    register_legacy_tools(r)
+    return r
 
 
-def test_task_state_maps_to_a_valid_orb_state():
-    from core.interaction.contracts import TASK_STATE_TO_ORB_STATE, OrbState
-    from core.tasks.state_machine import TaskState
-    for task_state in TaskState:
-        assert task_state in TASK_STATE_TO_ORB_STATE
-        assert isinstance(TASK_STATE_TO_ORB_STATE[task_state], OrbState)
+def test_legacy_tools_are_registered(legacy_registry):
+    # A couple of tools known to exist in tools/*.py as of this writing.
+    assert "get_system_info" in legacy_registry.list_names()
+    assert "create_text_file" in legacy_registry.list_names()
 
 
-def test_voice_input_carries_text_not_audio_by_default():
-    from core.interaction.contracts import VoiceInput
-    vi = VoiceInput(recognized_text="hello", session_id="abc123")
-    assert vi.audio_path_for_authorization is None  # optional, not required per call
+def test_legacy_risk_tiers_map_correctly(legacy_registry):
+    # v1 RiskClass.GREEN -> new RiskTier.GREEN, etc. — not reclassified.
+    assert legacy_registry.tier_of("get_system_info") == RiskTier.GREEN
+    assert legacy_registry.tier_of("create_text_file") == RiskTier.YELLOW
+    assert legacy_registry.tier_of("delete_workspace_file") == RiskTier.RED
+
+
+def test_legacy_red_tool_requires_second_factor(policy, legacy_registry):
+    tier = legacy_registry.tier_of("delete_workspace_file")
+    result = policy.evaluate("delete_workspace_file", tier)
+    assert result.decision == PolicyDecision.REQUIRE_SECOND_FACTOR
