@@ -80,6 +80,34 @@ class MemoryDatabase:
                 )
             """)
 
+            # Run Migrations
+            self._migrate_table(conn, "episodes", [
+                ("confidence", "REAL DEFAULT 0.5"),
+                ("evidence_count", "INTEGER DEFAULT 1"),
+                ("expiry", "TEXT")
+            ])
+            self._migrate_table(conn, "facts", [
+                ("evidence_count", "INTEGER DEFAULT 1"),
+                ("expiry", "TEXT")
+            ])
+            self._migrate_table(conn, "preferences", [
+                ("evidence_count", "INTEGER DEFAULT 1"),
+                ("expiry", "TEXT")
+            ])
+
+    def _migrate_table(self, conn: sqlite3.Connection, table: str, columns: list[tuple[str, str]]) -> None:
+        cursor = conn.execute(f"PRAGMA table_info({table})")
+        existing_cols = {row["name"] for row in cursor.fetchall()}
+        for col_name, col_type in columns:
+            if col_name not in existing_cols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+
+    def rebuild_index(self) -> None:
+        """Rebuild FTS5 indexes."""
+        with self.connection() as conn:
+            conn.execute("INSERT INTO episodes_fts(episodes_fts) VALUES('rebuild')")
+            conn.execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')")
+
     @contextlib.contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)

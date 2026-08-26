@@ -13,9 +13,12 @@ import json
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from friday.security.policy import RiskTier
+
+if TYPE_CHECKING:
+    from friday.security.action_request import ActionRequest
 
 
 @dataclass
@@ -29,6 +32,7 @@ class AuditEvent:
     authorization: Any
     result: str
     verification: Any
+    action_request: ActionRequest | None = None
 
 
 class AuditLogger:

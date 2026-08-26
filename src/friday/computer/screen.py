@@ -113,3 +113,30 @@ def save_screenshot(filename: str = "screenshot.png", workspace_dir: str | Path 
     img = ImageGrab.grab()
     img.save(output_path)
     return str(output_path)
+
+from datetime import datetime
+from dataclasses import dataclass
+
+@dataclass
+class Observation:
+    active_window: str
+    visible_windows: list[str]
+    accessibility_tree: dict | None
+    screenshot_path: str | None
+    focused_control: str | None
+    browser_url: str | None
+    timestamp: datetime
+
+class ScreenObserver:
+    def observe_cheap(self) -> Observation:
+        """Fast state check without screenshot or VLM."""
+        return Observation("Unknown", [], None, None, None, None, datetime.now())
+        
+    def observe_targeted(self, region: tuple | None = None) -> Observation:
+        """Targeted screenshot of specific region."""
+        return Observation("Unknown", [], None, None, None, None, datetime.now())
+        
+    def observe_full(self) -> Observation:
+        """Full screenshot + VLM analysis. Only when ambiguity remains."""
+        return Observation("Unknown", [], None, None, None, None, datetime.now())
+

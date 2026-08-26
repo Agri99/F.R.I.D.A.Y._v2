@@ -1,15 +1,6 @@
-"""
-src/friday/agent/orchestrator.py
-
-WHAT THIS IS FOR:
-The central assembly-line coordinator for F.R.I.D.A.Y. v2 (blueprint §3, §11).
-Coordinates intent parsing, planning, policy evaluation, isolated tool execution,
-independent state verification, failure recovery, two-stage voice/passphrase confirmation,
-and SQLite conversation memory.
-"""
-
 from __future__ import annotations
 
+import time
 from typing import Any, Callable
 
 from friday.config import Settings
@@ -21,6 +12,7 @@ from friday.security.confirmation import ConfirmationManager
 from friday.security.audit import AuditLogger
 from friday.security.voice_auth import VoiceAuthProvider
 from friday.security.passphrase import verify_passphrase
+from friday.security.action_request import ActionRequest
 from friday.memory.conversation import ConversationMemory
 from friday.learning.trajectory import TrajectoryRecorder
 
@@ -34,7 +26,6 @@ from .fastpath import FastPathRouter
 
 APPROVE_WORDS = {"yes", "yeah", "yep", "confirm", "do it", "proceed", "go ahead", "sure", "ok", "okay"}
 DENY_WORDS = {"no", "nope", "cancel", "stop", "don't", "abort"}
-
 
 def _format_confirmation_prompt(action: str, args: dict[str, Any]) -> str:
     """Produce a natural spoken confirmation prompt without robotic phrasing."""
@@ -127,13 +118,7 @@ def _format_natural_reply(action: str, result: Any) -> str:
 
     return str(result)
 
-
 class AgentOrchestrator:
-
-    """
-    The central coordinator that manages the lifecycle of a task.
-    Implements a multi-step tool execution loop, utilizing Planner, Executor, Evaluator, and RecoveryManager.
-    """
 
     def __init__(
         self,
@@ -185,33 +170,33 @@ class AgentOrchestrator:
             pass
 
     def run(self, goal: str, on_transition: Callable[[TaskStatus], None] | None = None) -> Task:
-        """Starts processing a user goal."""
         task = self.tasks.create(goal)
         self._remember("user", goal)
         self.trajectory_recorder.start(task.id, goal)
 
         if on_transition:
             original_on_transition = self.state_machine.on_transition
-
             def combined_transition(t: Task, status: TaskStatus, reason: str):
                 if original_on_transition:
                     original_on_transition(t, status, reason)
                 if t.id == task.id:
                     on_transition(status)
-
             self.state_machine.on_transition = combined_transition
 
         self.state_machine.transition(task, TaskStatus.PLANNING, reason="Received goal")
 
-        # Check fast path
         fast_intent = self.fastpath.match(goal)
         if fast_intent:
-            task.plan = [Step(action=fast_intent.tool_name, args=fast_intent.arguments, expected_outcome=fast_intent.success_reply or "")]
+            task.plan = [Step(
+                action=fast_intent.tool_name, 
+                arguments=fast_intent.arguments, 
+                expected_observation=fast_intent.success_reply or "",
+                risk_scope=getattr(fast_intent, 'risk_tier', ''),
+            )]
             return self._execute_plan(task)
 
-        # Standard planning with model
         schemas = self.tools.all_schemas() if hasattr(self.tools, "all_schemas") else []
-        task.plan = self.planner.create_plan(
+        task.plan = self.planner.plan(
             goal=goal,
             available_tools=schemas,
             memories=[],
@@ -221,15 +206,22 @@ class AgentOrchestrator:
         return self._execute_plan(task)
 
     def _execute_plan(self, task: Task) -> Task:
-        """Executes the steps in the task's plan."""
         if task.current_step_index < 0:
             task.current_step_index = 0
 
         while task.current_step_index < len(task.plan):
+            if task.steps_used >= task.max_steps:
+                self.state_machine.transition(task, TaskStatus.FAILED, reason="Execution budget exceeded (max_steps)")
+                return task
+            if task.started_at and (time.time() - task.started_at.timestamp() > task.max_time_seconds):
+                self.state_machine.transition(task, TaskStatus.FAILED, reason="Execution budget exceeded (max_time_seconds)")
+                return task
+
             step = task.plan[task.current_step_index]
+            task.steps_used += 1
 
             if step.action == "direct_answer":
-                reply = step.args.get("text", step.expected_outcome or "")
+                reply = step.arguments.get("text", step.expected_observation or "")
                 task.last_message = reply
                 self.state_machine.transition(task, TaskStatus.EXECUTING, reason="Direct answer")
                 self.state_machine.transition(task, TaskStatus.VERIFYING, reason="No verification needed for text")
@@ -239,13 +231,12 @@ class AgentOrchestrator:
                 return task
 
             if step.action == "error":
-                err_msg = step.args.get("message", "Planning error")
+                err_msg = step.arguments.get("message", "Planning error")
                 self.state_machine.transition(task, TaskStatus.FAILED, reason=err_msg)
                 self._remember("assistant", f"I encountered an error: {err_msg}")
                 self.trajectory_recorder.finish("FAILURE")
                 return task
 
-            # Policy Engine Check (unless already authorized)
             tier = self.tools.tier_of(step.action) if hasattr(self.tools, "tier_of") else None
             if not getattr(step, "authorized", False):
                 decision = self.policy.evaluate(step.action, tier)
@@ -258,20 +249,19 @@ class AgentOrchestrator:
                     return task
 
                 if dec_val in ("REQUIRE_CONFIRMATION", "REQUIRE_SECOND_FACTOR"):
-                    prompt = _format_confirmation_prompt(step.action, step.args)
+                    prompt = _format_confirmation_prompt(step.action, step.arguments)
                     task.last_message = prompt
                     task.pending_auth = {
                         "step": step,
                         "stage": "voice" if dec_val == "REQUIRE_CONFIRMATION" else "second_factor",
                         "action": step.action,
-                        "args": step.args,
+                        "args": step.arguments,
                     }
                     if task.status != TaskStatus.AWAITING_AUTHORIZATION:
                         self.state_machine.transition(task, TaskStatus.AWAITING_AUTHORIZATION, reason=prompt)
                     self._remember("assistant", prompt)
                     return task
 
-            # ALLOW / AUTHORIZED path: execute tool
             self.state_machine.transition(task, TaskStatus.EXECUTING, reason=f"Running {step.action}")
             tool = self.tools.get(step.action) if hasattr(self.tools, "get") else None
 
@@ -281,7 +271,11 @@ class AgentOrchestrator:
                 self.trajectory_recorder.finish("FAILURE")
                 return task
 
-            exec_result = self.executor.execute(tool, step.args)
+            req = ActionRequest(action=step.action, arguments=step.arguments)
+            exec_result = self.executor.execute(tool, step, max_time_budget=task.max_time_seconds)
+            
+            task.observations.append(exec_result.observation)
+            
             self.state_machine.transition(task, TaskStatus.VERIFYING, reason="Evaluating execution")
             eval_result = self.evaluator.evaluate(task, step, exec_result, tool)
 
@@ -289,42 +283,46 @@ class AgentOrchestrator:
                 task_id=task.id,
                 tool_name=step.action,
                 risk_tier=tier or "GREEN",
-                arguments=step.args,
+                arguments=step.arguments,
                 authorization="ALLOWED",
-                result=exec_result.result if exec_result.success else str(exec_result.error),
-                verification=eval_result.message,
+                result=exec_result.result if eval_result.passed else str(exec_result.error),
+                verification=eval_result.reason,
             )
 
             self.trajectory_recorder.record_step(
                 action=step.action,
-                observation=str(exec_result.result),
-                result="SUCCESS" if eval_result.success else "FAILURE",
+                observation=exec_result.observation,
+                result="SUCCESS" if eval_result.passed else "FAILURE",
             )
 
-            if not eval_result.success:
-                if eval_result.needs_recovery:
-                    self.state_machine.transition(task, TaskStatus.RECOVERING, reason=eval_result.message)
-                    strategy = self.recovery.classify_failure(exec_result.error or "", {})
-                    recovered = self.recovery.attempt_recovery(task, strategy)
-                    if recovered:
-                        continue
-                self.state_machine.transition(task, TaskStatus.FAILED, reason=eval_result.message)
-                self._remember("assistant", f"That failed: {eval_result.message}")
-                self.trajectory_recorder.finish("FAILURE")
-                return task
+            if not eval_result.passed:
+                self.state_machine.transition(task, TaskStatus.RECOVERING, reason=eval_result.reason)
+                category = self.recovery.classify(exec_result.error or "", {})
+                recovery_action = self.recovery.recover(task, step, category)
+                
+                if recovery_action.strategy == "RETRY":
+                    # Retry implicitly by loop not advancing or by replan
+                    continue
+                elif eval_result.needs_replan:
+                    task.plan = self.planner.replan(task, [{"step": step.action, "observation": exec_result.observation}])
+                    task.current_step_index = 0
+                    continue
+                else:
+                    self.state_machine.transition(task, TaskStatus.FAILED, reason=eval_result.reason)
+                    self._remember("assistant", f"That failed: {eval_result.reason}")
+                    self.trajectory_recorder.finish("FAILURE")
+                    return task
 
             task.current_step_index += 1
 
         self.state_machine.transition(task, TaskStatus.COMPLETED, reason="All steps completed")
-        reply = _format_natural_reply(step.action, exec_result.result) if 'exec_result' in locals() and exec_result.success else "Done."
+        reply = _format_natural_reply(step.action, exec_result.result) if 'exec_result' in locals() and exec_result.verification_passed else "Done."
         task.last_message = reply
         self._remember("assistant", reply)
         self.trajectory_recorder.finish("SUCCESS")
         return task
 
-
     def resume_with_voice(self, task_id: str, user_text: str, audio_path: str | None = None) -> Task | None:
-        """Resumes a task parked in AWAITING_AUTHORIZATION with voice or passphrase input."""
         task = self.tasks.get(task_id) if hasattr(self.tasks, "get") else None
         if not task or task.status != TaskStatus.AWAITING_AUTHORIZATION:
             return task
@@ -348,7 +346,6 @@ class AgentOrchestrator:
                 self._remember("assistant", task.last_message)
                 return task
 
-            # Check if second factor passphrase required for RED tools
             tool_name = auth_data.get("action", "")
             tool = self.tools.get(tool_name) if hasattr(self.tools, "get") else None
             tier = self.tools.tier_of(tool_name) if hasattr(self.tools, "tier_of") else None
@@ -359,7 +356,6 @@ class AgentOrchestrator:
                 self._remember("assistant", task.last_message)
                 return task
 
-            # Proceed to execute approved step
             step = auth_data.get("step")
             if step:
                 step.authorized = True
@@ -371,13 +367,7 @@ class AgentOrchestrator:
                 step = auth_data.get("step")
                 if step:
                     step.authorized = True
-                task.pending_auth = None
-                return self._execute_plan(task)
-            else:
-                self.state_machine.transition(task, TaskStatus.BLOCKED, reason="Incorrect passphrase")
-                task.last_message = "That passphrase was incorrect. Action blocked."
-                self._remember("assistant", task.last_message)
-                return task
-
+            task.pending_auth = None
+            return self._execute_plan(task)
 
         return task

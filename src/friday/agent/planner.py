@@ -1,11 +1,3 @@
-"""
-src/friday/agent/planner.py
-
-WHAT THIS IS FOR:
-Decomposes user goals into actionable Step sequences using the ModelProvider
-with tool schemas, or direct assessment for simple intents (§11.2).
-"""
-
 from __future__ import annotations
 
 import json
@@ -13,7 +5,7 @@ from enum import Enum
 from typing import Any
 
 from friday.models.base import ModelMessage
-from .task import Step
+from .task import Step, Task
 
 
 class PlanningDepth(str, Enum):
@@ -36,12 +28,13 @@ class Planner:
 
         return PlanningDepth.SINGLE_STEP
 
-    def create_plan(
+    def plan(
         self,
         goal: str,
         available_tools: list[dict],
         memories: list[dict] | None = None,
         model_router: Any = None,
+        observations: list[dict] | None = None
     ) -> list[Step]:
         """Creates a step plan by querying the reasoning model with tool schemas."""
         if not model_router:
@@ -54,27 +47,31 @@ class Planner:
         )
         if not provider or not hasattr(provider, "generate"):
             return []
-
+            
+        sys_prompt = (
+            "You are FRIDAY's planning engine. Given a user goal and available tools, "
+            "call the appropriate tool(s) to fulfill the request. If no tool is needed, "
+            "provide a direct answer.\n"
+            "For each tool, you must populate the arguments along with intent, expected_observation, "
+            "verification_strategy, risk_scope, reversible, retry_policy, etc."
+        )
+        
         messages = [
-            ModelMessage(
-                role="system",
-                content=(
-                    "You are FRIDAY's planning engine. Given a user goal and available tools, "
-                    "call the appropriate tool(s) to fulfill the request. If no tool is needed, "
-                    "provide a direct answer."
-                ),
-            ),
+            ModelMessage(role="system", content=sys_prompt),
             ModelMessage(role="user", content=goal),
         ]
+        
+        if observations:
+            obs_str = json.dumps(observations)
+            messages.append(ModelMessage(role="user", content=f"Recent observations: {obs_str}"))
 
         try:
             response = provider.generate(messages=messages, tools=available_tools)
         except Exception as exc:
-            return [Step(action="error", args={"message": str(exc)}, expected_outcome="Error reported")]
+            return [Step(action="error", arguments={"message": str(exc)}, expected_observation="Error reported")]
 
         if not response.tool_calls:
-            # No tool call needed — return a special completion step or empty list
-            return [Step(action="direct_answer", args={"text": response.text}, expected_outcome=response.text)]
+            return [Step(action="direct_answer", arguments={"text": response.text}, expected_observation=response.text)]
 
         steps: list[Step] = []
         for call in response.tool_calls:
@@ -87,6 +84,42 @@ class Planner:
                     tool_args = {}
 
             if tool_name:
-                steps.append(Step(action=tool_name, args=tool_args, expected_outcome=f"Executed {tool_name}"))
+                intent = tool_args.pop("intent", f"Execute {tool_name}")
+                expected_observation = tool_args.pop("expected_observation", f"Executed {tool_name}")
+                verification_strategy = tool_args.pop("verification_strategy", "auto")
+                risk_scope = tool_args.pop("risk_scope", "")
+                reversible = tool_args.pop("reversible", True)
+                retry_policy = tool_args.pop("retry_policy", "default")
+                
+                steps.append(Step(
+                    action=tool_name, 
+                    arguments=tool_args,
+                    intent=intent,
+                    expected_observation=expected_observation,
+                    verification_strategy=verification_strategy,
+                    risk_scope=risk_scope,
+                    reversible=reversible,
+                    retry_policy=retry_policy
+                ))
 
         return steps
+
+    def create_plan(
+        self,
+        goal: str,
+        available_tools: list[dict],
+        memories: list[dict] | None = None,
+        model_router: Any = None,
+    ) -> list[Step]:
+        """Legacy method pointing to plan."""
+        return self.plan(goal, available_tools, memories, model_router)
+        
+    def replan(self, task: Task, observations: list[dict]) -> list[Step]:
+        task.plan_version += 1
+        return self.plan(
+            goal=task.goal,
+            available_tools=[], # Ideally passed in, but signature doesn't specify. Real logic would inject schemas.
+            memories=[],
+            model_router=None, # Should be bound, but keeping interface simple per spec.
+            observations=observations
+        )

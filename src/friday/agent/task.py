@@ -24,12 +24,16 @@ class TaskStatus(str, Enum):
 class Step:
     """A discrete unit of work within a larger task plan."""
     action: str
-    args: dict[str, Any] = field(default_factory=dict)
-    expected_outcome: str = ""
-    actual_outcome: str | None = None
-    verification_result: bool | None = None
+    arguments: dict[str, Any]
     authorized: bool = False
-
+    intent: str = ''
+    expected_observation: str = ''
+    verification_strategy: str = 'auto'
+    risk_scope: str = ''
+    reversible: bool = True
+    retry_policy: str = 'default'
+    observation: str = ''
+    verified: bool | None = None
 
 
 @dataclass
@@ -43,10 +47,15 @@ class Task:
     observations: list[str] = field(default_factory=list)
     actions: list[dict[str, Any]] = field(default_factory=list)
     trajectory: list[dict[str, Any]] = field(default_factory=list)
-    started_at: datetime = field(default_factory=datetime.now)
+    started_at: datetime | None = None
     completed_at: datetime | None = None
     pending_auth: Any | None = None
     last_message: str | None = None
+
+    max_steps: int = 20
+    steps_used: int = 0
+    max_time_seconds: float = 120.0
+    plan_version: int = 1
 
     def get_current_step(self) -> Step | None:
         if 0 <= self.current_step_index < len(self.plan):
@@ -65,6 +74,7 @@ class TaskManager:
 
     def create(self, goal: str) -> Task:
         task = Task(goal=goal)
+        task.started_at = datetime.now()
         self._tasks[task.id] = task
         return task
 
@@ -73,4 +83,3 @@ class TaskManager:
 
     def list_all(self) -> list[Task]:
         return list(self._tasks.values())
-

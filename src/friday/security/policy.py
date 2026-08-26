@@ -11,6 +11,10 @@ from pathlib import Path
 from friday.config import Settings
 from friday.security.capabilities import CapabilityScope, CapabilityRegistry
 from friday.security.sandbox import PathValidator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from friday.security.action_request import ActionRequest
 
 
 class RiskTier(str, Enum):
@@ -33,6 +37,7 @@ class PolicyResult:
     tier: RiskTier
     reason: str
     required_scopes: list[CapabilityScope]
+    request: ActionRequest | None = None
 
 
 class PolicyEngine:
@@ -40,6 +45,16 @@ class PolicyEngine:
         self._settings = settings.security
         self._capability_registry = capability_registry or CapabilityRegistry()
         self._path_validator = path_validator or PathValidator(settings.paths.workspace_dir)
+
+    def evaluate_request(self, request: ActionRequest) -> PolicyResult:
+        result = self.evaluate(
+            tool_name=request.tool,
+            tier=request.risk_tier,
+            required_scopes=request.required_scopes,
+            target_path=request.target
+        )
+        result.request = request
+        return result
 
     def evaluate(self, tool_name: str, tier: RiskTier | None = None, required_scopes: list[CapabilityScope] | None = None, target_path: str | Path | None = None) -> PolicyResult:
         required_scopes = required_scopes or []

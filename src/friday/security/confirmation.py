@@ -8,9 +8,12 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from friday.security.policy import RiskTier
+
+if TYPE_CHECKING:
+    from friday.security.action_request import ActionRequest
 
 
 @dataclass
@@ -23,6 +26,7 @@ class PendingAction:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: float = field(default_factory=time.time)
     expires_at: float = 0.0
+    action_request: ActionRequest | None = None
     
     def __post_init__(self):
         if self.expires_at == 0.0:
@@ -32,8 +36,13 @@ class PendingAction:
         return time.time() > self.expires_at
 
     def get_hash(self) -> str:
+        if self.action_request:
+            return self.action_request.to_confirmation_hash()
         payload = json.dumps({"tool": self.tool, "args": self.arguments}, sort_keys=True)
         return hashlib.sha256(payload.encode()).hexdigest()
+
+    def matches_request(self, request: ActionRequest) -> bool:
+        return self.get_hash() == request.to_confirmation_hash()
 
 
 class ConfirmationManager:

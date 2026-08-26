@@ -1,7 +1,20 @@
 from __future__ import annotations
 
 from enum import Enum
-from .task import Task
+from dataclasses import dataclass
+from .task import Task, Step
+
+class FailureCategory(Enum):
+    TRANSIENT = 'transient'
+    STALE_TARGET = 'stale_target'
+    MISSING_APPLICATION = 'missing_app'
+    PERMISSION_DENIED = 'permission'
+    INVALID_ARGUMENT = 'invalid_arg'
+    UI_CHANGED = 'ui_changed'
+    NETWORK_UNAVAILABLE = 'network'
+    MODEL_UNAVAILABLE = 'model'
+    AMBIGUOUS_STATE = 'ambiguous'
+    UNKNOWN = 'unknown'
 
 class RecoveryStrategy(str, Enum):
     RETRY = "RETRY"
@@ -10,26 +23,38 @@ class RecoveryStrategy(str, Enum):
     DIAGNOSE = "DIAGNOSE"
     STOP_SAFELY = "STOP_SAFELY"
 
+@dataclass
+class RecoveryAction:
+    strategy: RecoveryStrategy
+    reasoning: str
+    category: FailureCategory
+
 class RecoveryManager:
     """Classifies failures and attempts recovery."""
     
-    def classify_failure(self, error: str, context: dict) -> RecoveryStrategy:
+    def __init__(self, max_attempts: int = 3):
+        self.max_attempts = max_attempts
+        
+    def classify(self, error: str, context: dict) -> FailureCategory:
         error_lower = error.lower() if error else ""
         if "permission" in error_lower or "access denied" in error_lower:
-            return RecoveryStrategy.ASK_USER
+            return FailureCategory.PERMISSION_DENIED
         if "timeout" in error_lower or "connection" in error_lower:
-            return RecoveryStrategy.RETRY
+            return FailureCategory.NETWORK_UNAVAILABLE
         if "invalid" in error_lower or "value" in error_lower:
-            return RecoveryStrategy.REPAIR_INPUT
+            return FailureCategory.INVALID_ARGUMENT
         if "not found" in error_lower:
-            return RecoveryStrategy.DIAGNOSE
-        return RecoveryStrategy.STOP_SAFELY
+            return FailureCategory.STALE_TARGET
+        if "transient" in error_lower:
+            return FailureCategory.TRANSIENT
+        return FailureCategory.UNKNOWN
 
-    def attempt_recovery(self, task: Task, strategy: RecoveryStrategy) -> bool:
-        task.observations.append(f"Attempting recovery strategy: {strategy.value}")
-        # Stub for actual recovery logic
-        if strategy == RecoveryStrategy.RETRY:
-            return True # Will retry
-        elif strategy == RecoveryStrategy.STOP_SAFELY:
-            return False
-        return False
+    def recover(self, task: Task, step: Step, category: FailureCategory) -> RecoveryAction:
+        if category == FailureCategory.TRANSIENT:
+            return RecoveryAction(RecoveryStrategy.RETRY, "Transient failure detected, retrying.", category)
+        elif category == FailureCategory.PERMISSION_DENIED:
+            return RecoveryAction(RecoveryStrategy.ASK_USER, "Requires user permission.", category)
+        elif category == FailureCategory.INVALID_ARGUMENT:
+            return RecoveryAction(RecoveryStrategy.REPAIR_INPUT, "Input needs to be repaired.", category)
+        else:
+            return RecoveryAction(RecoveryStrategy.STOP_SAFELY, "Unknown or unrecoverable error.", category)

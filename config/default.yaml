@@ -49,6 +49,11 @@ learning:
   auto_create_skills: true
   auto_promote_skills: false
   require_validation: true
+  minimum_successes: 3
+  minimum_success_rate: 0.85
+  minimum_verification_pass_rate: 0.95
+  max_recent_failures: 1
+  require_sandbox_pass: true
 
 browser:
   enabled: true
@@ -66,3 +71,23 @@ paths:
   secrets_dir: "./secrets"
   workspace_dir: "./workspace"
   models_dir: "./models"
+
+jobs:
+  enabled: true
+  jobs_dir: "./data/jobs"
+  max_concurrent: 2
+
+hardware:
+  profile: "auto"
+
+terminal:
+  sandbox_enabled: true
+  host_enabled: false
+  sandbox_dir: "./workspace/sandbox"
+  host_allowlist:
+    - "git status"
+    - "git log"
+    - "git diff"
+    - "pip list"
+    - "python --version"
+    - "ollama list"

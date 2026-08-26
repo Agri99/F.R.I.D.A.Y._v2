@@ -40,6 +40,10 @@ class SemanticMemory:
                 (row_id, subject, predicate, value)
             )
 
+    def store_project_knowledge(self, project: str, knowledge: str, source: str) -> None:
+        """Store project specific knowledge."""
+        self.store_fact(subject=f"project:{project}", predicate="has_knowledge", value=knowledge, source=source)
+
     def recall(self, query: str, limit: int = 5) -> list[Fact]:
         with self.db.connection() as conn:
             rows = conn.execute(
@@ -63,6 +67,35 @@ class SemanticMemory:
             )
             for r in rows
         ]
+
+    def search_by_relevance(self, query: str, limit: int = 5) -> list[dict]:
+        """Search facts with confidence weighting."""
+        facts = self.recall(query, limit=limit * 2) # Fetch more to sort
+        facts.sort(key=lambda f: f.confidence, reverse=True)
+        return [
+            {
+                "subject": f.subject,
+                "predicate": f.predicate,
+                "value": f.value,
+                "confidence": f.confidence,
+                "source": f.source
+            }
+            for f in facts[:limit]
+        ]
+
+    def export(self, format: str = "json") -> str:
+        """Human-readable export format."""
+        import json
+        with self.db.connection() as conn:
+            rows = conn.execute("SELECT * FROM facts").fetchall()
+        
+        data = [dict(r) for r in rows]
+        if format == "json":
+            return json.dumps(data, indent=2)
+        elif format == "yaml":
+            import yaml
+            return yaml.dump(data)
+        return str(data)
 
     def _is_secret(self, text: str) -> bool:
         """Heuristic to avoid storing passwords, API keys, etc."""

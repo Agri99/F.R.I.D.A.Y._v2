@@ -3,38 +3,48 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import Any
+from friday.security.action_request import ActionRequest
 
 @dataclass
 class ExecutionResult:
-    success: bool
     result: Any
+    observation: str
+    verification_passed: bool
     error: str | None = None
-    error_type: str | None = None
-    duration_ms: float = 0.0
 
 class Executor:
     """Isolated execution environment that runs tools and captures errors."""
     
-    def execute(self, tool, args: dict[str, Any], timeout: float = 30.0) -> ExecutionResult:
+    def execute(self, tool, step: Any, max_time_budget: float = 120.0) -> ExecutionResult:
         """Runs the tool safely, catching and classifying exceptions."""
         start_time = time.time()
-        try:
-            # We assume tool has a run method or is callable
-            if hasattr(tool, "run"):
-                res = tool.run(**args)
-            else:
-                res = tool(**args)
-            duration = (time.time() - start_time) * 1000
-            return ExecutionResult(success=True, result=res, duration_ms=duration)
-        except PermissionError as e:
-            duration = (time.time() - start_time) * 1000
-            return ExecutionResult(success=False, result=None, error=str(e), error_type="permission", duration_ms=duration)
-        except ValueError as e:
-            duration = (time.time() - start_time) * 1000
-            return ExecutionResult(success=False, result=None, error=str(e), error_type="invalid_input", duration_ms=duration)
-        except TimeoutError as e:
-            duration = (time.time() - start_time) * 1000
-            return ExecutionResult(success=False, result=None, error=str(e), error_type="transient", duration_ms=duration)
-        except Exception as e:
-            duration = (time.time() - start_time) * 1000
-            return ExecutionResult(success=False, result=None, error=str(e), error_type="unknown", duration_ms=duration)
+        
+        # Enforce step retry limits
+        retry_limit = 1
+        if step.retry_policy == "aggressive":
+            retry_limit = 3
+        elif step.retry_policy == "none":
+            retry_limit = 1
+            
+        last_error = None
+        for attempt in range(retry_limit):
+            if time.time() - start_time > max_time_budget:
+                return ExecutionResult(result=None, observation="Execution timed out.", verification_passed=False, error="timeout")
+            
+            try:
+                # Construct ActionRequest
+                req = ActionRequest(action=step.action, arguments=step.arguments)
+                
+                # Execute tool
+                if hasattr(tool, "run"):
+                    res = tool.run(**req.arguments)
+                else:
+                    res = tool(**req.arguments)
+                
+                obs = str(res)
+                return ExecutionResult(result=res, observation=obs, verification_passed=True)
+            except Exception as e:
+                last_error = str(e)
+                time.sleep(1) # Simple backoff
+                
+        return ExecutionResult(result=None, observation=f"Failed after {retry_limit} attempts: {last_error}", verification_passed=False, error=last_error)

@@ -4,21 +4,62 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "friday"
-version = "2.0.0"
-description = "F.R.I.D.A.Y. v2 — Local-First Personal Computer Agent"
+version = "2.1.0"
+description = "F.R.I.D.A.Y. v2 — Local-First Personal Computer AI"
 requires-python = ">=3.11"
 dependencies = [
+    # ── Core ──
     "pydantic>=2.6",
     "pyyaml>=6.0",
     "requests>=2.31",
     "psutil>=5.9",
-    "pillow>=10.0"
+    "pillow>=10.0",
+    # ── Model client ──
+    "ollama>=0.4.0",
+    # ── Audio/Voice ──
+    "sounddevice>=0.5",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    # ── Windows ──
+    "pywin32>=306",
+    "pywinauto>=0.6.8",
+    "pycaw>=20240210",
+    "comtypes>=1.4",
+    # ── UI / Orb ──
+    "PySide6>=6.7",
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.0",
+    "openwakeword>=0.6",
+    "piper-tts>=1.2",
+    "onnxruntime>=1.18",
+    "speechbrain>=1.0",
+    "torch>=2.3",
+    "torchaudio>=2.3",
+]
+browser = [
+    "playwright>=1.44",
+]
+google = [
+    "google-auth>=2.29",
+    "google-auth-oauthlib>=1.2",
+    "google-api-python-client>=2.130",
+]
+vision = [
+    "pytesseract>=0.3",
+]
 dev = [
     "pytest>=8.0",
-    "pytest-cov"
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+all = [
+    "friday[voice,browser,google,vision,dev]",
 ]
 
 [project.scripts]
@@ -30,3 +71,12 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true

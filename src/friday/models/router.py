@@ -27,6 +27,7 @@ PROVIDER_CLASSES: dict[str, Type[ModelProvider]] = {
     "cloud": CloudProvider,
 }
 
+ROLES = ['fast', 'reasoning', 'vision', 'embedding', 'stt', 'tts', 'reranker']
 
 class ModelRouter:
     def __init__(self, settings: Settings):
@@ -37,6 +38,7 @@ class ModelRouter:
             "reasoning": "fast",
             "vision": "reasoning"
         }
+
 
     def _instantiate_provider(self, role_config: ModelRoleConfig) -> ModelProvider:
         provider_cls = PROVIDER_CLASSES.get(role_config.provider)
@@ -101,3 +103,13 @@ class ModelRouter:
         # If all health checks fail or fallbacks exhaust, return the preferred role's provider
         # and let the caller deal with the Exception when they try to use it.
         return self.get(preferred_role)
+
+    def select_profile(self, hardware: 'HardwareProfile') -> str:
+        """Select a configuration profile based on detected hardware."""
+        # Simple heuristic based on capability tier or other properties
+        if getattr(hardware, "capability_tier", "LOW") == "LOW":
+            return "laptop.yaml"
+        elif getattr(hardware, "capability_tier", "BALANCED") == "BALANCED":
+            return "balanced.yaml"
+        else:
+            return "workstation.yaml"

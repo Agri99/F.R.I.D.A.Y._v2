@@ -6,35 +6,45 @@ from .executor import ExecutionResult
 
 @dataclass
 class EvaluationResult:
-    success: bool
-    needs_retry: bool = False
-    needs_recovery: bool = False
-    should_fail: bool = False
-    message: str = ""
+    passed: bool
+    confidence: float
+    reason: str
+    observation_summary: str
+    needs_replan: bool
 
 class Evaluator:
     """Verifies that an execution actually achieved its expected outcome."""
     
     def evaluate(self, task: Task, step: Step, result: ExecutionResult, tool=None) -> EvaluationResult:
-        if not result.success:
-            return EvaluationResult(success=False, needs_recovery=True, message=f"Execution failed: {result.error}")
+        step.observation = result.observation
+        
+        if not result.verification_passed or result.error:
+            step.verified = False
+            return EvaluationResult(
+                passed=False, 
+                confidence=1.0, 
+                reason=f"Execution failed: {result.error}",
+                observation_summary=result.observation,
+                needs_replan=True
+            )
             
-        if tool and getattr(tool, "verify", None) is not None:
-            try:
-                verification = tool.verify(step.args, result.result)
-
-                if not verification.passed:
-                    return EvaluationResult(
-                        success=False, 
-                        needs_retry=True, 
-                        message=f"Verification failed: {verification.message}"
-                    )
-            except Exception as e:
-                return EvaluationResult(
-                    success=False, 
-                    should_fail=True, 
-                    message=f"Verifier raised exception: {e}"
-                )
-                
-        # If no explicit verifier or it passed
-        return EvaluationResult(success=True, message="Success")
+        # Compare expected observation with actual observation
+        if step.expected_observation and step.expected_observation not in result.observation:
+            # Simplistic check for demo; in real system would use a model
+            step.verified = False
+            return EvaluationResult(
+                passed=False,
+                confidence=0.5,
+                reason="Actual observation does not match expected.",
+                observation_summary=result.observation,
+                needs_replan=True
+            )
+            
+        step.verified = True
+        return EvaluationResult(
+            passed=True, 
+            confidence=1.0, 
+            reason="Success",
+            observation_summary=result.observation,
+            needs_replan=False
+        )

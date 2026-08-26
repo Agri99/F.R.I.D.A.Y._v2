@@ -4,9 +4,13 @@ Full authorization chain coordinating policy, capabilities, and confirmation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from friday.security.policy import PolicyDecision, PolicyResult
 from friday.security.capabilities import CapabilityRegistry
+
+if TYPE_CHECKING:
+    from friday.security.action_request import ActionRequest
 
 
 @dataclass
@@ -16,6 +20,18 @@ class AuthorizationDecision:
     requires_confirmation: bool = False
     requires_voice: bool = False
     requires_passphrase: bool = False
+    action_request: ActionRequest | None = None
+
+
+def authorize_request(request: ActionRequest, policy_result: PolicyResult, capability_registry: CapabilityRegistry) -> AuthorizationDecision:
+    decision = authorize(
+        tool_name=request.tool,
+        tool_args=request.arguments,
+        policy_result=policy_result,
+        capability_registry=capability_registry
+    )
+    decision.action_request = request
+    return decision
 
 
 def authorize(tool_name: str, tool_args: dict, policy_result: PolicyResult, capability_registry: CapabilityRegistry) -> AuthorizationDecision:

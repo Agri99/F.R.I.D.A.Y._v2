@@ -21,6 +21,8 @@ class FastPathResult:
     tool_name: str
     arguments: dict[str, Any]
     success_reply: str
+    risk_tier: str = 'GREEN'
+    capability: str = 'SYSTEM'
 
 
 class FastPathRouter:
