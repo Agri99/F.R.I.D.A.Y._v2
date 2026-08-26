@@ -1,0 +1,10 @@
+app:
+  autonomy_level: 2
+
+security:
+  default_risk_tier: "RED"
+  require_voice_auth_for_orange: true
+  require_passphrase_for_red: true
+
+learning:
+  auto_promote_skills: false

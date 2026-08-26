@@ -1,145 +1,62 @@
-# Project-local files
-venv/
-__pycache__/
-*.pyc
-.env
-.pytest_cache/
-*.wav
-*.json
+# F.R.I.D.A.Y. v2 — Git Ignore
 
-# Byte-compiled / optimized / DLL files
+# ── Python ──────────────────────────────────────────────────────
 __pycache__/
-*.py[codz]
+*.py[cod]
 *$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-MANIFEST
+dist/
+build/
+*.whl
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache/
-nosetests.xml
-coverage.xml
-*.cover
-*.py.cover
-.hypothesis/
-cover/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff
-instance/
-.webassets-cache
-
-# Scrapy
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# IPython
-profile_default/
-ipython_config.py
-
-# Environments
-.envrc
+# ── Virtual environments ────────────────────────────────────────
 .venv/
-env/
+venv/
 ENV/
-env.bak/
-venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# ── IDE ─────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Rope project settings
-.ropeproject
+# ── Secrets & credentials (NEVER commit) ────────────────────────
+.env
+secrets/
+*.pem
+*.key
+token.json
 
-# mkdocs
-/site
+# ── Audio recordings (transient) ────────────────────────────────
+audio.wav
+*.wav
+!models/**/*.wav
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# ── Runtime data ────────────────────────────────────────────────
+data/
+workspace/
+audit_log.jsonl
+conversation_history.json
 
-# Pyre
-.pyre/
+# ── Legacy files (will be removed) ──────────────────────────────
+_stale_delete_me/
 
-# pytype
-.pytype/
+# ── OS artifacts ────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
 
-# Cython debug symbols
-cython_debug/
+# ── Pytest ──────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
 
-# PyCharm
-# .idea/
+# ── Model weights (too large for git) ───────────────────────────
+models/*.onnx
+models/*.ckpt
+models/spkrec-ecapa-voxceleb/
 
-# Abstra
-.abstra/
-
-# Visual Studio Code
-# .vscode/
-tempCodeRunnerFile.py
-
-# Ruff
-.ruff_cache/
-
-# PyPI configuration
-.pypirc
-
-# Marimo
-marimo/_static/
-marimo/_lsp/
-__marimo__/
-
-# Streamlit
-.streamlit/secrets.toml
+# ── Developing related files ────────────────────────────────────
+FRIDAY_v2_System_Architecture_Blueprint.md
+Update_Log.txt

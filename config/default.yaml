@@ -1,20 +1,17 @@
-# FRIDAY v2 — default configuration
-# This file is DATA, not code. The orchestrator never hardcodes a model
-# name or a risk threshold — it reads them from here (Principle E).
-
 app:
   name: "FRIDAY"
-  offline_first: true          # core loop must work with network=off
+  offline_first: true
+  autonomy_level: 2  # ASSISTED
 
 network:
-  # Set at runtime by a connectivity check; this is just the fallback
-  # assumption if the check hasn't run yet.
   assume_online: false
+  probe_interval_seconds: 30
+  probe_urls: ["https://www.google.com"]
 
 models:
-  # Each entry maps a ROLE (what the orchestrator asks for) to a
-  # PROVIDER + MODEL NAME (what actually answers). Business logic
-  # imports the role, never the model name.
+  fast:
+    provider: "ollama"
+    model: "qwen3:4b"
   reasoning:
     provider: "ollama"
     model: "qwen3:8b"
@@ -22,15 +19,50 @@ models:
     provider: "ollama"
     model: "qwen3-vl:8b"
 
+runtime:
+  max_task_steps: 20
+  max_retries_per_step: 2
+  tool_timeout_seconds: 30
+  max_recording_seconds: 18
+  context_window_messages: 40
+  keep_recent_messages: 30
+
+voice:
+  wake_word: "FRIDAY"
+  stt_model: "small"
+  tts_voice: "en_GB-jenny_dioco-medium"
+  barge_in: true
+  followup_window_seconds: 5.0
+
 security:
-  # Risk tiers straight from your v1 design. Anything not explicitly
-  # tagged defaults to the highest tier (fail closed, Principle G).
   default_risk_tier: "RED"
   auto_approve_tiers: ["GREEN"]
   confirm_required_tiers: ["YELLOW", "ORANGE"]
   hard_block_without_second_factor: ["RED"]
+  default_filesystem_root: "./workspace"
+  require_voice_auth_for_orange: true
+  require_passphrase_for_red: true
+  confirmation_ttl_seconds: 60
+
+learning:
+  enabled: true
+  auto_create_skills: true
+  auto_promote_skills: false
+  require_validation: true
+
+browser:
+  enabled: true
+  engine: "playwright"
+
+google:
+  gmail_enabled: true
+  calendar_enabled: true
 
 paths:
   data_dir: "./data"
-  audit_log: "./data/audit.log"
-  skills_dir: "./data/skills"
+  audit_dir: "./data/audit"
+  trajectories_dir: "./data/trajectories"
+  skills_dir: "./skills"
+  secrets_dir: "./secrets"
+  workspace_dir: "./workspace"
+  models_dir: "./models"
