@@ -271,8 +271,9 @@ class AgentOrchestrator:
                 self.trajectory_recorder.finish("FAILURE")
                 return task
 
-            req = ActionRequest(action=step.action, arguments=step.arguments)
+            req = ActionRequest.from_tool(tool, step.arguments, task_id=task.id, step_id=str(task.current_step_index))
             exec_result = self.executor.execute(tool, step, max_time_budget=task.max_time_seconds)
+
             
             task.observations.append(exec_result.observation)
             

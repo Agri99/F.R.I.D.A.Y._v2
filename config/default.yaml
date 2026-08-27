@@ -11,13 +11,14 @@ network:
 models:
   fast:
     provider: "ollama"
-    model: "qwen3:4b"
+    model: "qwen3:8b"
   reasoning:
     provider: "ollama"
     model: "qwen3:8b"
   vision:
     provider: "ollama"
-    model: "qwen3-vl:8b"
+    model: "llava:latest"
+
 
 runtime:
   max_task_steps: 20

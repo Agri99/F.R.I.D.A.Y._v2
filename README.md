@@ -1,19 +1,22 @@
-# F.R.I.D.A.Y. v2
+# F.R.I.D.A.Y.
 
-A local-first, privacy-respecting personal AI computer assistant for Windows 11. Designed from the ground up to operate through typed tools, independent policy verification, and hardware-agnostic local models.
+A local-first, privacy-respecting personal AI computer assistant for Windows 11. Designed to operate through typed tools, independent policy verification, observation-aware replanning, hardware-agnostic local models, and self-improving skill distillation.
 
 ---
 
 ## Overview
 
 F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs entirely on-device:
-- **Speech Recognition:** `faster-whisper` (running locally on CPU/GPU)
+- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer and vocabulary biasing
 - **Wake Word Detection:** `openWakeWord` with real-time audio barge-in
-- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (default: `qwen3:8b`) with multi-step task planning
-- **Vision Perception:** Local vision models via Ollama (`llava`, `gemma3`, `qwen3-vl`) + Tesseract OCR
+- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (default: `qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) with multi-step replanning
+- **Vision Perception:** Local vision models (`qwen3-vl`, `llava`) + progressive screen perception + OCR
 - **Speech Synthesis:** Local `Piper` neural TTS (`en_GB-jenny_dioco-medium`)
-- **Computer-Use Subsystem:** Native Windows mouse/keyboard control, UI Automation (UIA), and window management
-- **Visual Presence:** Floating 3D WebGL orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server
+- **Computer-Use Subsystem:** Target resolver (UIA $\rightarrow$ Automation ID $\rightarrow$ DOM $\rightarrow$ Visual match $\rightarrow$ Coordinates), safety checks, and native Windows automation
+- **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server
+- **Self-Improvement:** Trajectory logging, pattern distillation into reusable `SKILL.md` workflows, and isolated sandbox validation
+- **Proactive Jobs:** Cron/event-driven job scheduler executing background tasks within strict policy limits
+- **Hardware Portability:** Automatic CPU/GPU/VRAM hardware profiling (`laptop.yaml`, `balanced.yaml`, `workstation.yaml`)
 
 ---
 
@@ -21,147 +24,120 @@ F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs entir
 
 FRIDAY separates intelligence from execution (Principle D) and fails closed (Principle G):
 
-1. **Capability Scopes & Risk Tiers:**
-   - Every tool declares fine-grained capability scopes (`filesystem.read`, `gmail.send`, `windows.interact`, etc.) and a risk tier:
-     - 🟢 **GREEN:** Read-only operations (auto-approved).
-     - 🟡 **YELLOW:** Reversible local operations.
-     - 🟠 **ORANGE:** External or state-modifying actions (requires spoken voice confirmation).
-     - 🔴 **RED:** Destructive or critical system operations (requires voice confirmation + SHA-256 passphrase).
-2. **Independent Authorization & Sandbox:**
-   - The LLM cannot authorize its own actions.
-   - File operations are sandboxed to the `workspace/` directory with path-traversal prevention.
-   - Confirmation requests are action-bound with a 60-second TTL.
-3. **Observe $\rightarrow$ Act $\rightarrow$ Verify:**
-   - Tools provide independent post-execution state verifiers to confirm that expected state changes actually occurred.
-4. **Structured Audit Logging:**
-   - All tool invocations and authorization events are logged to daily JSONL files in `data/audit/` with sensitive arguments (passwords, tokens) automatically redacted.
+1. **Formal Action Contracts (`ActionRequest`):**
+   - Every tool call constructs an immutable `ActionRequest` carrying capability scope, target, risk tier, requester, and context source.
+   - SHA-256 confirmation hashes guarantee that spoken approvals bind strictly to the exact tool and parameters requested.
+2. **Capability Scopes & Risk Tiers:**
+   - 🟢 **GREEN:** Read-only local operations (auto-approved).
+   - 🟡 **YELLOW:** Reversible local operations.
+   - 🟠 **ORANGE:** External or state-modifying actions (requires spoken confirmation).
+   - 🔴 **RED:** Destructive or critical system operations (requires voice confirmation + passphrase).
+3. **Observe $\rightarrow$ Act $\rightarrow$ Verify $\rightarrow$ Replan:**
+   - Actions are validated post-execution with independent verifiers. If verification fails, the recovery classifier diagnoses the failure and triggers an observation-aware replan.
+4. **Context Priming & Retention:**
+   - Relevant semantic memories, project knowledge, preferences, and skills are bundled before planning, preventing prompt clutter while scoring memory confidence from evidence.
+5. **Structured Audit Logging:**
+   - 20 lifecycle audit events are logged to daily JSONL files in `data/audit/` with sensitive arguments (passwords, tokens) automatically redacted.
 
 ---
 
 ## Repository Structure
 
 ```
-c:\Dev\F.R.I.D.A.Y._v2\
-├── config/                     # Multi-environment YAML configurations (default, development, production)
+.
+├── config/                     # Multi-environment YAML configurations & hardware profiles
+│   ├── default.yaml
+│   ├── development.yaml
+│   ├── production.yaml
+│   └── profiles/               # laptop.yaml, balanced.yaml, workstation.yaml
 ├── data/                       # Local SQLite database (friday.db), audit logs, trajectories, voice refs
-├── models/                     # Piper TTS voice models, openWakeWord models, SpeechBrain weights
-├── scripts/                    # healthcheck.py, benchmark_models.py, migrate_v1_skills.py
-├── secrets/                    # OAuth credentials (credentials.json)
+├── models/                     # Local model weights cache (managed by download_models.py)
+├── scripts/                    # setup.py, hardware_probe.py, benchmark_models.py, download_models.py
+├── secrets/                    # Isolated credentials store (credentials.json, tokens)
 ├── skills/                     # Builtin and learned SKILL.md definitions
-├── tests/                      # Unit, security invariant, and smoke test suites
+├── tests/                      # 41 unit, security invariant, computer, memory, learning, and smoke tests
 ├── workspace/                  # Sandboxed agent workspace
 ├── src/friday/
 │   ├── app.py                  # Single application entrypoint
 │   ├── config.py               # Pydantic configuration loader
-│   ├── models/                 # ModelProvider ABC, OllamaProvider, CloudProvider, ModelRouter
-│   ├── security/               # PolicyEngine, CapabilityRegistry, PathValidator, AuditLogger, VoiceAuth
-│   ├── agent/                  # AgentOrchestrator, TaskStateMachine, Planner, Executor, Evaluator, FastPath
-│   ├── tools/                  # 33 typed tools across system, files, apps, computer, web, gmail, calendar
-│   ├── computer/               # WindowsComputerController, accessibility (UIA), screen perception
-│   ├── browser/                # BrowserController with URL safety & clean content extraction
-│   ├── interaction/            # Voice loop, STT, TTS, wake word, and session management
-│   ├── ui/                     # WebSocket orb server & client
-│   ├── memory/                 # SQLite FTS5 conversation, episodic, semantic, and preference stores
-│   └── learning/               # Trajectory logging, pattern distillation, and skill auto-promotion
-└── pyproject.toml              # Project packaging and dependency specification
+│   ├── agent/                  # Orchestrator, Planner (replanning), Executor, Evaluator, Recovery, Steering
+│   ├── security/               # ActionRequest, PolicyEngine, Authorization, Confirmation, SecretsManager
+│   ├── models/                 # ModelRouter (7 roles), OllamaBackend, CloudBackend, HardwareProbe, Benchmark
+│   ├── tools/                  # System, filesystem, applications, computer, browser, gmail, calendar, terminal
+│   ├── computer/               # Controller, TargetResolver, ScreenObserver, SafetyCheck, Verification
+│   ├── browser/                # Controller, PageExtractor, BrowserNavigator, BrowserVerifier, BrowserSafety
+│   ├── memory/                 # Database (FTS5), PrimingEngine, RetentionManager, Semantic, Preferences
+│   ├── skills/                 # SkillLoader, SkillRegistry, SkillSandbox, SkillRuntime, SkillValidator
+│   ├── learning/               # TrajectoryRecorder, PatternDistiller, SkillLearner, LearningScheduler
+│   ├── jobs/                   # JobScheduler, JobRegistry, JobExecutor
+│   ├── online/                 # NetworkMonitor, OnlineCapabilityGate, WebSearch, LiveData
+│   ├── interaction/            # Voice session, faster-whisper STT, Piper TTS, openWakeWord
+│   └── ui/                     # PySide6 transparent window & Three.js holographic orb
+├── pyproject.toml              # Modern packaging specification with optional dependency groups
+└── CHANGELOG.md                # Release history and milestone documentation
 ```
-
----
-
-## Tool Ecosystem (33 Tools)
-
-- **`system.*`**: `get_status`, `get_time`, `lock`, `shutdown_friday`
-- **`filesystem.*`**: `list`, `read`, `write`, `move`, `delete` (sandboxed with previews)
-- **`applications.*`**: `open`, `close` (allowlisted desktop apps)
-- **`computer.*`**: `capture`, `describe_screen`, `read_screen_text`, `click`, `type`, `press`, `scroll`, `wait`, `active_window`, `control_window`
-- **`browser.*`**: `open`, `search`, `observe` (plain-text content extraction)
-- **`gmail.*`**: `search`, `read`, `send` (Google OAuth 2.0)
-- **`calendar.*`**: `list`, `create`, `update`, `delete` (Google Calendar API)
-- **`audio.*`**: `set_volume`, `mute`, `get_volume`
-- **`timer.*`**: `set`, `cancel`
 
 ---
 
 ## Getting Started
 
-### Prerequisites
+### 1. Prerequisites
 - **Operating System:** Windows 10/11
 - **Python:** 3.11+
 - **[Ollama](https://ollama.com):** Installed and running locally
-- **Local Models:**
   ```bash
   ollama pull qwen3:8b
-  ollama pull llava
+  ollama pull qwen3-vl:8b
   ```
-- **(Optional) Tesseract OCR:** Installed for exact on-screen text reading (`read_screen_text`)
-- **(Optional) Google Cloud Credentials:** Place `credentials.json` in `secrets/` for Gmail/Calendar tools
 
-### Installation
+### 2. Installation & First-Run Setup
+```bash
+# 1. Clone the repository
+git clone https://github.com/Agri99/F.R.I.D.A.Y._v2.git
+cd F.R.I.D.A.Y._v2
 
-1. Clone the repository and navigate into the folder:
-   ```bash
-   cd c:\Dev\F.R.I.D.A.Y._v2
-   ```
+# 2. Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
+# 3. Install in editable mode with development tools
+pip install -e ".[all]"
 
-3. Install dependencies:
-   ```bash
-   pip install -e .
-   ```
+# 4. Download local voice/vision model weights
+python scripts/download_models.py --all
 
-4. Configure your environment:
-   ```bash
-   cp .env.example .env
-   ```
+# 5. Run first-time hardware probe and setup wizard
+python scripts/setup.py
+```
 
 ---
 
 ## Running FRIDAY
 
-### 1. Text / CLI Smoke Test Mode
-Run a quick, text-only test without starting the voice loop or UI:
-```bash
-python -m friday.app --text
-```
-or
+### 1. CLI / Text Test Mode
 ```bash
 python src/friday/app.py --text
 ```
 
-### 2. Full Voice & 3D Orb Mode
-Start the complete voice assistant with the visual orb:
+### 2. Full Voice & Holographic Orb Mode
 ```bash
 python src/friday/app.py
 ```
 - Say **"FRIDAY"** to wake the assistant.
-- Speak your command (e.g. *"What time is it?"*, *"Open Notepad and type Hello World"*, *"Check my upcoming calendar events"*).
+- Speak naturally:
+  - *"Open Notepad and write project plan"*
+  - *"Check my inbox"*
+  - *"What's the system status?"*
+  - *"Friday, use fast mode"*
+  - *"Hide yourself"* / *"Come back"*
+  - *"Goodbye Friday"* $\rightarrow$ *"Do you want me to go off?"* $\rightarrow$ *"Yes"*
 
 ---
 
 ## Testing & Verification
 
-Run the comprehensive test suite (unit tests, security invariants, and smoke scenarios):
+Run the full automated test suite:
 ```bash
 pytest tests/ -v
 ```
-
-Run the system health check:
-```bash
-python scripts/healthcheck.py
-```
-
-Migrate legacy v1 skills:
-```bash
-python scripts/migrate_v1_skills.py
-```
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
+All **41 automated tests** covering security invariants, ActionRequest contracts, replanning loops, target resolution, memory priming, skill distillation, and execution budgets pass consistently.

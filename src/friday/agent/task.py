@@ -1,3 +1,10 @@
+"""
+src/friday/agent/task.py
+
+WHAT THIS IS FOR:
+Task abstraction and Step representation with execution budget tracking and observation-aware metadata (blueprint §9.1, §11).
+"""
+
 from __future__ import annotations
 
 import uuid
@@ -24,7 +31,8 @@ class TaskStatus(str, Enum):
 class Step:
     """A discrete unit of work within a larger task plan."""
     action: str
-    arguments: dict[str, Any]
+    arguments: dict[str, Any] = field(default_factory=dict)
+    args: dict[str, Any] | None = None
     authorized: bool = False
     intent: str = ''
     expected_observation: str = ''
@@ -34,6 +42,10 @@ class Step:
     retry_policy: str = 'default'
     observation: str = ''
     verified: bool | None = None
+
+    def __post_init__(self):
+        if self.args is not None and not self.arguments:
+            self.arguments = self.args
 
 
 @dataclass
