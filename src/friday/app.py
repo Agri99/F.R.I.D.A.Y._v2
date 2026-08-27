@@ -124,13 +124,20 @@ def build_orchestrator(config_path: str | None = None) -> AgentOrchestrator:
 
 def _reply_text(task) -> str:
     """Extract a speakable reply from the task's current state."""
+    raw = ""
     if task.last_message:
-        return task.last_message
-    if task.history:
+        raw = task.last_message
+    elif task.history:
         _, reason = task.history[-1]
         if reason:
-            return reason
-    return f"Task ended in state {task.status.value}."
+            raw = reason
+    else:
+        raw = f"Task ended in state {task.status.value}."
+    
+    # Strip emojis/non-ascii to ensure clean Piper TTS speech and Windows console safety
+    clean = raw.encode('ascii', 'ignore').decode('ascii').strip()
+    return clean if clean else raw
+
 
 def get_time_greeting() -> str:
     from datetime import datetime
@@ -181,20 +188,22 @@ def run_voice() -> None:
         time_period = get_time_greeting()
         try:
             boot_prompt = (
-                f"System online. Time of day: {time_period}. Generate a short, one-sentence welcoming greeting "
-                "acknowledging you are online and ready to assist your Owner. Be concise, witty, plain text only without emojis."
+                f"You are FRIDAY, an intelligent AI assistant. You are booting up and speaking directly to your Boss at {time_period.lower()}. "
+                "Say a single, short, crisp, natural greeting speaking directly to them (e.g. 'Good morning, Boss. All systems online and ready.', 'Online and at your service, Boss.'). "
+                "Always speak directly in the second person ('you'). Never refer to the listener in the third person (never say 'your owner'). Plain text only."
             )
             from friday.models.base import ModelMessage
             boot_response = model.generate([ModelMessage(role="user", content=boot_prompt)])
             raw_text = boot_response.text.strip().replace('"', '')
             boot_msg = raw_text.encode('ascii', 'ignore').decode('ascii').strip()
-            if not boot_msg:
-                boot_msg = f"Good {time_period.lower()}, Boss. Systems online and ready."
+            if not boot_msg or "your owner" in boot_msg.lower():
+                boot_msg = f"Good {time_period.lower()}, Boss. All systems are online and ready."
             print(f"FRIDAY [Boot]: {boot_msg}")
             set_state("speaking")
             synthesizer.speak_interruptible(boot_msg, wakeword)
         except Exception as e:
             print(f"FRIDAY [Boot]: Online and ready. (Greeting failed: {e})")
+
 
 
 

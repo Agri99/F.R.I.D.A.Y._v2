@@ -201,7 +201,9 @@ class AgentOrchestrator:
             available_tools=schemas,
             memories=[],
             model_router=self.models,
+            system_prompt=self.system_prompt,
         )
+
 
         return self._execute_plan(task)
 

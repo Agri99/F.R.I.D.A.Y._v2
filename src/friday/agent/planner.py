@@ -34,7 +34,8 @@ class Planner:
         available_tools: list[dict],
         memories: list[dict] | None = None,
         model_router: Any = None,
-        observations: list[dict] | None = None
+        observations: list[dict] | None = None,
+        system_prompt: str | None = None,
     ) -> list[Step]:
         """Creates a step plan by querying the reasoning model with tool schemas."""
         if not model_router:
@@ -48,13 +49,24 @@ class Planner:
         if not provider or not hasattr(provider, "generate"):
             return []
             
-        sys_prompt = (
-            "You are FRIDAY's planning engine. Given a user goal and available tools, "
-            "call the appropriate tool(s) to fulfill the request. If no tool is needed, "
-            "provide a direct answer.\n"
-            "For each tool, you must populate the arguments along with intent, expected_observation, "
-            "verification_strategy, risk_scope, reversible, retry_policy, etc."
-        )
+        if system_prompt:
+            sys_prompt = (
+                f"{system_prompt}\n\n"
+                "You are FRIDAY's planning engine. Given a user goal and available tools, "
+                "call the appropriate tool(s) to fulfill the request. If no tool is needed, "
+                "provide a direct answer in character adhering strictly to your persona rules.\n"
+                "For each tool, you must populate the arguments along with intent, expected_observation, "
+                "verification_strategy, risk_scope, reversible, retry_policy, etc."
+            )
+        else:
+            sys_prompt = (
+                "You are FRIDAY's planning engine. Given a user goal and available tools, "
+                "call the appropriate tool(s) to fulfill the request. If no tool is needed, "
+                "provide a direct answer.\n"
+                "For each tool, you must populate the arguments along with intent, expected_observation, "
+                "verification_strategy, risk_scope, reversible, retry_policy, etc."
+            )
+
         
         messages = [
             ModelMessage(role="system", content=sys_prompt),

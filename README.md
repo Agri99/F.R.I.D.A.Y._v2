@@ -7,10 +7,10 @@ A local-first, privacy-respecting personal AI computer assistant for Windows 11.
 ## Overview
 
 F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs entirely on-device:
-- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer and vocabulary biasing
+- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer and domain vocabulary biasing
 - **Wake Word Detection:** `openWakeWord` with real-time audio barge-in
-- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (default: `qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) with multi-step replanning
-- **Vision Perception:** Local vision models (`qwen3-vl`, `llava`) + progressive screen perception + OCR
+- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) with multi-step replanning
+- **Vision Perception:** Local vision models (`llava`, `qwen3-vl`) + progressive screen perception + OCR
 - **Speech Synthesis:** Local `Piper` neural TTS (`en_GB-jenny_dioco-medium`)
 - **Computer-Use Subsystem:** Target resolver (UIA $\rightarrow$ Automation ID $\rightarrow$ DOM $\rightarrow$ Visual match $\rightarrow$ Coordinates), safety checks, and native Windows automation
 - **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server
@@ -22,7 +22,7 @@ F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs entir
 
 ## Security & Architecture Principles
 
-FRIDAY separates intelligence from execution (Principle D) and fails closed (Principle G):
+FRIDAY separates intelligence from execution and fails closed:
 
 1. **Formal Action Contracts (`ActionRequest`):**
    - Every tool call constructs an immutable `ActionRequest` carrying capability scope, target, risk tier, requester, and context source.
@@ -41,36 +41,129 @@ FRIDAY separates intelligence from execution (Principle D) and fails closed (Pri
 
 ---
 
+## Configuration & Personalization
+
+### 1. Customizing Personas (Owner vs. Guest)
+FRIDAY adjusts her personality dynamically based on who is speaking. You can customize her responses in [`config/personas.yaml`](config/personas.yaml) without touching code:
+
+```yaml
+owner_persona: |
+  You are speaking to your creator and primary user, Boss.
+  Persona Rules:
+  - Respond in a loyal, confident, concise, and natural tone. Address them as "Boss".
+  - NEVER say robotic phrases like "I'm just a virtual assistant" or "As an AI model".
+  - When asked conversational questions like "How are you?", respond naturally and in-character.
+  - When executing commands, do so crisply and efficiently without unnecessary filler.
+
+guest_persona: |
+  You are speaking to an unauthorized Guest.
+  Persona Rules:
+  - Respond politely, formally, and concisely.
+  - Do not reveal private personal facts, search histories, or private files.
+  - If the guest asks you to execute computer commands, state: "I'm sorry, I am only authorized to perform computer actions for my primary user."
+```
+
+---
+
+### 2. Voice Biometrics (Speaker Recognition)
+FRIDAY uses SpeechBrain neural speaker verification to distinguish your voice from others:
+1. Ensure the folder `data/voice_enrollment/` exists.
+2. Record **3 short audio clips** (3–5 seconds each) of yourself speaking naturally (e.g. *"Hello Friday, this is my voice"*).
+3. Save them inside `data/voice_enrollment/` as:
+   - `voice_ref_0.wav`
+   - `voice_ref_1.wav`
+   - `voice_ref_2.wav`
+4. When audio is received, FRIDAY compares the speaker's embedding against these reference files to identify you as the **Owner** (or a **Guest**).
+
+---
+
+### 3. Setting Your Security Passphrase
+For critical 🔴 RED tier actions (e.g. file deletions), FRIDAY requires a spoken passphrase verified via SHA-256:
+1. Generate the SHA-256 hash of your secret phrase (e.g. `"jarvis protocol"`):
+   ```powershell
+   python -c "import hashlib; print(hashlib.sha256('jarvis protocol'.encode()).hexdigest())"
+   ```
+2. Add the hash to your `.env` file:
+   ```env
+   PASSPHRASE_HASH=<your_sha256_hash_here>
+   ```
+3. When prompted during critical actions, simply speak your passphrase aloud.
+
+---
+
+### 4. Teaching Skills & Multi-Step Routines
+
+#### A. Custom Skill Recipes (`skills/builtin/`)
+Create a markdown recipe in `skills/builtin/` (e.g. `skills/builtin/dev-setup.md`):
+```markdown
+# Dev Setup Routine
+
+## Triggers
+- "start dev environment"
+- "prep my workspace"
+
+## Procedure
+1. action: applications.open
+   args: {"app_id": "vscode"}
+2. action: applications.open
+   args: {"app_id": "terminal"}
+3. action: audio.set_volume
+   args: {"volume": 35}
+```
+
+#### B. Automatic Habit Learning
+If you execute the same sequence of actions 3 times during daily use, the **Pattern Distiller** (`src/friday/learning/distiller.py`) automatically extracts the pattern into a candidate skill in `skills/learned/`.
+
+#### C. Declarative Preferences
+You can simply say:
+- *"Remember that my default project directory is C:\Dev\MyProject"*
+- *"Remember that my favorite browser is Firefox"*
+These facts are stored in SQLite semantic memory and recalled via Context Priming.
+
+---
+
+## Holographic 3D Constellation Orb
+
+The floating visualizer displays real-time system states:
+- 🔵 **Cyan (Pulsing):** `Idle` (waiting for wake word)
+- 🟢 **Emerald Green:** `Listening` (recording your speech)
+- 🟣 **Purple (Fast Rotation):** `Thinking & Planning` (Ollama LLM reasoning)
+- 🟠 **Vivid Orange:** `Speaking` (Piper TTS active speech)
+- 🟡 **Gold:** `Awaiting Confirmation` (asking for approval)
+- 🔴 **Red:** `Blocked / Error` (policy block or failure)
+
+*(You can click and drag the orb anywhere on your screen, or say "Hide yourself" / "Come back" to toggle visibility.)*
+
+---
+
 ## Repository Structure
 
 ```
 .
 ├── config/                     # Multi-environment YAML configurations & hardware profiles
 │   ├── default.yaml
-│   ├── development.yaml
-│   ├── production.yaml
+│   ├── personas.yaml           # Owner and Guest personality definitions
 │   └── profiles/               # laptop.yaml, balanced.yaml, workstation.yaml
 ├── data/                       # Local SQLite database (friday.db), audit logs, trajectories, voice refs
 ├── models/                     # Local model weights cache (managed by download_models.py)
-├── scripts/                    # setup.py, hardware_probe.py, benchmark_models.py, download_models.py
+├── scripts/                    # setup.py, hardware_probe.py, benchmark_models.py, wipe_history.py
 ├── secrets/                    # Isolated credentials store (credentials.json, tokens)
 ├── skills/                     # Builtin and learned SKILL.md definitions
-├── tests/                      # 41 unit, security invariant, computer, memory, learning, and smoke tests
+├── tests/                      # 41 unit, security invariant, computer, memory, and learning tests
 ├── workspace/                  # Sandboxed agent workspace
 ├── src/friday/
-│   ├── app.py                  # Single application entrypoint
+│   ├── app.py                  # Single application entrypoint & boot greeting
 │   ├── config.py               # Pydantic configuration loader
-│   ├── agent/                  # Orchestrator, Planner (replanning), Executor, Evaluator, Recovery, Steering
-│   ├── security/               # ActionRequest, PolicyEngine, Authorization, Confirmation, SecretsManager
-│   ├── models/                 # ModelRouter (7 roles), OllamaBackend, CloudBackend, HardwareProbe, Benchmark
-│   ├── tools/                  # System, filesystem, applications, computer, browser, gmail, calendar, terminal
+│   ├── agent/                  # Orchestrator, Planner (replanning), Executor, Evaluator, Steering
+│   ├── security/               # ActionRequest, PolicyEngine, Authorization, VoiceAuth, SecretsManager
+│   ├── models/                 # ModelRouter (7 roles), OllamaBackend, CloudBackend, HardwareProbe
+│   ├── tools/                  # System, filesystem, applications, computer, browser, gmail, terminal
 │   ├── computer/               # Controller, TargetResolver, ScreenObserver, SafetyCheck, Verification
-│   ├── browser/                # Controller, PageExtractor, BrowserNavigator, BrowserVerifier, BrowserSafety
+│   ├── browser/                # Controller, PageExtractor, BrowserNavigator, BrowserVerifier
 │   ├── memory/                 # Database (FTS5), PrimingEngine, RetentionManager, Semantic, Preferences
-│   ├── skills/                 # SkillLoader, SkillRegistry, SkillSandbox, SkillRuntime, SkillValidator
-│   ├── learning/               # TrajectoryRecorder, PatternDistiller, SkillLearner, LearningScheduler
+│   ├── skills/                 # SkillLoader, SkillRegistry, SkillSandbox, SkillRuntime
+│   ├── learning/               # TrajectoryRecorder, PatternDistiller, SkillLearner, Scheduler
 │   ├── jobs/                   # JobScheduler, JobRegistry, JobExecutor
-│   ├── online/                 # NetworkMonitor, OnlineCapabilityGate, WebSearch, LiveData
 │   ├── interaction/            # Voice session, faster-whisper STT, Piper TTS, openWakeWord
 │   └── ui/                     # PySide6 transparent window & Three.js holographic orb
 ├── pyproject.toml              # Modern packaging specification with optional dependency groups
@@ -87,7 +180,7 @@ FRIDAY separates intelligence from execution (Principle D) and fails closed (Pri
 - **[Ollama](https://ollama.com):** Installed and running locally
   ```bash
   ollama pull qwen3:8b
-  ollama pull qwen3-vl:8b
+  ollama pull llava
   ```
 
 ### 2. Installation & First-Run Setup
@@ -100,13 +193,13 @@ cd F.R.I.D.A.Y._v2
 python -m venv .venv
 .venv\Scripts\activate
 
-# 3. Install in editable mode with development tools
+# 3. Install in editable mode with all dependencies
 pip install -e ".[all]"
 
-# 4. Download local voice/vision model weights
+# 4. Download local voice model weights
 python scripts/download_models.py --all
 
-# 5. Run first-time hardware probe and setup wizard
+# 5. Run first-time setup wizard
 python scripts/setup.py
 ```
 
@@ -114,23 +207,30 @@ python scripts/setup.py
 
 ## Running FRIDAY
 
-### 1. CLI / Text Test Mode
-```bash
-python src/friday/app.py --text
-```
-
-### 2. Full Voice & Holographic Orb Mode
+### 1. Full Voice & Holographic Orb Mode
 ```bash
 python src/friday/app.py
 ```
+- FRIDAY will boot up and speak a dynamic, time-aware greeting (*"Good morning, Boss. All systems online and ready."*).
 - Say **"FRIDAY"** to wake the assistant.
 - Speak naturally:
-  - *"Open Notepad and write project plan"*
-  - *"Check my inbox"*
+  - *"How are you today?"*
+  - *"Open Notepad and write a project summary"*
   - *"What's the system status?"*
   - *"Friday, use fast mode"*
   - *"Hide yourself"* / *"Come back"*
   - *"Goodbye Friday"* $\rightarrow$ *"Do you want me to go off?"* $\rightarrow$ *"Yes"*
+
+### 2. Text / CLI Smoke Test Mode
+```bash
+python src/friday/app.py --text
+```
+
+### 3. Database Maintenance
+To wipe conversation turns and start with a fresh memory database:
+```bash
+python scripts/wipe_history.py
+```
 
 ---
 
@@ -140,4 +240,4 @@ Run the full automated test suite:
 ```bash
 pytest tests/ -v
 ```
-All **41 automated tests** covering security invariants, ActionRequest contracts, replanning loops, target resolution, memory priming, skill distillation, and execution budgets pass consistently.
+All **41 automated tests** pass cleanly.

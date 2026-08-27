@@ -21,14 +21,14 @@
   // 1. Scene, Camera, Renderer
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 4.8;
+  camera.position.z = 5;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x000000, 0);
   document.body.appendChild(renderer.domElement);
 
-  // Helper function to generate soft glowing circular particle texture
+  // Helper function to generate a soft glowing circular particle texture
   function createParticleTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
@@ -37,8 +37,8 @@
 
     const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(0.3, 'rgba(0, 255, 255, 0.85)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(0.35, 'rgba(255, 255, 255, 0.8)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 64, 64);
@@ -48,8 +48,9 @@
 
   const particleTexture = createParticleTexture();
 
-  // 2. Outer Constellation Setup (from spin.html)
-  const sphereGeo = new THREE.SphereGeometry(2.0, 16, 10);
+
+  // 2. Outer Constellation Setup (size: 0.22)
+  const sphereGeo = new THREE.SphereGeometry(2, 16, 10);
   const positions = sphereGeo.attributes.position;
   const linePositions = [];
 
@@ -68,7 +69,7 @@
   const raysMat = new THREE.LineBasicMaterial({
     color: 0x00ffff,
     transparent: true,
-    opacity: 0.25,
+    opacity: 0.2,
     blending: THREE.AdditiveBlending
   });
   const centerRays = new THREE.LineSegments(raysGeo, raysMat);
@@ -78,48 +79,76 @@
   outerNodesGeo.setAttribute('position', sphereGeo.attributes.position);
   const outerNodesMat = new THREE.PointsMaterial({
     color: 0x00ffff,
-    size: 0.14,
+    size: 0.22, // Increased thickness
     map: particleTexture,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.9,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
   const outerNodes = new THREE.Points(outerNodesGeo, outerNodesMat);
   scene.add(outerNodes);
 
-  // 3. Inner Core (Small Icosahedron)
+  // 3. Inner Core (Small Icosahedron + Corner Nodes, size: 0.15)
   const coreGeometry = new THREE.IcosahedronGeometry(0.8, 1);
   const coreMaterial = new THREE.MeshBasicMaterial({
     color: 0x00ffff,
     wireframe: true,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.3,
     blending: THREE.AdditiveBlending
   });
   const innerCore = new THREE.Mesh(coreGeometry, coreMaterial);
   scene.add(innerCore);
 
-  // 4. Middle Sphere + Corner Nodes
-  const middleGeometry = new THREE.SphereGeometry(1.4, 10, 8);
-  const middleMaterial = new THREE.MeshBasicMaterial({
+  const innerNodesGeo = new THREE.BufferGeometry();
+  innerNodesGeo.setAttribute('position', coreGeometry.attributes.position);
+  const innerNodesMat = new THREE.PointsMaterial({
     color: 0x00ffff,
-    wireframe: true,
+    size: 0.15, // Increased thickness
+    map: particleTexture,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.9,
+    depthWrite: false,
     blending: THREE.AdditiveBlending
   });
-  const middleCore = new THREE.Mesh(middleGeometry, middleMaterial);
-  scene.add(middleCore);
+  const innerNodes = new THREE.Points(innerNodesGeo, innerNodesMat);
+  scene.add(innerNodes);
+
+  // 4. Middle Sphere Nodes & Center Rays (size: 0.18)
+  const middleGeometry = new THREE.SphereGeometry(1.5, 10, 8);
+  const middlePositions = middleGeometry.attributes.position;
+  const middleLinePositions = [];
+
+  for (let i = 0; i < middlePositions.count; i++) {
+    const x = middlePositions.getX(i);
+    const y = middlePositions.getY(i);
+    const z = middlePositions.getZ(i);
+
+    middleLinePositions.push(0, 0, 0);
+    middleLinePositions.push(x, y, z);
+  }
+
+  const middleRaysGeo = new THREE.BufferGeometry();
+  middleRaysGeo.setAttribute('position', new THREE.Float32BufferAttribute(middleLinePositions, 3));
+
+  const middleRaysMat = new THREE.LineBasicMaterial({
+    color: 0x00ffff,
+    transparent: true,
+    opacity: 0.15,
+    blending: THREE.AdditiveBlending
+  });
+  const middleCenterRays = new THREE.LineSegments(middleRaysGeo, middleRaysMat);
+  scene.add(middleCenterRays);
 
   const middleNodesGeo = new THREE.BufferGeometry();
   middleNodesGeo.setAttribute('position', middleGeometry.attributes.position);
   const middleNodesMat = new THREE.PointsMaterial({
     color: 0x00ffff,
-    size: 0.11,
+    size: 0.18, // Increased thickness
     map: particleTexture,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.8,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -131,7 +160,9 @@
     idle:                 { color: 0x00ffff, speed: 1.0,  pulse: 0.008 },
     listening:            { color: 0x00ff88, speed: 1.6,  pulse: 0.030 },
     thinking:             { color: 0xbb33ff, speed: 2.2,  pulse: 0.025 },
-    speaking:             { color: 0xffaa00, speed: 1.8,  pulse: 0.035 },
+    speaking:             { color: 0xff3b00, speed: 1.8,  pulse: 0.035 },
+
+
     waiting_confirmation: { color: 0xffdd00, speed: 1.4,  pulse: 0.025 },
     executing:            { color: 0x33ff66, speed: 2.0,  pulse: 0.025 },
     error:                { color: 0xff2244, speed: 0.8,  pulse: 0.015 }
@@ -175,7 +206,7 @@
     time += 0.01 * speedMultiplier;
     t += pulseSpeed;
 
-    const scale = 1 + Math.sin(t) * 0.04;
+    const scale = 1 + Math.sin(t) * 0.03;
     scene.scale.set(scale, scale, scale);
 
     const rx = Math.sin(time * 0.5) * 0.5;
@@ -187,19 +218,23 @@
     centerRays.rotation.y = outerNodes.rotation.y = ry;
     centerRays.rotation.z = outerNodes.rotation.z = rz;
 
-    // Inner core rotation (spins one way)
-    innerCore.rotation.x -= 0.03 * speedMultiplier;
-    innerCore.rotation.y -= 0.015 * speedMultiplier;
+    // Inner core mesh and its corner nodes rotate together
+    innerCore.rotation.x = innerNodes.rotation.x -= (0.03 * speedMultiplier);
+    innerCore.rotation.y = innerNodes.rotation.y -= (0.015 * speedMultiplier);
 
-    // Middle sphere and its nodes locked together, spinning in the opposite direction
-    middleCore.rotation.x = middleNodes.rotation.x += 0.02 * speedMultiplier;
-    middleCore.rotation.y = middleNodes.rotation.y += 0.025 * speedMultiplier;
+    // Middle center rays and its nodes locked together, spinning in the opposite direction
+    const midRotX = middleCenterRays.rotation.x + (0.02 * speedMultiplier);
+    const midRotY = middleCenterRays.rotation.y + (0.025 * speedMultiplier);
 
-    // Smooth color transition
+    middleNodes.rotation.x = middleCenterRays.rotation.x = midRotX;
+    middleNodes.rotation.y = middleCenterRays.rotation.y = midRotY;
+
+    // Smooth state color transition
     raysMat.color.lerp(targetColor, 0.06);
     outerNodesMat.color.lerp(targetColor, 0.06);
     coreMaterial.color.lerp(targetColor, 0.06);
-    middleMaterial.color.lerp(targetColor, 0.06);
+    innerNodesMat.color.lerp(targetColor, 0.06);
+    middleRaysMat.color.lerp(targetColor, 0.06);
     middleNodesMat.color.lerp(targetColor, 0.06);
 
     renderer.render(scene, camera);
