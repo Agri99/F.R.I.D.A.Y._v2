@@ -26,7 +26,7 @@ def _capture_screen(filename: str = "screenshot.png") -> dict[str, Any]:
     """Capture current screen and save to workspace."""
     try:
         path = save_screenshot(filename)
-        return {"status": "ok", "path": path}
+        return {"status": "ok", "path": path, "message": "Screenshot captured successfully."}
     except Exception as exc:
         return {"status": "error", "message": f"Screen capture failed: {exc}"}
 
@@ -50,16 +50,24 @@ def _click(
 ) -> dict[str, Any]:
     """Click on screen coordinates or a button/menu item by visible text label."""
     coords = (int(x), int(y)) if x is not None and y is not None else None
-    target = Target(coordinates=coords, text_label=text_label or kwargs.get("label"))
+    label = text_label or kwargs.get("label")
+    target = Target(coordinates=coords, text_label=label)
     result = _controller.click(target)
-    return {"status": "ok" if result.success else "error", "message": result.message}
+    if result.success:
+        return {"status": "ok", "message": f"Clicked {label or f'coordinates ({x}, {y})' if coords else 'target'}."}
+    return {"status": "error", "message": result.message}
 
 
 def _type_text(text: str, text_label: str | None = None, **kwargs) -> dict[str, Any]:
     """Type text into foreground window or a labeled field."""
-    target = Target(text_label=text_label or kwargs.get("label")) if text_label or kwargs.get("label") else None
-    result = _controller.type_text(target, text)
-    return {"status": "ok" if result.success else "error", "message": result.message}
+    try:
+        # Small delay to ensure target window has focus
+        time.sleep(0.5)
+        target = Target(text_label=text_label or kwargs.get("label")) if text_label or kwargs.get("label") else None
+        result = _controller.type_text(target, text)
+        return {"status": "ok" if result.success else "error", "message": result.message}
+    except Exception as exc:
+        return {"status": "error", "message": f"Typing failed: {exc}"}
 
 
 def _press_key(key: str) -> dict[str, Any]:
@@ -94,17 +102,27 @@ def _active_window() -> dict[str, Any]:
 def _control_window(action: str) -> dict[str, Any]:
     """Control foreground window: maximize, minimize, restore, or close."""
     action = action.strip().lower()
-    if action == "maximize":
+    
+    # Get the active window name for natural responses
+    active = _window_mgr.get_active_window()
+    app_name = active.title.split(" - ")[-1] if active.title else "the window"
+    
+    # Fuzzy match common typos
+    if action in ("maximize", "maximise", "maximizr", "max"):
         _window_mgr.maximize()
-    elif action == "minimize":
+        action = "maximize"
+    elif action in ("minimize", "minimise", "min"):
         _window_mgr.minimize()
-    elif action == "restore":
+        action = "minimize"
+    elif action in ("restore", "unmaximize", "unminimize"):
         _window_mgr.restore()
-    elif action == "close":
+        action = "restore"
+    elif action in ("close", "exit", "quit"):
         _window_mgr.close()
+        action = "close"
     else:
         return {"status": "error", "message": f"Unknown window action: {action}"}
-    return {"status": "ok", "action": action}
+    return {"status": "ok", "action": action, "app_name": app_name}
 
 
 def register_all_tools(registry) -> None:

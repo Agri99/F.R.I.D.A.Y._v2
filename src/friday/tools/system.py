@@ -30,7 +30,11 @@ def _verify_get_status(args: dict, result: dict) -> VerificationResult:
 
 
 def _get_time() -> dict:
-    return {"time": datetime.datetime.now().isoformat(timespec="seconds")}
+    now = datetime.datetime.now()
+    return {
+        "time": now.strftime("%I:%M %p"),
+        "date": now.strftime("%A, %B %d, %Y")
+    }
 
 
 def _lock() -> dict:
@@ -120,4 +124,26 @@ def register_all_tools(registry) -> None:
         capability_scope="system.control",
         input_schema=build_schema({"visible": {"type": "boolean"}}, ["visible"]),
         handler=_toggle_orb,
+    ))
+
+    def _remember(fact: str) -> dict:
+        from friday.memory.database import MemoryDatabase
+        from friday.memory.semantic import SemanticMemory
+        try:
+            # We must instantiate it or access it, but tool handler gets called dynamically.
+            # Using the main db path.
+            db = MemoryDatabase("data/friday.db")
+            mem = SemanticMemory(db)
+            mem.store_fact(subject="User", predicate="stated", value=fact, source="user_explicit", confidence=1.0)
+            return {"status": "ok", "message": "Fact stored successfully."}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    registry.register(Tool(
+        name="system.remember",
+        description="Explicitly store a fact or preference in persistent long-term semantic memory. Use this when the user asks you to remember something.",
+        tier="GREEN",
+        capability_scope="system.read",
+        input_schema=build_schema({"fact": {"type": "string", "description": "The information to remember."}}, ["fact"]),
+        handler=_remember,
     ))

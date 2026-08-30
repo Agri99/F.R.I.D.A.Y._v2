@@ -158,9 +158,9 @@
   // 5. State Colors & Dynamics
   const styles = {
     idle:                 { color: 0x00ffff, speed: 1.0,  pulse: 0.008 },
-    listening:            { color: 0x00ff88, speed: 1.6,  pulse: 0.030 },
-    thinking:             { color: 0xbb33ff, speed: 2.2,  pulse: 0.025 },
-    speaking:             { color: 0xff3b00, speed: 1.8,  pulse: 0.035 },
+    listening:            { color: 0x00ff88, speed: 2.0,  pulse: 0.030 },
+    thinking:             { color: 0xbb33ff, speed: 4.0,  pulse: 0.025 },
+    speaking:             { color: 0xff1000, speed: 2.0,  pulse: 0.035 },
 
 
     waiting_confirmation: { color: 0xffdd00, speed: 1.4,  pulse: 0.025 },
@@ -206,21 +206,25 @@
     time += 0.01 * speedMultiplier;
     t += pulseSpeed;
 
-    const scale = 1 + Math.sin(t) * 0.03;
+    const scale = 1.5 + Math.sin(t) * 0.03;
     scene.scale.set(scale, scale, scale);
 
     const rx = Math.sin(time * 0.5) * 0.5;
     const ry = Math.cos(time * 0.3) * 0.7;
     const rz = Math.sin(time * 0.7) * 0.3;
 
+    // Rotate differently based on state/speedMultiplier
+    const stateWobble = (speedMultiplier > 1.5) ? Math.sin(t*2)*0.1 : 0;
+    
     // Rotate outer rays and nodes together
-    centerRays.rotation.x = outerNodes.rotation.x = rx;
-    centerRays.rotation.y = outerNodes.rotation.y = ry;
+    centerRays.rotation.x = outerNodes.rotation.x = rx + stateWobble;
+    centerRays.rotation.y = outerNodes.rotation.y = ry + stateWobble;
     centerRays.rotation.z = outerNodes.rotation.z = rz;
 
     // Inner core mesh and its corner nodes rotate together
-    innerCore.rotation.x = innerNodes.rotation.x -= (0.03 * speedMultiplier);
-    innerCore.rotation.y = innerNodes.rotation.y -= (0.015 * speedMultiplier);
+    const innerSpeed = (speedMultiplier > 2.0) ? 0.08 : 0.03 * speedMultiplier;
+    innerCore.rotation.x = innerNodes.rotation.x -= innerSpeed;
+    innerCore.rotation.y = innerNodes.rotation.y -= (innerSpeed/2);
 
     // Middle center rays and its nodes locked together, spinning in the opposite direction
     const midRotX = middleCenterRays.rotation.x + (0.02 * speedMultiplier);

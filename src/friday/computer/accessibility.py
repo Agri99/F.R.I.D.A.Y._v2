@@ -67,11 +67,9 @@ class AccessibilityProvider:
 
         win32gui.EnumWindows(_enum_handler, None)
 
-        if len(candidates) == 1:
+        if len(candidates) >= 1:
             return candidates[0][0], candidates[0][1], None
-        if len(candidates) > 1:
-            names = ", ".join(sorted({c[0] for c in candidates}))
-            return None, None, f"Multiple allowlisted windows are open ({names}) — focus one first."
+
         return None, None, "No allowlisted application window is open (notepad, calculator, vscode)."
 
     def get_controls(self, hwnd: int | None = None) -> list[UIElement]:
@@ -136,7 +134,24 @@ class AccessibilityProvider:
                     element._raw_element.click()
                     return True
                 except Exception:
-                    return False
+                    pass
+        
+        # Fallback to pyautogui using bounding_rect
+        if element.bounding_rect:
+            try:
+                import pyautogui
+                rect = element.bounding_rect
+                if hasattr(rect, 'left'):
+                    x = rect.left + (rect.right - rect.left) // 2
+                    y = rect.top + (rect.bottom - rect.top) // 2
+                else:
+                    x = rect[0] + (rect[2] - rect[0]) // 2
+                    y = rect[1] + (rect[3] - rect[1]) // 2
+                pyautogui.click(x, y)
+                return True
+            except Exception:
+                pass
+                
         return False
 
     def type_into_element(self, element: UIElement, text: str) -> bool:
@@ -149,3 +164,36 @@ class AccessibilityProvider:
             except Exception:
                 return False
         return False
+
+    def get_all_elements(self, hwnd: int | None = None) -> list[UIElement]:
+        """Get ALL interactable UI elements for an allowlisted window (includes unnamed elements)."""
+        if hwnd is None:
+            _, hwnd, err = self.find_allowlisted_window()
+            if not hwnd or err:
+                return []
+
+        try:
+            from pywinauto import Application
+            app = Application(backend="uia").connect(handle=hwnd)
+            window = app.window(handle=hwnd)
+            descendants = window.descendants()
+
+            elements: list[UIElement] = []
+            for elem in descendants:
+                try:
+                    c_type = elem.element_info.control_type or ""
+                    name = elem.element_info.name or ""
+                    # Include all elements, not just named ones
+                    elements.append(UIElement(
+                        name=name,
+                        control_type=c_type,
+                        automation_id=elem.element_info.automation_id or "",
+                        bounding_rect=elem.rectangle(),
+                        is_enabled=elem.is_enabled(),
+                        _raw_element=elem,
+                    ))
+                except Exception:
+                    continue
+            return elements
+        except Exception:
+            return []

@@ -20,7 +20,12 @@ class OnlineCapabilityGate:
     def __init__(self, monitor: NetworkMonitor):
         self._monitor = monitor
 
+    def is_available(self, capability_or_tool: str) -> bool:
+        """Check if capability/tool is available based on connectivity."""
+        return self._monitor.is_online()
+
     def check_online_tool(self, tool_name: str, requires_auth: bool = False, service_name: str | None = None) -> bool:
+
         """
         Check if an online tool can be executed.
         Fails closed on missing connectivity or auth.

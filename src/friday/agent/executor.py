@@ -18,8 +18,9 @@ from friday.security.action_request import ActionRequest
 class ExecutionResult:
     result: Any
     observation: str
-    verification_passed: bool
+    verification_passed: bool | None = None
     error: str | None = None
+    verification_reason: str = ""
 
 
 class Executor:

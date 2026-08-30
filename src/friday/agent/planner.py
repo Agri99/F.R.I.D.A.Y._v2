@@ -36,6 +36,8 @@ class Planner:
         model_router: Any = None,
         observations: list[dict] | None = None,
         system_prompt: str | None = None,
+        conversation_history: list[dict] | None = None,
+        primed_context: Any = None,
     ) -> list[Step]:
         """Creates a step plan by querying the reasoning model with tool schemas."""
         if not model_router:
@@ -48,7 +50,8 @@ class Planner:
         )
         if not provider or not hasattr(provider, "generate"):
             return []
-            
+
+        # Build enhanced system prompt with primed context
         if system_prompt:
             sys_prompt = (
                 f"{system_prompt}\n\n"
@@ -67,12 +70,54 @@ class Planner:
                 "verification_strategy, risk_scope, reversible, retry_policy, etc."
             )
 
-        
-        messages = [
-            ModelMessage(role="system", content=sys_prompt),
-            ModelMessage(role="user", content=goal),
-        ]
-        
+        # Add primed context to system prompt if available
+        if primed_context:
+            context_parts = []
+            if primed_context.relevant_memories:
+                context_parts.append("Relevant knowledge:\n" + "\n".join(
+                    f"- {m.get('subject', '')}: {m.get('predicate', '')} {m.get('value', '')} (conf: {m.get('confidence', 0):.0%})"
+                    for m in primed_context.relevant_memories[:5]
+                ))
+            if primed_context.relevant_preferences:
+                context_parts.append("User preferences:\n" + "\n".join(
+                    f"- {p.get('key', '')}: {p.get('value', '')} (conf: {p.get('confidence', 0):.0%})"
+                    for p in primed_context.relevant_preferences[:3]
+                ))
+            if primed_context.relevant_skills:
+                context_parts.append("Relevant skills:\n" + "\n".join(
+                    f"- {s.get('name', '')}: {s.get('purpose', '')} (triggers: {s.get('triggers', [])})"
+                    for s in primed_context.relevant_skills[:3]
+                ))
+            if primed_context.required_capabilities:
+                context_parts.append(f"Required capabilities: {', '.join(primed_context.required_capabilities)}")
+            if primed_context.known_failures:
+                context_parts.append("Known failure patterns:\n" + "\n".join(
+                    f"- {f.get('step', '')}: {f.get('error', '')}" for f in primed_context.known_failures[:3]
+                ))
+
+            if context_parts:
+                sys_prompt += "\n\n--- PRIMED CONTEXT ---\n" + "\n\n".join(context_parts) + "\n--- END CONTEXT ---"
+
+        messages = [ModelMessage(role="system", content=sys_prompt)]
+
+        if memories:
+            mem_lines = []
+            for m in memories:
+                mem_lines.append(f"- {m.get('content', m)}" if isinstance(m, dict) else f"- {m}")
+            messages.append(ModelMessage(role="system", content="Relevant remembered facts:\n" + "\n".join(mem_lines)))
+
+        if conversation_history:
+            # conversation_history[0] is its own system entry (possibly stale/simpler
+            # than sys_prompt above) - skip it, the elaborated sys_prompt supersedes it.
+            # Every actual turn (user/assistant/tool) is preserved in full, in order,
+            # ending with the current goal (already persisted before plan() is called).
+            for m in conversation_history[1:]:
+                messages.append(ModelMessage(role=m.get("role", "user"), content=m.get("content", "")))
+        else:
+            # No history available (e.g. a caller that doesn't pass one) - fall back
+            # to just the current goal, same as the old behavior.
+            messages.append(ModelMessage(role="user", content=goal))
+
         if observations:
             obs_str = json.dumps(observations)
             messages.append(ModelMessage(role="user", content=f"Recent observations: {obs_str}"))
@@ -126,12 +171,68 @@ class Planner:
         """Legacy method pointing to plan."""
         return self.plan(goal, available_tools, memories, model_router)
         
-    def replan(self, task: Task, observations: list[dict]) -> list[Step]:
+    def replan(
+        self,
+        task: Task,
+        observations: list[dict],
+        available_tools: list[dict] | None = None,
+        model_router: Any = None,
+        system_prompt: str | None = None,
+        conversation_history: list[dict] | None = None,
+    ) -> list[Step]:
+        """Replan using accumulated observations and failure history.
+
+        FIXED BUG: this used to call self.plan(..., model_router=None,
+        available_tools=[]) unconditionally - and plan()'s first line is
+        `if not model_router: return []`. That meant EVERY replan attempt
+        silently produced an empty plan, which made the orchestrator's
+        execution loop exit immediately and report the task COMPLETED
+        ("All steps completed") even though the step that triggered
+        replanning had just FAILED. A failure silently became a false
+        success. Now takes the same model_router/available_tools/
+        system_prompt/conversation_history the caller already has, so
+        replanning can actually call the model."""
         task.plan_version += 1
+
+        # Build context from observations and failure history
+        obs_context = []
+        for obs in observations:
+            if isinstance(obs, dict):
+                step_name = obs.get("step", "unknown")
+                observation = obs.get("observation", "")
+                error = obs.get("error", "")
+                if error:
+                    obs_context.append(f"Step '{step_name}' failed: {error}. Observation: {observation}")
+                else:
+                    obs_context.append(f"Step '{step_name}' observation: {observation}")
+            else:
+                obs_context.append(str(obs))
+
+        failure_context = []
+        for failure in getattr(task, "failures", []):
+            failure_context.append(f"Failed step '{failure.get('step')}': {failure.get('error')} (expected: {failure.get('verification_reason')})")
+
+        verification_context = []
+        for vr in getattr(task, "verification_results", []):
+            if not vr.get("passed", True):
+                verification_context.append(f"Verification failed for '{vr.get('step')}': {vr.get('reason')}")
+
+        full_context = []
+        if obs_context:
+            full_context.append("Recent observations:\n" + "\n".join(obs_context))
+        if failure_context:
+            full_context.append("Failure history:\n" + "\n".join(failure_context))
+        if verification_context:
+            full_context.append("Verification failures:\n" + "\n".join(verification_context))
+
+        context_str = "\n\n".join(full_context) if full_context else ""
+
         return self.plan(
             goal=task.goal,
-            available_tools=[], # Ideally passed in, but signature doesn't specify. Real logic would inject schemas.
+            available_tools=available_tools or [],
             memories=[],
-            model_router=None, # Should be bound, but keeping interface simple per spec.
-            observations=observations
+            model_router=model_router,
+            system_prompt=system_prompt,
+            conversation_history=conversation_history,
+            observations=[{"context": context_str}] if context_str else [],
         )

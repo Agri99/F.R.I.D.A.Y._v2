@@ -71,6 +71,17 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "-v --tb=short"
+markers = [
+    "benchmark: mark test as a benchmark"
+]
+filterwarnings = [
+    "ignore:Revert to STA COM threading mode:UserWarning:pywinauto",
+    "ignore:Image.getdata.. is deprecated:DeprecationWarning:PIL",
+]
+
+[tool.pytest-asyncio]
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py311"

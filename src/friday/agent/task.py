@@ -42,6 +42,9 @@ class Step:
     retry_policy: str = 'default'
     observation: str = ''
     verified: bool | None = None
+    retry_count: int = 0
+    max_retries: int = 3
+    time_budget_seconds: float = 30.0
 
     def __post_init__(self):
         if self.args is not None and not self.arguments:
@@ -64,9 +67,23 @@ class Task:
     pending_auth: Any | None = None
     last_message: str | None = None
 
+    # Execution budgets
     max_steps: int = 20
     steps_used: int = 0
     max_time_seconds: float = 120.0
+    max_tokens: int = 50000
+    tokens_used: int = 0
+    max_tool_calls: int = 50
+    tool_calls_used: int = 0
+
+    # Failure tracking
+    failures: list[dict[str, Any]] = field(default_factory=list)
+    retries: dict[str, int] = field(default_factory=dict)  # step_index -> retry count
+    verification_results: list[dict[str, Any]] = field(default_factory=list)
+
+    # Context
+    context: dict[str, Any] = field(default_factory=dict)
+
     plan_version: int = 1
 
     def get_current_step(self) -> Step | None:
@@ -77,6 +94,20 @@ class Task:
     @property
     def history(self) -> list[tuple[TaskStatus, str]]:
         return [(t["to"], t.get("reason", "")) for t in self.trajectory]
+
+    def check_budgets(self) -> tuple[bool, str]:
+        """Check if any execution budget has been exceeded.
+        Returns (within_budget, reason_if_exceeded)
+        """
+        if self.steps_used >= self.max_steps:
+            return False, f"Max steps exceeded ({self.max_steps})"
+        if self.started_at and (datetime.now() - self.started_at).total_seconds() > self.max_time_seconds:
+            return False, f"Max time exceeded ({self.max_time_seconds}s)"
+        if self.tokens_used >= self.max_tokens:
+            return False, f"Max tokens exceeded ({self.max_tokens})"
+        if self.tool_calls_used >= self.max_tool_calls:
+            return False, f"Max tool calls exceeded ({self.max_tool_calls})"
+        return True, ""
 
 
 class TaskManager:

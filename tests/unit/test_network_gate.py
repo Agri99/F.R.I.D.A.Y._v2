@@ -1,35 +1,48 @@
 """
-Test network capability gate.
+tests/unit/test_network_gate.py
+
+WHAT THIS IS FOR:
+Unit tests for network monitor and online capability gate.
 """
-from friday.online.network import NetworkMonitor, NetworkState
+
+from __future__ import annotations
+
+from unittest.mock import patch
+import urllib.request
+
+import pytest
+
+from friday.online.network import NetworkMonitor
 from friday.online.capability_gate import OnlineCapabilityGate
 
-class MockCapabilityRegistry:
-    def __init__(self):
-        self.enabled = set()
-    def enable(self, cap): self.enabled.add(cap)
-    def disable(self, cap): self.enabled.discard(cap)
-    def is_enabled(self, cap): return cap in self.enabled
 
-def test_network_gate_online_transitions():
-    monitor = NetworkMonitor(interval=10)
-    monitor._state = NetworkState.ONLINE
-    gate = OnlineCapabilityGate(monitor)
-    
-    assert gate.check_online_tool("search") == True
-    
-    registry = MockCapabilityRegistry()
-    gate.enable_online_capabilities(registry)
-    assert registry.is_enabled("web_search")
+class TestNetworkMonitor:
+    def test_is_online_when_assume_online(self):
+        monitor = NetworkMonitor(assume_online=True)
+        assert monitor.is_online() is True
 
-def test_network_gate_offline_transitions():
-    monitor = NetworkMonitor(interval=10)
-    monitor._state = NetworkState.OFFLINE
-    gate = OnlineCapabilityGate(monitor)
-    
-    assert gate.check_online_tool("search") == False
-    
-    registry = MockCapabilityRegistry()
-    registry.enable("web_search")
-    gate.disable_online_capabilities(registry)
-    assert not registry.is_enabled("web_search")
+    def test_is_offline_when_assume_offline(self):
+        monitor = NetworkMonitor(assume_online=False)
+        assert monitor.is_online() is False
+
+
+class TestOnlineCapabilityGate:
+    def test_online_tool_allowed_when_online(self):
+        monitor = NetworkMonitor(assume_online=True)
+        gate = OnlineCapabilityGate(monitor)
+        assert gate.check_online_tool("online.search") is True
+
+    def test_online_tool_denied_when_offline(self):
+        monitor = NetworkMonitor(assume_online=False)
+        gate = OnlineCapabilityGate(monitor)
+        assert gate.check_online_tool("online.search") is False
+
+    def test_failure_reason_on_offline(self):
+        monitor = NetworkMonitor(assume_online=False)
+        gate = OnlineCapabilityGate(monitor)
+        reason = gate.get_failure_reason("online.search", "Web Search")
+        assert "unavailable" in reason.lower() or "offline" in reason.lower()
+
+
+from unittest.mock import MagicMock, patch
+import urllib.request

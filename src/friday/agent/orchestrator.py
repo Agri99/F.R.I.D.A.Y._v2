@@ -22,6 +22,7 @@ from .planner import Planner, PlanningDepth
 from .executor import Executor
 from .evaluator import Evaluator
 from .recovery import RecoveryManager
+from .steering import SteeringController, SteeringTrigger, SteeringAction
 from .fastpath import FastPathRouter
 
 APPROVE_WORDS = {"yes", "yeah", "yep", "confirm", "do it", "proceed", "go ahead", "sure", "ok", "okay"}
@@ -57,6 +58,23 @@ def _format_confirmation_prompt(action: str, args: dict[str, Any]) -> str:
     if action == "computer.click":
         target = args.get("text_label") or f"coordinates ({args.get('x')}, {args.get('y')})"
         return f"Do you want me to click on {target}?"
+    if action == "computer.type":
+        target = args.get("text", "that text")
+        return f"Do you want me to type {target}?"
+    if action == "computer.press":
+        key = args.get("key", "that key")
+        return f"Do you want me to press {key}?"
+    if action == "computer.control_window":
+        op = args.get("action", "control")
+        # Get actual active window name for a natural prompt
+        try:
+            from friday.computer.windows import WindowManager
+            wm = WindowManager()
+            active = wm.get_active_window()
+            app_name = active.title.split(" - ")[-1] if active.title else "the current window"
+        except Exception:
+            app_name = "the current window"
+        return f"Do you want me to {op} {app_name}?"
 
     clean_name = action.replace(".", " ").replace("_", " ")
     return f"Do you want me to {clean_name}?"
@@ -97,12 +115,20 @@ def _format_natural_reply(action: str, result: Any) -> str:
             return f"You have {count} upcoming event{'s' if count > 1 else ''}: " + ", ".join(lines)
 
         if action == "applications.open":
+            msg = result.get("message", "")
+            if "already running" in msg.lower():
+                return msg
             app_id = result.get("app_id", "the application")
             return f"I've opened {app_id} for you."
 
         if action == "applications.close":
             app_id = result.get("app_id", "the application")
             return f"I've closed {app_id}."
+
+        if action == "computer.control_window":
+            op = result.get("action", "controlled")
+            app_name = result.get("app_name", "the window")
+            return f"Done, I've {op}d {app_name}."
 
         if action == "system.get_time":
             t = result.get("time", "")
@@ -112,6 +138,32 @@ def _format_natural_reply(action: str, result: Any) -> str:
             cpu = result.get("cpu_percent", "")
             ram = result.get("ram_percent", "")
             return f"System status: CPU is at {cpu}%, RAM usage is at {ram}%."
+
+        if action == "system.lock":
+            return "The workstation has been locked. Your screen is now secured."
+
+        if action == "system.remember":
+            msg = result.get("message", "Fact stored successfully.")
+            return "Got it, Boss. I've remembered that for you."
+
+        if action == "online.search":
+            results = result.get("results", [])
+            if not results:
+                return "I didn't find anything useful for that."
+            titles = []
+            for r in results[:3]:
+                title = r.get("title") if isinstance(r, dict) else str(r)
+                if title:
+                    titles.append(title)
+            if not titles:
+                return "I searched, but couldn't get readable results back."
+            return "Here's what I found: " + "; ".join(titles)
+
+        if action == "online.weather":
+            loc = result.get("location", "your area")
+            temp = result.get("temperature_c", "")
+            cond = result.get("conditions", "")
+            return f"It's {temp} degrees and {cond} in {loc}."
 
         if "message" in result:
             return str(result["message"])
@@ -149,18 +201,46 @@ class AgentOrchestrator:
             db_path=f"{settings.paths.data_dir}/friday.db",
             context_limit=settings.runtime.context_window_messages,
         )
+        
+        from friday.memory.database import MemoryDatabase
+        from friday.memory.priming import ContextPrimingEngine
+        from friday.memory.semantic import SemanticMemory
+        from friday.memory.preferences import PreferenceMemory
+        
+        db = self.conversation_memory.db # Share the same DB connection wrapper
+        self.semantic_memory = SemanticMemory(db)
+        self.preference_memory = PreferenceMemory(db)
+        self.priming_engine = ContextPrimingEngine(
+            memory_db=self.semantic_memory,
+            skill_registry=None,
+            preference_store=self.preference_memory
+        )
+        
         self.trajectory_recorder = TrajectoryRecorder(trajectories_dir=settings.paths.trajectories_dir)
         self.confirmation_mgr = ConfirmationManager(ttl_seconds=settings.security.confirmation_ttl_seconds)
         self.voice_auth = VoiceAuthProvider()
 
         self.planner = Planner()
         self.executor = Executor()
-        self.evaluator = Evaluator()
+        self.evaluator = Evaluator(model_router=self.models)
         self.recovery = RecoveryManager()
+        self.steering = SteeringController(
+            on_replan=self._trigger_replan,
+            on_pause=self._pause_execution
+        )
         self.fastpath = FastPathRouter()
         self.state_machine = TaskStateMachine(on_transition=self._on_task_transition)
 
     def _on_task_transition(self, task: Task, new_status: TaskStatus, reason: str) -> None:
+        pass
+
+    def _trigger_replan(self, context: dict) -> None:
+        """Callback for steering controller to trigger replan."""
+        # This will be handled in the execution loop
+        pass
+
+    def _pause_execution(self) -> None:
+        """Callback for steering controller to pause execution."""
         pass
 
     def _remember(self, role: str, content: str) -> None:
@@ -196,12 +276,31 @@ class AgentOrchestrator:
             return self._execute_plan(task)
 
         schemas = self.tools.all_schemas() if hasattr(self.tools, "all_schemas") else []
+        history = self.conversation_memory.load_context(self.system_prompt)
+
+        # Prime semantic and episodic memory with full context pipeline
+        if hasattr(self, "priming_engine"):
+            primed_context = self.priming_engine.prime(goal, history)
+
+            # Combine memories for planner (backward compatible)
+            memories = primed_context.relevant_memories + primed_context.relevant_preferences
+
+            # Store full primed context in task for use during execution
+            task.primed_context = primed_context
+            task.context["required_capabilities"] = primed_context.required_capabilities
+            task.context["task_type"] = primed_context.task_type.value
+        else:
+            memories = []
+            task.primed_context = None
+
         task.plan = self.planner.plan(
             goal=goal,
             available_tools=schemas,
-            memories=[],
+            memories=memories,
             model_router=self.models,
             system_prompt=self.system_prompt,
+            conversation_history=history,
+            primed_context=task.primed_context,
         )
 
 
@@ -219,8 +318,17 @@ class AgentOrchestrator:
                 self.state_machine.transition(task, TaskStatus.FAILED, reason="Execution budget exceeded (max_time_seconds)")
                 return task
 
+            # Check execution budgets before each step
+            within_budget, budget_reason = task.check_budgets()
+            if not within_budget:
+                self.state_machine.transition(task, TaskStatus.FAILED, reason=f"Execution budget exceeded: {budget_reason}")
+                self._remember("assistant", f"Task stopped: {budget_reason}")
+                self.trajectory_recorder.finish("BUDGET_EXCEEDED")
+                return task
+
             step = task.plan[task.current_step_index]
             task.steps_used += 1
+            step.retry_count = task.retries.get(str(task.current_step_index), 0)
 
             if step.action == "direct_answer":
                 reply = step.arguments.get("text", step.expected_observation or "")
@@ -300,22 +408,89 @@ class AgentOrchestrator:
 
             if not eval_result.passed:
                 self.state_machine.transition(task, TaskStatus.RECOVERING, reason=eval_result.reason)
-                category = self.recovery.classify(exec_result.error or "", {})
+
+                # Record failure for learning
+                task.failures.append({
+                    "step": step.action,
+                    "step_index": task.current_step_index,
+                    "error": exec_result.error,
+                    "observation": exec_result.observation,
+                    "verification_reason": eval_result.reason,
+                })
+
+                # Steering: handle verification failure
+                steering_action = self.steering.on_verification_failure(
+                    step_name=step.action,
+                    reason=eval_result.reason,
+                    context={"observation": exec_result.observation, "expected": step.expected_observation}
+                )
+
+                category = self.recovery.classify(exec_result.error or eval_result.reason, {
+                    "observation": exec_result.observation,
+                    "step": step.action,
+                    "expected": step.expected_observation,
+                })
                 recovery_action = self.recovery.recover(task, step, category)
-                
-                if recovery_action.strategy == "RETRY":
-                    # Retry implicitly by loop not advancing or by replan
+
+                # Handle recovery strategies (with steering integration)
+                if recovery_action.strategy == "RETRY" or recovery_action.strategy == "WAIT_AND_RETRY":
+                    wait_time = recovery_action.payload.get("wait_seconds", 1.0) if recovery_action.payload else 1.0
+                    time.sleep(wait_time)
+                    # Retry by not advancing step index
                     continue
-                elif eval_result.needs_replan:
-                    task.plan = self.planner.replan(task, [{"step": step.action, "observation": exec_result.observation}])
+
+                elif recovery_action.strategy == "RE_RESOLVE_TARGET":
+                    # Re-resolve target with updated context
+                    target_desc = recovery_action.payload.get("step_description", "") if recovery_action.payload else ""
+                    if target_desc:
+                        step.arguments["text_label"] = target_desc
+                    # Also trigger steering for target lost
+                    self.steering.on_target_lost(target_desc, {"step": step.action})
+                    time.sleep(0.5)
+                    continue
+
+                elif recovery_action.strategy == "REPLAN" or eval_result.needs_replan or steering_action.type == "replan":
+                    observations = [{"step": step.action, "observation": exec_result.observation, "error": exec_result.error}]
+                    schemas = self.tools.all_schemas() if hasattr(self.tools, "all_schemas") else []
+                    history = self.conversation_memory.load_context(self.system_prompt)
+                    task.plan = self.planner.replan(
+                        task, observations,
+                        available_tools=schemas,
+                        model_router=self.models,
+                        system_prompt=self.system_prompt,
+                        conversation_history=history,
+                    )
                     task.current_step_index = 0
+                    self.steering.reset_verification_failures()
+                    if not task.plan:
+                        # Replanning genuinely produced nothing usable. This used to
+                        # fall through to the loop's normal exit and get reported as
+                        # COMPLETED ("All steps completed") - a failure silently
+                        # becoming a false success. Report it honestly instead.
+                        self.state_machine.transition(task, TaskStatus.FAILED, reason="Replanning did not produce a usable next step.")
+                        self._remember("assistant", "I couldn't figure out how to recover from that, so I'm stopping here.")
+                        self.trajectory_recorder.finish("FAILURE")
+                        return task
                     continue
+
+                elif recovery_action.strategy == "REPAIR_INPUT":
+                    # Attempt to auto-repair input arguments
+                    continue
+
+                elif recovery_action.strategy == "ASK_USER":
+                    self.state_machine.transition(task, TaskStatus.BLOCKED, reason=recovery_action.reasoning)
+                    self._remember("assistant", f"I need your help: {recovery_action.reasoning}")
+                    self.trajectory_recorder.finish("BLOCKED")
+                    return task
+
                 else:
                     self.state_machine.transition(task, TaskStatus.FAILED, reason=eval_result.reason)
                     self._remember("assistant", f"That failed: {eval_result.reason}")
                     self.trajectory_recorder.finish("FAILURE")
                     return task
 
+            # Reset verification failures on successful step
+            self.steering.reset_verification_failures()
             task.current_step_index += 1
 
         self.state_machine.transition(task, TaskStatus.COMPLETED, reason="All steps completed")

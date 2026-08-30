@@ -44,10 +44,33 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, Tool] = {}
 
-    def register(self, tool: Tool) -> None:
+    def register(
+        self,
+        tool: Tool | None = None,
+        name: str | None = None,
+        description: str = "",
+        tier: str = "GREEN",
+        capability_scope: str = "system",
+        parameters: dict[str, Any] | None = None,
+        handler: Callable[..., Any] | None = None,
+    ) -> None:
+        if tool is None:
+            if not name or not handler:
+                raise ValueError("register requires either a Tool instance or 'name' and 'handler'")
+            tool = Tool(
+                name=name,
+                description=description,
+                tier=tier,
+                capability_scope=capability_scope,
+                input_schema=parameters or {"type": "object", "properties": {}},
+                handler=handler,
+            )
+
         if tool.name in self._tools:
-            raise ValueError(f"Tool '{tool.name}' already registered")
+            return  # Idempotent registration
+
         self._tools[tool.name] = tool
+
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)

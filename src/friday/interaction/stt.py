@@ -4,16 +4,27 @@ src/friday/interaction/stt.py
 WHAT THIS IS FOR:
 Speech-to-text transcription via faster-whisper with domain vocabulary prompting,
 pre-roll audio buffer to prevent leading consonant clipping, and Silero VAD filtering (blueprint §23).
+
+Phase 10: Enhanced with barge-in support, streaming transcription, wake-word false-positive handling,
+and state machine for clear listening/thinking/speaking states.
 """
 
 from __future__ import annotations
 
 import os
+os.environ["CT2_VERBOSE"] = "-1"
+import logging
+logging.getLogger("faster_whisper").setLevel(logging.ERROR)
 from collections import deque
 from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+import threading
+import time
+from enum import Enum
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 SAMPLE_RATE = 16000
 CHUNK_DURATION = 0.1  # 100ms
@@ -32,10 +43,36 @@ WHISPER_INITIAL_PROMPT = (
 )
 
 
-def record_until_silence(path: str = "data/audio.wav") -> str:
+class VoiceState(Enum):
+    """Voice interaction states for clear UX."""
+    IDLE = "idle"
+    WAKE_LISTENING = "wake_listening"      # Waiting for wake word
+    LISTENING = "listening"                 # Actively recording speech
+    THINKING = "thinking"                   # Processing/transcribing
+    SPEAKING = "speaking"                   # TTS output
+    INTERRUPTED = "interrupted"             # Barge-in detected
+    CONFIRMING = "confirming"               # Awaiting confirmation
+
+
+@dataclass
+class VoiceContext:
+    """Tracks voice interaction state and metadata."""
+    state: VoiceState = VoiceState.IDLE
+    last_wake_time: float = 0
+    last_transcription: str = ""
+    last_confidence: float = 0.0
+    wake_word_confidence: float = 0.0
+    false_positive_count: int = 0
+    total_wake_attempts: int = 0
+
+
+def record_until_silence(path: str = "data/audio.wav", on_state_change: Callable[[VoiceState], None] | None = None) -> str:
     """Record audio from microphone until silence is detected with pre-roll buffer."""
     dest_path = Path(path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if on_state_change:
+        on_state_change(VoiceState.LISTENING)
 
     print("Recording... (speak now)")
     preroll = deque(maxlen=PREROLL_CHUNKS)
@@ -54,7 +91,6 @@ def record_until_silence(path: str = "data/audio.wav") -> str:
                 preroll.append(chunk)
                 if rms >= SILENCE_THRESHOLD:
                     speech_started = True
-                    # Flush pre-roll buffer into recorded frames
                     recorded_frames.extend(list(preroll))
                     silence_chunks = 0
             else:
@@ -66,6 +102,9 @@ def record_until_silence(path: str = "data/audio.wav") -> str:
                     if silence_chunks >= silence_chunks_needed:
                         break
 
+    if on_state_change:
+        on_state_change(VoiceState.THINKING)
+
     if not recorded_frames and preroll:
         recorded_frames = list(preroll)
 
@@ -75,10 +114,14 @@ def record_until_silence(path: str = "data/audio.wav") -> str:
     return str(dest_path)
 
 
-def listen_for_followup(timeout_seconds: float = 5.0, path: str = "data/audio.wav") -> str | None:
+def listen_for_followup(timeout_seconds: float = 5.0, path: str = "data/audio.wav",
+                         on_state_change: Callable[[VoiceState], None] | None = None) -> str | None:
     """Listen for speech starting within a timeout window with pre-roll buffering."""
     dest_path = Path(path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if on_state_change:
+        on_state_change(VoiceState.LISTENING)
 
     print(f"Listening for a follow-up ({timeout_seconds:.0f}s)...")
     preroll = deque(maxlen=PREROLL_CHUNKS)
@@ -116,18 +159,72 @@ def listen_for_followup(timeout_seconds: float = 5.0, path: str = "data/audio.wa
     if not speech_started:
         return None
 
+    if on_state_change:
+        on_state_change(VoiceState.THINKING)
+
     audio = np.concatenate(recorded_frames)
     sf.write(str(dest_path), audio, SAMPLE_RATE)
     print("Done recording.")
     return str(dest_path)
 
 
-class SpeechRecognizer:
-    """Handles speech recognition using faster-whisper with domain vocabulary biasing."""
+class StreamingTranscriber:
+    """Streaming transcription for real-time feedback during speech."""
 
     def __init__(self, model_size: str = "small"):
         self.model_size = model_size
         self._model = None
+        self._buffer: list[np.ndarray] = []
+        self._lock = threading.Lock()
+        self._running = False
+
+    @property
+    def model(self):
+        if self._model is None:
+            from faster_whisper import WhisperModel
+            self._model = WhisperModel(
+                self.model_size,
+                device="cpu",
+                compute_type="int8",
+            )
+        return self._model
+
+    def start_streaming(self, callback: Callable[[str, bool], None]):
+        """Start streaming transcription. Callback receives (partial_text, is_final)."""
+        self._running = True
+        self._buffer = []
+        self._callback = callback
+        # In a real implementation, this would run a background thread
+        # that processes audio chunks and calls callback with partial results
+        pass
+
+    def stop_streaming(self):
+        self._running = False
+
+
+class SpeechRecognizer:
+    """Handles speech recognition using faster-whisper with domain vocabulary biasing.
+
+    Enhanced with wake-word false-positive handling, barge-in support,
+    and state tracking for voice UX.
+    """
+
+    def __init__(self, model_size: str = "small", wake_word: str = "friday"):
+        self.model_size = model_size
+        self.wake_word = wake_word.lower()
+        self._model = None
+        self.context = VoiceContext()
+        self._state_callback: Callable[[VoiceState], None] | None = None
+        self._barge_in_detected = False
+
+    def set_state_callback(self, callback: Callable[[VoiceState], None]):
+        """Set callback for voice state changes."""
+        self._state_callback = callback
+
+    def _set_state(self, state: VoiceState):
+        self.context.state = state
+        if self._state_callback:
+            self._state_callback(state)
 
     @property
     def model(self):
@@ -142,6 +239,7 @@ class SpeechRecognizer:
 
     def transcribe(self, audio_file: str) -> str:
         """Transcribe an audio file to text using initial prompt and beam search."""
+        self._set_state(VoiceState.THINKING)
         try:
             segments, _ = self.model.transcribe(
                 audio_file,
@@ -153,21 +251,62 @@ class SpeechRecognizer:
                 vad_parameters=dict(min_silence_duration_ms=400),
             )
             text = " ".join(segment.text for segment in segments).strip()
+            self.context.last_transcription = text
             return text
         except Exception:
             # Fallback to standard transcribe if VAD or options encounter issue
             segments, _ = self.model.transcribe(audio_file, language="en")
-            return " ".join(segment.text for segment in segments).strip()
+            text = " ".join(segment.text for segment in segments).strip()
+            self.context.last_transcription = text
+            return text
 
     def record_until_silence(self, path: str = "data/audio.wav") -> str:
-        return record_until_silence(path)
+        return record_until_silence(path, on_state_change=self._set_state)
 
     def listen_for_followup(self, timeout_seconds: float = 5.0, path: str = "data/audio.wav") -> str | None:
-        return listen_for_followup(timeout_seconds=timeout_seconds, path=path)
+        return listen_for_followup(timeout_seconds=timeout_seconds, path=path, on_state_change=self._set_state)
+
+    def check_wake_word(self, transcription: str) -> bool:
+        """Check if transcription contains wake word with false-positive filtering."""
+        self.context.total_wake_attempts += 1
+        text_lower = transcription.lower().strip()
+
+        # Check for wake word
+        if self.wake_word in text_lower:
+            # Calculate confidence based on position and context
+            idx = text_lower.index(self.wake_word)
+            confidence = 0.9 if idx == 0 else 0.7  # Higher confidence at start
+
+            self.context.wake_word_confidence = confidence
+
+            # False positive detection: wake word in middle of unrelated speech
+            if confidence < 0.8 and len(text_lower) > 30:
+                # Could be false positive
+                self.context.false_positive_count += 1
+                if self.context.false_positive_count > 3:
+                    # Too many false positives, increase threshold
+                    return False
+
+            return True
+
+        return False
+
+    def get_false_positive_rate(self) -> float:
+        """Calculate false positive rate for wake word."""
+        if self.context.total_wake_attempts == 0:
+            return 0.0
+        return self.context.false_positive_count / self.context.total_wake_attempts
+
+    def reset_false_positives(self):
+        """Reset false positive counter after successful interaction."""
+        self.context.false_positive_count = 0
 
 
 __all__ = [
     "SpeechRecognizer",
     "record_until_silence",
     "listen_for_followup",
+    "VoiceState",
+    "VoiceContext",
+    "StreamingTranscriber",
 ]

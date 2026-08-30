@@ -27,12 +27,12 @@ class SemanticMemory:
         """Store a fact. Never persists secrets (§13.2)."""
         if self._is_secret(value) or self._is_secret(subject):
             raise ValueError("Refusing to store potential secret in semantic memory.")
-            
+
         now = datetime.now().isoformat(timespec="seconds")
         with self.db.connection() as conn:
             cursor = conn.execute(
-                "INSERT INTO facts (subject, predicate, value, confidence, source, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (subject, predicate, value, confidence, source, now)
+                "INSERT INTO facts (subject, predicate, value, confidence, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (subject, predicate, value, confidence, source, now, now)
             )
             row_id = cursor.lastrowid
             conn.execute(
@@ -45,6 +45,10 @@ class SemanticMemory:
         self.store_fact(subject=f"project:{project}", predicate="has_knowledge", value=knowledge, source=source)
 
     def recall(self, query: str, limit: int = 5) -> list[Fact]:
+        """Recall facts matching query. Escapes FTS5 special characters."""
+        # Escape FTS5 special characters to prevent syntax errors
+        escaped_query = self._escape_fts5_query(query)
+
         with self.db.connection() as conn:
             rows = conn.execute(
                 """SELECT f.subject, f.predicate, f.value, f.confidence, f.source, f.created_at
@@ -53,9 +57,9 @@ class SemanticMemory:
                    WHERE facts_fts MATCH ?
                    ORDER BY rank
                    LIMIT ?""",
-                (query, limit)
+                (escaped_query, limit)
             ).fetchall()
-            
+
         return [
             Fact(
                 subject=r["subject"],
@@ -67,6 +71,20 @@ class SemanticMemory:
             )
             for r in rows
         ]
+
+    def _escape_fts5_query(self, query: str) -> str:
+        """Escape FTS5 special characters in query string.
+
+        FTS5 uses a different escaping mechanism - we need to quote the query
+        and escape any double quotes inside it. Special characters in FTS5
+        include: " + - * ( ) : < > = ! @ $ % . , ; ? [ ] { } | ^ ~ \
+        """
+        # First escape any existing double quotes
+        escaped = query.replace('"', '""')
+
+        # Wrap the entire query in double quotes to treat as a phrase
+        # This prevents special characters from being interpreted as operators
+        return f'"{escaped}"'
 
     def search_by_relevance(self, query: str, limit: int = 5) -> list[dict]:
         """Search facts with confidence weighting."""

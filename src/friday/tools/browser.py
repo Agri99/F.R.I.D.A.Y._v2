@@ -60,7 +60,7 @@ def _verify_open_url(args: dict, result: dict) -> VerificationResult:
 def register_all_tools(registry) -> None:
     registry.register(Tool(
         name="browser.open",
-        description="Open a web link (http:// or https://) in default system browser.",
+        description="Open a web link in the UI. DO NOT use this to find information in the background; use online.search.",
         tier="YELLOW",
         capability_scope="browser.navigate",
         online_required=True,
@@ -70,7 +70,7 @@ def register_all_tools(registry) -> None:
     ))
     registry.register(Tool(
         name="browser.search",
-        description="Perform a web search in the default system browser.",
+        description="Open a search query in the browser UI. DO NOT use this to answer questions; use online.search instead.",
         tier="YELLOW",
         capability_scope="browser.navigate",
         online_required=True,

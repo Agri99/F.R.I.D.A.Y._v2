@@ -17,13 +17,19 @@ class NetworkState(enum.Enum):
     ONLINE = "ONLINE"
 
 class NetworkMonitor:
-    def __init__(self, check_urls: list[str] | None = None, interval: int = 60):
+    def __init__(self, check_urls: list[str] | None = None, interval: int = 60, assume_online: bool | None = None):
         self._check_urls = check_urls or ["https://1.1.1.1", "https://8.8.8.8"]
         self._interval = interval
-        self._state = NetworkState.UNKNOWN
+        if assume_online is True:
+            self._state = NetworkState.ONLINE
+        elif assume_online is False:
+            self._state = NetworkState.OFFLINE
+        else:
+            self._state = NetworkState.UNKNOWN
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+
 
     def check(self) -> NetworkState:
         """Perform actual HTTP probe."""
@@ -49,8 +55,12 @@ class NetworkMonitor:
         with self._lock:
             # If unknown, trigger synchronous check
             if self._state == NetworkState.UNKNOWN:
-                self._lock.release()
-                return self.check() == NetworkState.ONLINE
+                # Release lock before calling check() which also acquires it
+                pass
+        # Check outside the lock to avoid deadlock
+        if self._state == NetworkState.UNKNOWN:
+            return self.check() == NetworkState.ONLINE
+        with self._lock:
             return self._state == NetworkState.ONLINE
 
     def start_background_probing(self) -> None:

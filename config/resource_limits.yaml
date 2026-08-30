@@ -1,0 +1,98 @@
+# config/resource_limits.yaml
+# Resource limits and quotas for F.R.I.D.A.Y. v3
+
+# CPU limits
+cpu:
+  max_percent: 80          # Max CPU usage before throttling
+  max_cores: 8             # Max cores to use
+  priority: "normal"       # Process priority: low, normal, high
+
+# Memory limits
+memory:
+  max_gb: 12               # Max RAM usage in GB
+  max_percent: 85          # Max RAM percentage
+  swap_warning_gb: 2       # Warn if swap exceeds this
+  gc_threshold_mb: 512     # Trigger GC when RSS exceeds this
+
+# Disk limits
+disk:
+  max_gb: 50               # Max disk usage for FRIDAY data
+  max_percent: 90          # Max disk percentage
+  audit_log_max_gb: 2      # Max audit log size
+  trajectory_max_gb: 5     # Max trajectory storage
+  job_log_max_gb: 1        # Max job log size
+  backup_max_gb: 10        # Max backup storage
+
+# Network limits
+network:
+  max_concurrent_requests: 10
+  request_timeout_seconds: 30
+  ollama_timeout_seconds: 60
+  max_bandwidth_mbps: 100  # Max bandwidth for downloads
+
+# Model execution limits
+models:
+  max_concurrent: 2        # Max simultaneous model inferences
+  max_tokens_per_request: 8192
+  max_context_tokens: 32768
+  default_timeout_seconds: 60
+  vision_timeout_seconds: 120
+  stt_timeout_seconds: 30
+  tts_timeout_seconds: 30
+
+# Job execution limits
+jobs:
+  max_concurrent: 3
+  max_duration_seconds: 3600    # 1 hour max per job
+  max_retries: 3
+  retry_backoff_seconds: 60
+  max_memory_per_job_mb: 2048
+  max_cpu_percent_per_job: 50
+
+# Audio/Voice limits
+audio:
+  max_recording_seconds: 60
+  max_stt_realtime_factor: 2.0
+  max_tts_realtime_factor: 1.5
+  wake_word_max_false_positives_per_hour: 5
+
+# Browser limits
+browser:
+  max_tabs: 5
+  max_page_load_seconds: 30
+  max_download_mb: 100
+  headless_required: true
+
+# Security limits
+security:
+  max_failed_auth_attempts: 3
+  lockout_duration_minutes: 15
+  max_failed_voice_attempts: 5
+  voice_lockout_duration_minutes: 10
+  max_sandbox_executions_per_minute: 10
+  max_file_operations_per_minute: 100
+
+# Rate limiting
+rate_limits:
+  commands_per_minute: 30
+  voice_commands_per_minute: 10
+  file_operations_per_minute: 50
+  network_requests_per_minute: 60
+  model_requests_per_minute: 20
+
+# Logging limits
+logging:
+  max_log_file_mb: 10
+  max_log_age_days: 30
+  max_log_files_per_category: 50
+  audit_log_retention_days: 90
+  trajectory_retention_days: 30
+  job_log_retention_days: 7
+
+# Backup limits
+backup:
+  max_backups: 20
+  max_backup_age_days: 30
+  max_backup_size_gb: 5
+  incremental_interval_hours: 6
+  full_backup_interval_days: 1
