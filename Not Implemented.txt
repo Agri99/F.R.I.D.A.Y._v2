@@ -1,8 +1,0 @@
-1. Add CI pipeline — .github/workflows/ci.yml with lint, type-check, pytest, security tests
-2. Implement Playwright browser controller — replace requests-based navigation with real DOM/accessibility
-3. Build visual fallback pipeline — integrate OCR/VLM for VISUAL_MATCH in target resolver
-4. Complete skill sandbox — execute candidate skills in isolated environment before promotion
-5. Add memory export/rebuild — YAML export of durable memory for human review and migration
-6. Improve pattern distiller — trajectory normalization, variable extraction, reasoning-model draft
-7. Add E2E evaluation tasks — implement the 9 fixed tasks from §26.5
-8. Terminal sandbox isolation — container/chroot for terminal.sandbox

@@ -240,4 +240,4 @@ Run the full automated test suite:
 ```bash
 pytest tests/ -v
 ```
-All **41 automated tests** pass cleanly.
+All **165+ automated tests** pass cleanly (165 unit tests, 12 learning benchmarks, security & computer benchmarks).
