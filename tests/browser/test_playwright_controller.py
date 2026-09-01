@@ -23,8 +23,10 @@ class TestPlaywrightController:
         page = AsyncMock()
         page.click = AsyncMock()
         page.fill = AsyncMock()
-        page.query_selector = AsyncMock()
-        page.inner_text = AsyncMock(return_value="Sample text")
+        # query_selector returns an element mock with inner_text method
+        element_mock = AsyncMock()
+        element_mock.inner_text = AsyncMock(return_value="Sample text")
+        page.query_selector = AsyncMock(return_value=element_mock)
         page.goto = AsyncMock()
         page.accessibility = MagicMock()
         page.accessibility.snapshot = AsyncMock(return_value={"role": "document"})
@@ -103,6 +105,7 @@ class TestPlaywrightController:
 
     @pytest.mark.asyncio
     async def test_get_page_content(self, controller):
+        controller._current_url = "https://example.com"
         content = await controller.get_page_content()
         assert "Test" in content
 
