@@ -43,7 +43,9 @@ class MemoryDatabase:
                     evidence_count INTEGER DEFAULT 1,
                     expiry TEXT,
                     source TEXT DEFAULT 'trajectory',
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT,
+                    last_confirmed TEXT
                 )
             """)
             # FTS for episodes
@@ -65,7 +67,8 @@ class MemoryDatabase:
                     expiry TEXT,
                     source TEXT,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    last_confirmed TEXT
                 )
             """)
             # FTS for facts
@@ -84,8 +87,10 @@ class MemoryDatabase:
                     confidence REAL NOT NULL,
                     evidence_count INTEGER DEFAULT 1,
                     expiry TEXT,
+                    source TEXT DEFAULT 'user_explicit',
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    last_confirmed TEXT
                 )
             """)
 
@@ -140,16 +145,21 @@ class MemoryDatabase:
                 ("confidence", "REAL DEFAULT 0.5"),
                 ("evidence_count", "INTEGER DEFAULT 1"),
                 ("expiry", "TEXT"),
-                ("source", "TEXT DEFAULT 'trajectory'")
+                ("source", "TEXT DEFAULT 'trajectory'"),
+                ("updated_at", "TEXT"),
+                ("last_confirmed", "TEXT"),
             ])
             self._migrate_table(conn, "facts", [
                 ("evidence_count", "INTEGER DEFAULT 1"),
                 ("expiry", "TEXT"),
-                ("updated_at", "TEXT")
+                ("updated_at", "TEXT"),
+                ("last_confirmed", "TEXT"),
             ])
             self._migrate_table(conn, "preferences", [
                 ("evidence_count", "INTEGER DEFAULT 1"),
-                ("expiry", "TEXT")
+                ("expiry", "TEXT"),
+                ("source", "TEXT DEFAULT 'user_explicit'"),
+                ("last_confirmed", "TEXT"),
             ])
 
     def _migrate_table(self, conn: sqlite3.Connection, table: str, columns: list[tuple[str, str]]) -> None:

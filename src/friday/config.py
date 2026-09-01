@@ -24,11 +24,20 @@ class NetworkConfig(BaseModel):
 class ModelDef(BaseModel):
     provider: str
     model: str
+    base_url: str | None = None
+    timeout_seconds: int | None = None
+    supports_tools: bool | None = None
+    supports_vision: bool | None = None
 
 class ModelsConfig(BaseModel):
     fast: ModelDef
     reasoning: ModelDef
     vision: ModelDef
+    code: ModelDef | None = None
+    reviewer: ModelDef | None = None
+    embedding: ModelDef | None = None
+    stt: ModelDef | None = None
+    tts: ModelDef | None = None
 
 class RuntimeConfig(BaseModel):
     max_task_steps: int = 20

@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from friday.security.policy import RiskTier
 
@@ -129,3 +129,27 @@ class AuditLogger:
             verification=verification_details,
         )
         self._log(event)
+
+    def log_event(
+        self,
+        event: str,
+        task_id: str = "",
+        tool: str = "",
+        risk: RiskTier | str | None = None,
+        arguments: dict[str, Any] | None = None,
+        result: str = "",
+        verification: Any = None,
+    ) -> None:
+        r_str = risk.value if isinstance(risk, RiskTier) else str(risk or "GREEN")
+        audit_event = AuditEvent(
+            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+            task_id=task_id,
+            event=event.upper(),
+            tool=tool,
+            risk=r_str,
+            arguments=arguments or {},
+            authorization={},
+            result=result,
+            verification=verification or {},
+        )
+        self._log(audit_event)

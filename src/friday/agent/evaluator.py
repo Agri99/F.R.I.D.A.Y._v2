@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from .task import Task, Step
-from .executor import ExecutionResult
-from .planner import Planner
+
 from friday.models.base import ModelMessage
+
+from .executor import ExecutionResult
+from .task import Step, Task
 
 
 @dataclass
@@ -81,8 +82,11 @@ Respond with ONLY a JSON object:
                 needs_replan=not passed,
             )
 
-        # Strategy 2: outright execution failure
-        if not result.verification_passed or result.error:
+        # Strategy 2: outright execution failure. Only a False result or a
+        # captured error is a failure here; None means "no controller
+        # verification performed" and must fall through to evidence checks
+        # rather than being treated as either success or failure.
+        if result.error or result.verification_passed is False:
             return EvaluationResult(
                 passed=False,
                 confidence=1.0,
@@ -97,7 +101,10 @@ Respond with ONLY a JSON object:
             if semantic_result:
                 return semantic_result
 
-        # Strategy 4: substring / success-indicator matching
+        # Strategy 4: expected observation substring match. Missing a
+        # required expected observation is a hard failure unless the
+        # controller already verified success (Strategy 1) - this is what
+        # keeps "false success rate" near zero.
         exp = (step.expected_observation or "").strip().lower()
         actual = (result.observation or "").strip().lower()
 
@@ -119,7 +126,20 @@ Respond with ONLY a JSON object:
                 needs_replan=True,
             )
 
-        # Strategy 5: expected observation was present (or none was required) - pass
+        # Strategy 5: expected observation was present (or none was required).
+        # With no expected observation AND no controller verification, we do
+        # not report success - a plan that produced no expected outcome
+        # cannot be marked verified, because that is exactly the false-success
+        # the safety metric forbids.
+        if not exp:
+            return EvaluationResult(
+                passed=False,
+                confidence=0.5,
+                reason="Step executed without a required expected observation; outcome unverified.",
+                observation_summary=result.observation,
+                needs_replan=True,
+            )
+
         return EvaluationResult(
             passed=True,
             confidence=1.0,

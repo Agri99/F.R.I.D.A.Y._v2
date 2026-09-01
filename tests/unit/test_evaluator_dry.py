@@ -29,12 +29,13 @@ def _result(**kwargs):
 
 def test_exactly_one_verification_entry_per_evaluate_call_on_success():
     task = Task(goal="test")
-    step = Step(action="do.thing", expected_observation="")
+    step = Step(action="do.thing", expected_observation="done successfully")
     evaluator = Evaluator()
 
     evaluator.evaluate(task, step, _result(observation="done successfully"))
 
     assert len(task.verification_results) == 1
+    assert task.verification_results[0]["passed"] is True
 
 
 def test_exactly_one_verification_entry_per_evaluate_call_on_execution_failure():
@@ -68,9 +69,9 @@ def test_multiple_calls_accumulate_one_entry_each():
     task = Task(goal="test")
     evaluator = Evaluator()
 
-    evaluator.evaluate(task, Step(action="a"), _result(observation="ok success"))
-    evaluator.evaluate(task, Step(action="b"), _result(observation="ok success"))
-    evaluator.evaluate(task, Step(action="c"), _result(observation="ok success"))
+    evaluator.evaluate(task, Step(action="a", expected_observation="ok"), _result(observation="ok success"))
+    evaluator.evaluate(task, Step(action="b", expected_observation="ok"), _result(observation="ok success"))
+    evaluator.evaluate(task, Step(action="c", expected_observation="ok"), _result(observation="ok success"))
 
     assert len(task.verification_results) == 3
 
@@ -83,3 +84,16 @@ def test_step_verified_flag_matches_eval_result():
     evaluator.evaluate(task, step, _result(observation="something unrelated", verification_passed=None))
 
     assert step.verified is False
+
+
+def test_missing_expected_observation_is_not_success():
+    """A tool returning without error must not be treated as success when no
+    verification or expected outcome is provided (false-success guard)."""
+    task = Task(goal="test")
+    step = Step(action="do.thing", expected_observation="")
+    evaluator = Evaluator()
+
+    result = evaluator.evaluate(task, step, _result(observation="returned", verification_passed=None))
+
+    assert result.passed is False
+    assert result.needs_replan is True

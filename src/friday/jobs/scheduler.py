@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import sched
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, time as dt_time
+from datetime import datetime
+from datetime import time as dt_time
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+
 try:
     from croniter import croniter
 except ImportError:
@@ -235,10 +238,19 @@ class JobScheduler:
                 job.enabled = False
                 logger.warning(f"Job {job.id} disabled after {job.consecutive_failures} consecutive failures")
             elif job.failure_policy == FailurePolicy.SKIP:
-                pass  # Just skip, will reschedule
+                # Leave next_run unchanged; scheduler will reschedule on next iteration
+                self._schedule_next(job)
+                return
             elif job.failure_policy == FailurePolicy.RETRY:
-                # Schedule retry with backoff
-                pass  # Handled by executor
+                backoff = job.budget.backoff_seconds if hasattr(job.budget, "backoff_seconds") else 60
+                from datetime import timedelta
+                job.next_run = datetime.now() + timedelta(seconds=backoff)
+                if job.consecutive_failures >= job.budget.max_retries:
+                    job.enabled = False
+                    logger.warning(f"Job {job.id} exceeded retry budget ({job.budget.max_retries}); disabling")
+                return
+
+        self._schedule_next(job)
 
         self._schedule_next(job)
 
@@ -248,7 +260,7 @@ class JobScheduler:
 
     def save_job(self, job: Job) -> None:
         """Persist a job."""
-        pass  # Handled by JobRegistry in actual implementation
+        # Handled by JobRegistry in actual implementation
 
     def parse_trigger(self, trigger: str, base: datetime | None = None) -> datetime | None:
         """Parse the trigger string and calculate the next execution time."""
@@ -306,7 +318,6 @@ class JobScheduler:
     def start(self) -> None:
         """Start the scheduler background thread."""
         self._running = True
-        import threading
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
@@ -392,7 +403,8 @@ class JobScheduler:
 
 
 # Helper imports
-from datetime import timedelta
-import threading
 import logging
+import threading
+from datetime import timedelta
+
 logger = logging.getLogger(__name__)

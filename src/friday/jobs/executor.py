@@ -11,10 +11,10 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
-from friday.jobs.scheduler import Job, JobBudget, VerificationType
-from friday.online.capability_gate import OnlineCapabilityGate, NetworkMonitor
+from friday.jobs.scheduler import Job, VerificationType
+from friday.online.capability_gate import OnlineCapabilityGate
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class JobResult:
 class JobExecutor:
     """Runs scheduled jobs safely through the standard orchestrator pipeline with budget enforcement and graceful degradation."""
 
-    def __init__(self, capability_gate: Optional[OnlineCapabilityGate] = None):
+    def __init__(self, capability_gate: OnlineCapabilityGate | None = None):
         self.capability_gate = capability_gate
 
     def execute(self, job: Job, orchestrator: Any = None) -> JobResult:
@@ -102,8 +102,14 @@ class JobExecutor:
                 error_msg = str(exc)
                 output_msg = f"Job execution error: {exc}"
         else:
-            output_msg = f"Simulated execution of proactive job: {job.skill}"
-            verified = True  # Simulated always passes verification
+            # Without an orchestrator there is no verified execution path.
+            # Report failure rather than the prior "Simulated always passes"
+            # false-success behavior.
+            output_msg = ""
+            success = False
+            error_msg = "No orchestrator wired into JobExecutor"
+            verified = False
+            logger.error("JobExecutor has no orchestrator; job %s cannot be verified", job.id)
 
         duration = time.time() - start_time
 
@@ -126,17 +132,18 @@ class JobExecutor:
         )
 
     def _run_with_timeout(self, orchestrator: Any, job: Job) -> Any:
-        """Run orchestrator with timeout."""
+        """Run orchestrator with timeout, surfacing real failures."""
         import threading
-        result_container = {"task": None, "error": None}
+        result_container: dict[str, Any] = {"task": None, "error": None}
 
         def run_orchestrator():
             try:
                 result_container["task"] = orchestrator.run(job.skill)
-            except Exception as e:
-                result_container["error"] = e
+            except Exception as exc:  # surface, do not swallow
+                result_container["error"] = exc
+                logger.exception("Job %s execution raised", job.id)
 
-        thread = threading.Thread(target=run_orchestrator)
+        thread = threading.Thread(target=run_orchestrator, name=f"job:{job.id}")
         thread.daemon = True
         thread.start()
         thread.join(timeout=job.budget.max_time_seconds)
@@ -146,6 +153,9 @@ class JobExecutor:
 
         if result_container["error"]:
             raise result_container["error"]
+
+        if result_container["task"] is None:
+            raise RuntimeError(f"Job {job.id} produced no task result")
 
         return result_container["task"]
 

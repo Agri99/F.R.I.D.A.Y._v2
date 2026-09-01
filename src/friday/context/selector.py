@@ -1,8 +1,9 @@
 """Relevance-ranked context selection."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from friday.context.budget import ContextBudget
 
@@ -29,12 +30,13 @@ class ContextSelector:
         ranked = sorted(items, key=lambda item: item.score, reverse=True)
         selected: list[ContextItem] = []
         used = 0
-        seen: set[tuple[str, str]] = set()
+        seen: set[str] = set()
         for item in ranked:
-            identity = (item.source, item.content)
+            content_str = str(item.content)
+            identity = hash(content_str)
             if identity in seen:
                 continue
-            cost = self.budget.estimate_tokens(item.content)
+            cost = self.budget.estimate_tokens(content_str)
             if used + cost > self.budget.available_tokens:
                 continue
             selected.append(item)

@@ -11,11 +11,10 @@ from __future__ import annotations
 
 import enum
 from pathlib import Path
-from typing import Any
 
+from friday.learning.optimizer import SkillOptimizer
 from friday.skills.learner import SkillCandidate
 from friday.skills.loader import Skill
-from friday.learning.optimizer import SkillOptimizer
 from friday.skills.versioning import SkillVersionManager
 
 
@@ -75,12 +74,29 @@ class PromotionManager:
         """Load existing skill metrics from disk."""
         try:
             skill_path = self.learned_skills_dir / f"{name}.md"
-            if skill_path.exists():
-                # Parse metrics from markdown (simplified - in real impl would use YAML frontmatter)
-                return None  # Placeholder - would parse metrics from file
+            if not skill_path.exists():
+                return None
+            from friday.skills.loader import SkillLoader
+            loader = SkillLoader()
+            loaded = loader.load_skill(skill_path)
+            candidate = SkillCandidate(
+                proposed_name=loaded.name,
+                purpose=loaded.purpose,
+                triggers=[loaded.trigger] if loaded.trigger else ["run"],
+                procedure=loaded.procedure,
+                required_capabilities=loaded.required_capabilities,
+                risk_profile=loaded.risk_profile,
+            )
+            candidate.version = loaded.version
+            candidate.attempts = loaded.attempts
+            candidate.successes = loaded.successes
+            candidate.failures = loaded.failures
+            candidate.avg_execution_time_ms = loaded.avg_execution_time_ms
+            candidate.verification_rate = loaded.verification_rate
+            candidate.user_corrections = loaded.user_corrections
+            return candidate
         except Exception:
-            pass
-        return None
+            return None
 
     def promote(self, candidate: SkillCandidate, save_to_disk: bool = True) -> Skill:
         """Promote candidate into a production Skill object and optionally persist to skills/learned/."""

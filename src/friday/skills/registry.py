@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass
 class SkillSummary:
     name: str
@@ -37,6 +38,31 @@ class SkillRegistry:
                 version=s.version
             ) for s in self._skills.values()
         ]
+
+    def search_skills(self, context: str) -> list[dict[str, Any]]:
+        """Return serializable, trigger-ranked skills for context priming."""
+        query = context.lower()
+        matches = []
+        for skill in self._skills.values():
+            triggers = list(getattr(skill, "triggers", []) or [])
+            trigger = getattr(skill, "trigger", "")
+            if trigger:
+                triggers.append(trigger)
+            purpose = str(getattr(skill, "purpose", ""))
+            if not any(term and term.lower() in query for term in triggers) and not (
+                purpose and purpose.lower() in query
+            ):
+                continue
+            matches.append({
+                "name": skill.name,
+                "purpose": purpose,
+                "triggers": triggers,
+                "required_capabilities": list(getattr(skill, "required_capabilities", []) or []),
+                "risk_profile": getattr(skill, "risk_profile", "GREEN"),
+                "version": getattr(skill, "version", "1.0.0"),
+                "trigger_match": True,
+            })
+        return matches
 
     def list_by_trigger(self, context: str) -> list[Any]:
         """Find skills relevant to the context."""

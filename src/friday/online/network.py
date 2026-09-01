@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import enum
 import threading
-import time
-import urllib.request
 import urllib.error
-from dataclasses import dataclass
+import urllib.request
+
 
 class NetworkState(enum.Enum):
     UNKNOWN = "UNKNOWN"
@@ -32,20 +31,22 @@ class NetworkMonitor:
 
 
     def check(self) -> NetworkState:
-        """Perform actual HTTP probe."""
+        """Perform actual HTTP probe with timeout."""
         with self._lock:
             self._state = NetworkState.PROBING
-            
+
         for url in self._check_urls:
             try:
-                # 2 second timeout for probe
-                urllib.request.urlopen(url, timeout=2.0)
-                with self._lock:
-                    self._state = NetworkState.ONLINE
-                return self._state
-            except (urllib.error.URLError, OSError):
+                # short timeout per probe so a stuck router fails closed quickly
+                with urllib.request.urlopen(url, timeout=2.0):
+                    with self._lock:
+                        self._state = NetworkState.ONLINE
+                    return self._state
+            except (urllib.error.URLError, OSError, TimeoutError):
                 continue
-                
+            except Exception:
+                continue
+
         with self._lock:
             self._state = NetworkState.OFFLINE
         return self._state

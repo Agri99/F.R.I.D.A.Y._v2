@@ -10,12 +10,17 @@ from __future__ import annotations
 import tempfile
 from datetime import time as dt_time
 
-from friday.jobs.scheduler import (
-    Job, JobScheduler, JobBudget, ExecutionWindow,
-    FailurePolicy, NotificationPolicy, VerificationType
-)
-from friday.jobs.registry import JobRegistry
 from friday.jobs.executor import JobExecutor
+from friday.jobs.registry import JobRegistry
+from friday.jobs.scheduler import (
+    ExecutionWindow,
+    FailurePolicy,
+    Job,
+    JobBudget,
+    JobScheduler,
+    NotificationPolicy,
+    VerificationType,
+)
 
 
 def test_job_persistence_and_execution():
@@ -45,9 +50,20 @@ def test_job_persistence_and_execution():
         assert len(loaded_jobs) == 1
         assert loaded_jobs[0].id == "daily_healthcheck"
 
-        # 2. Execute job
-        result = executor.execute(job)
+        # 2. Execute job - the executor must be wired with a real orchestrator
+        # before any proactive job can succeed; without it the executor reports
+        # failure rather than a false success.
+        fake_orchestrator = type(
+            "FakeOrchestrator",
+            (),
+            {"run": staticmethod(lambda goal: type("Task", (), {
+                "status": type("Status", (), {"value": "COMPLETED"})(),
+                "last_message": "ok",
+            })())},
+        )()
+        result = executor.execute(job, orchestrator=fake_orchestrator)
         assert result.success is True
+        assert result.verified is True
 
         # 3. Delete job
         assert registry.delete("daily_healthcheck") is True

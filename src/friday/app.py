@@ -15,10 +15,10 @@ god-module like the old llm.py.
 
 from __future__ import annotations
 
-import sys
-import time
-from pathlib import Path
 import atexit
+import sys
+from pathlib import Path
+
 
 # ==============================================================================
 # DEV ONLY LOGGER - REMOVE BEFORE FINAL RELEASE
@@ -52,27 +52,26 @@ _SRC_DIR = Path(__file__).resolve().parent.parent
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
+from friday.agent.orchestrator import AgentOrchestrator
 from friday.config import Settings
 from friday.models.router import ModelRouter
-from friday.security.policy import PolicyEngine
-from friday.security.capabilities import CapabilityRegistry
 from friday.security.audit import AuditLogger
-from friday.agent.orchestrator import AgentOrchestrator
-from friday.agent.task import TaskStatus
+from friday.security.capabilities import CapabilityRegistry
+from friday.security.policy import PolicyEngine
+from friday.tools.applications import register_all_tools as register_application_tools
+from friday.tools.audio import register_all_tools as register_audio_tools
+from friday.tools.browser import register_all_tools as register_browser_tools
+from friday.tools.calendar import register_all_tools as register_calendar_tools
+from friday.tools.computer import register_all_tools as register_computer_tools
+from friday.tools.filesystem import register_all_tools as register_filesystem_tools
+from friday.tools.gmail import register_all_tools as register_gmail_tools
+from friday.tools.online import register_all_tools as register_online_tools
 from friday.tools.registry import ToolRegistry
+from friday.tools.scheduling import register_all_tools as register_scheduling_tools
 
 # Tool registration modules
 from friday.tools.system import register_all_tools as register_system_tools
-from friday.tools.filesystem import register_all_tools as register_filesystem_tools
-from friday.tools.applications import register_all_tools as register_application_tools
-from friday.tools.computer import register_all_tools as register_computer_tools
-from friday.tools.browser import register_all_tools as register_browser_tools
-from friday.tools.gmail import register_all_tools as register_gmail_tools
-from friday.tools.calendar import register_all_tools as register_calendar_tools
-from friday.tools.scheduling import register_all_tools as register_scheduling_tools
-from friday.tools.audio import register_all_tools as register_audio_tools
 from friday.tools.terminal import register_all_tools as register_terminal_tools
-from friday.tools.online import register_all_tools as register_online_tools
 
 
 def load_personas() -> tuple[str, str]:
@@ -174,7 +173,6 @@ def _reply_text(task) -> str:
     else:
         raw = f"Task ended in state {task.status.value}."
     
-    import json
     # Strip emojis/non-ascii to ensure clean Piper TTS speech
     clean = raw.encode('ascii', 'ignore').decode('ascii').strip()
     
@@ -203,10 +201,12 @@ def get_time_greeting() -> str:
 def run_voice() -> None:
     """Run the full voice-enabled FRIDAY loop with orb UI."""
     import subprocess
-    from friday.interaction.wakeword import WakeWordListener
-    from friday.interaction.stt import SpeechRecognizer, record_until_silence, listen_for_followup
+
+    from friday.interaction.session import SessionState, VoiceSession
+    from friday.interaction.stt import SpeechRecognizer
     from friday.interaction.tts import SpeechSynthesizer
-    from friday.ui.orb_server import start_server_in_background, set_state
+    from friday.interaction.wakeword import WakeWordListener
+    from friday.ui.orb_server import set_state, start_server_in_background
 
     start_server_in_background()
 
@@ -223,19 +223,42 @@ def run_voice() -> None:
         from friday.models.router import RoutingContext, TaskComplexity
         model = orch.model_router.route(RoutingContext(task_complexity=TaskComplexity.LOW))
         if not model.is_available():
-            model = orch.model_router.get("reasoning")
-            if not model.is_available():
-                print("Ollama not reachable — start Ollama and ensure a model is pulled.")
-                return
+            print("Ollama not reachable — start Ollama and ensure a model is pulled.")
+            return
 
         wakeword = WakeWordListener()
         recognizer = SpeechRecognizer()
         synthesizer = SpeechSynthesizer()
 
-        owner_p, guest_p = load_personas()
-        
-        print("FRIDAY v3 is ready.")
-        
+        owner_p, _ = load_personas()
+
+        controls = {
+            "offline": lambda: setattr(orch, "_offline_override", True),
+            "online": lambda: setattr(orch, "_offline_override", False),
+            "fast": lambda: setattr(orch, "_reasoning_preference", "fast"),
+            "deep": lambda: setattr(orch, "_reasoning_preference", "deep"),
+            "safer": lambda: setattr(orch, "_safer_mode", True),
+            "pause": orch._pause_execution,
+            "explain": lambda: setattr(orch, "_explain_progress", True),
+        }
+
+        def voice_agent(text: str):
+            orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
+            return orch.run(text)
+
+        def on_state(state: SessionState):
+            set_state(state.value)
+
+        session = VoiceSession(
+            stt=recognizer,
+            tts=synthesizer,
+            wakeword=wakeword,
+            agent=voice_agent,
+            followup_window_seconds=orch.settings.voice.followup_window_seconds,
+            controls=controls,
+            on_state_change=on_state,
+        )
+
         # --- BOOT GREETING ---
         time_period = get_time_greeting()
         try:
@@ -247,94 +270,17 @@ def run_voice() -> None:
             ]
             boot_msg = random.choice(greetings)
             print(f"FRIDAY [Boot]: {boot_msg}")
-            set_state("speaking")
+            session.set_state(SessionState.SPEAKING)
             synthesizer.speak_interruptible(boot_msg, wakeword)
         except Exception as e:
             print(f"FRIDAY [Boot]: Online and ready. (Greeting failed: {e})")
 
-
-
-
-
-        followup_window = orch.settings.voice.followup_window_seconds
-        need_wakeword = True
-        pending_task_id: str | None = None
-
-        while True:
-            try:
-                set_state("idle")
-                if need_wakeword:
-                    wakeword.listen_for_wakeword()
-                    set_state("listening")
-                    audio_path = record_until_silence()
-                else:
-                    set_state("listening")
-                    audio_path = listen_for_followup(timeout_seconds=followup_window)
-                    if audio_path is None:
-                        need_wakeword = True
-                        # pending_task_id = None  # Preserve pending task for next wakeword
-                        continue
-
-                # Check identity via voice biometrics
-                is_owner = orch.voice_auth.verify(audio_path)
-                if is_owner:
-                    orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
-                    identity_label = "Owner"
-                else:
-                    orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=guest_p)
-                    identity_label = "Guest"
-
-                text = recognizer.transcribe(audio_path)
-                if not text or len(text.strip()) < 2:
-                    continue
-                    
-                print(f"[{identity_label}] You said: {text}")
-
-                set_state("thinking")
-                if pending_task_id is not None:
-                    task = orch.resume_with_voice(pending_task_id, text, audio_path)
-                else:
-                    task = orch.run(text)
-
-                reply = _reply_text(task)
-                print(f"FRIDAY [{task.status.value}]: {reply}")
-
-                pending_task_id = (
-                    task.id if task.status == TaskStatus.AWAITING_AUTHORIZATION else None
-                )
-
-                set_state("speaking")
-                synthesizer.speak_interruptible(reply, wakeword)
-
-                # Check for shutdown
-                import friday.tools.system as sys_module
-                if sys_module.SHUTDOWN_REQUESTED or getattr(orch, "_shutdown_requested", False):
-                    print("Shutdown requested. Exiting FRIDAY...")
-                    break
-
-                need_wakeword = False
-                time.sleep(0.2)
-
-            except Exception as exc:
-                # A crash mid-turn used to kill the whole process, ending the
-                # session on ANY unexpected error - including ones unrelated
-                # to what the user actually asked (a UI Automation COM hiccup,
-                # a transient STT/TTS failure, etc). Log it, tell the user
-                # something went wrong instead of going silent, and keep
-                # the loop alive rather than exiting FRIDAY entirely.
-                import traceback
-                print(f"[ERROR] Unhandled exception during turn: {exc}")
-                traceback.print_exc()
-                try:
-                    set_state("speaking")
-                    synthesizer.speak_interruptible(
-                        "Sorry, I hit an unexpected error with that. Let's try again.", wakeword
-                    )
-                except Exception:
-                    pass  # even the error-recovery speech failing shouldn't kill the loop
-                pending_task_id = None  # don't resume into a task that errored mid-flight
-                need_wakeword = False
-                time.sleep(0.2)
+        print("FRIDAY v3 is ready.")
+        session.run_loop()
+    except Exception as exc:
+        print(f"FRIDAY [Voice]: Critical error: {exc}")
+        import traceback
+        traceback.print_exc()
     finally:
         if orb_process is not None:
             try:

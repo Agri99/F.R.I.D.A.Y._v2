@@ -1,29 +1,29 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from friday.config import Settings
+from friday.learning.trajectory import TrajectoryRecorder
+from friday.memory.conversation import ConversationMemory
 from friday.models.router import ModelRouter
-from friday.models.base import ModelMessage
-from friday.security.policy import PolicyEngine, PolicyDecision
+from friday.security.action_request import ActionRequest
+from friday.security.audit import AuditLogger
 from friday.security.capabilities import CapabilityRegistry
 from friday.security.confirmation import ConfirmationManager
-from friday.security.audit import AuditLogger
-from friday.security.voice_auth import VoiceAuthProvider
 from friday.security.passphrase import verify_passphrase
-from friday.security.action_request import ActionRequest
-from friday.memory.conversation import ConversationMemory
-from friday.learning.trajectory import TrajectoryRecorder
+from friday.security.policy import PolicyEngine
+from friday.security.voice_auth import VoiceAuthProvider
 
-from .task import Task, TaskManager, TaskStatus, Step
-from .state import TaskStateMachine
-from .planner import Planner, PlanningDepth
-from .executor import Executor
 from .evaluator import Evaluator
-from .recovery import RecoveryManager
-from .steering import SteeringController, SteeringTrigger, SteeringAction
+from .executor import Executor
 from .fastpath import FastPathRouter
+from .planner import Planner
+from .recovery import RecoveryManager
+from .state import TaskStateMachine
+from .steering import SteeringController
+from .task import Step, Task, TaskManager, TaskStatus
 
 APPROVE_WORDS = {"yes", "yeah", "yep", "confirm", "do it", "proceed", "go ahead", "sure", "ok", "okay"}
 DENY_WORDS = {"no", "nope", "cancel", "stop", "don't", "abort"}
@@ -202,18 +202,22 @@ class AgentOrchestrator:
             context_limit=settings.runtime.context_window_messages,
         )
         
-        from friday.memory.database import MemoryDatabase
+        from friday.memory.episodic import EpisodicMemory
+        from friday.memory.preferences import PreferenceMemory
         from friday.memory.priming import ContextPrimingEngine
         from friday.memory.semantic import SemanticMemory
-        from friday.memory.preferences import PreferenceMemory
-        
+        from friday.skills.registry import SkillRegistry
+
         db = self.conversation_memory.db # Share the same DB connection wrapper
         self.semantic_memory = SemanticMemory(db)
         self.preference_memory = PreferenceMemory(db)
+        self.episodic_memory = EpisodicMemory(db)
+        self.skill_registry = SkillRegistry()
         self.priming_engine = ContextPrimingEngine(
             memory_db=self.semantic_memory,
-            skill_registry=None,
-            preference_store=self.preference_memory
+            skill_registry=self.skill_registry,
+            preference_store=self.preference_memory,
+            episodic_memory=self.episodic_memory,
         )
         
         self.trajectory_recorder = TrajectoryRecorder(trajectories_dir=settings.paths.trajectories_dir)
@@ -230,18 +234,45 @@ class AgentOrchestrator:
         )
         self.fastpath = FastPathRouter()
         self.state_machine = TaskStateMachine(on_transition=self._on_task_transition)
+        self._replan_requested = False
+        self._paused = False
 
     def _on_task_transition(self, task: Task, new_status: TaskStatus, reason: str) -> None:
-        pass
+        try:
+            self.audit_logger.log_event(
+                event="task.transition",
+                task_id=task.id,
+                arguments={"status": new_status.value, "reason": reason},
+                risk="GREEN",
+            )
+        except Exception:
+            pass
 
     def _trigger_replan(self, context: dict) -> None:
         """Callback for steering controller to trigger replan."""
-        # This will be handled in the execution loop
-        pass
+        self._replan_requested = True
+        try:
+            self.audit_logger.log_event(
+                event="steering.replan_requested",
+                task_id=context.get("task_id", ""),
+                arguments={"reason": context.get("reason", "")},
+                risk="GREEN",
+            )
+        except Exception:
+            pass
 
     def _pause_execution(self) -> None:
         """Callback for steering controller to pause execution."""
-        pass
+        self._paused = True
+        try:
+            self.audit_logger.log_event(
+                event="steering.pause_requested",
+                task_id="",
+                arguments={},
+                risk="GREEN",
+            )
+        except Exception:
+            pass
 
     def _remember(self, role: str, content: str) -> None:
         try:
@@ -270,7 +301,7 @@ class AgentOrchestrator:
             task.plan = [Step(
                 action=fast_intent.tool_name, 
                 arguments=fast_intent.arguments, 
-                expected_observation=fast_intent.success_reply or "",
+                expected_observation=fast_intent.success_reply or f"Executed {fast_intent.tool_name}",
                 risk_scope=getattr(fast_intent, 'risk_tier', ''),
             )]
             return self._execute_plan(task)
@@ -307,8 +338,7 @@ class AgentOrchestrator:
         return self._execute_plan(task)
 
     def _execute_plan(self, task: Task) -> Task:
-        if task.current_step_index < 0:
-            task.current_step_index = 0
+        task.current_step_index = max(task.current_step_index, 0)
 
         while task.current_step_index < len(task.plan):
             if task.steps_used >= task.max_steps:
@@ -381,8 +411,20 @@ class AgentOrchestrator:
                 self.trajectory_recorder.finish("FAILURE")
                 return task
 
-            req = ActionRequest.from_tool(tool, step.arguments, task_id=task.id, step_id=str(task.current_step_index))
-            exec_result = self.executor.execute(tool, step, max_time_budget=task.max_time_seconds)
+            req = ActionRequest.from_tool(
+                tool,
+                step.arguments,
+                task_id=task.id,
+                step_id=str(task.current_step_index),
+                requester="planner",
+                context_source=getattr(
+                    getattr(task.primed_context, "task_type", None),
+                    "value",
+                    "agent",
+                ),
+                target=step.arguments.get("text_label") or step.arguments.get("target"),
+            )
+            exec_result = self.executor.execute(tool, step, max_time_budget=task.max_time_seconds, request=req)
 
             
             task.observations.append(exec_result.observation)
@@ -399,6 +441,14 @@ class AgentOrchestrator:
                 result=exec_result.result if eval_result.passed else str(exec_result.error),
                 verification=eval_result.reason,
             )
+
+            task.actions.append({
+                "step": step.action,
+                "arguments": step.arguments,
+                "result": exec_result.result,
+                "verified": eval_result.passed,
+                "verification": eval_result.reason,
+            })
 
             self.trajectory_recorder.record_step(
                 action=step.action,
@@ -493,8 +543,12 @@ class AgentOrchestrator:
             self.steering.reset_verification_failures()
             task.current_step_index += 1
 
+        completed_step = task.plan[-1] if task.plan else None
+        last_exec = task.actions[-1] if task.actions else None
         self.state_machine.transition(task, TaskStatus.COMPLETED, reason="All steps completed")
-        reply = _format_natural_reply(step.action, exec_result.result) if 'exec_result' in locals() and exec_result.verification_passed else "Done."
+        reply = "Done."
+        if completed_step is not None and last_exec is not None and last_exec.get("verified") is True:
+            reply = _format_natural_reply(completed_step.action, last_exec.get("result"))
         task.last_message = reply
         self._remember("assistant", reply)
         self.trajectory_recorder.finish("SUCCESS")

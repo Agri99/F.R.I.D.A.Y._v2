@@ -83,6 +83,7 @@ class Task:
 
     # Context
     context: dict[str, Any] = field(default_factory=dict)
+    primed_context: Any | None = None
 
     plan_version: int = 1
 

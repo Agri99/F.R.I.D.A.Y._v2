@@ -101,7 +101,7 @@ class FastPathRouter:
             return FastPathResult(
                 tool_name="system.shutdown_friday",
                 arguments={},
-                success_reply="Shutting down. Goodbye, Boss!",
+                success_reply="Shutting down FRIDAY. Goodbye!",
             )
 
         # 2. Orb visibility
@@ -145,7 +145,7 @@ class FastPathRouter:
                     return FastPathResult(
                         tool_name="online.search",
                         arguments={"query": query},
-                        success_reply=f"Let me look that up.",
+                        success_reply="Let me look that up.",
                     )
 
         return None

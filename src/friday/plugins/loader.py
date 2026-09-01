@@ -4,7 +4,6 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 from friday.plugins.api import Plugin, PluginContext
@@ -32,10 +31,18 @@ class PluginLoader:
         if not decision.approved:
             PluginLifecycle.transition(record, PluginState.FAILED, decision.reason)
             return record
-        PluginLifecycle.transition(record, PluginState.SANDBOXED)
-        PluginLifecycle.transition(record, PluginState.TESTED)
         try:
             instance = self._instantiate(record)
+        except Exception as exc:
+            PluginLifecycle.transition(record, PluginState.FAILED, f"Instantiation failed: {exc}")
+            return record
+        PluginLifecycle.transition(record, PluginState.SANDBOXED)
+        sandbox_result = self._run_sandbox_tests(record)
+        if not sandbox_result.passed:
+            PluginLifecycle.transition(record, PluginState.FAILED, f"Sandbox tests failed: {sandbox_result.stderr or sandbox_result.stdout}")
+            return record
+        PluginLifecycle.transition(record, PluginState.TESTED)
+        try:
             PluginLifecycle.transition(record, PluginState.CANARY)
             instance.activate(PluginContext(decision.granted_capabilities, services or {}))
             if not instance.health():
@@ -47,12 +54,22 @@ class PluginLoader:
             PluginLifecycle.transition(record, PluginState.FAILED, str(exc))
             return record
 
+    def _run_sandbox_tests(self, record: PluginRecord) -> SandboxResult:
+        from friday.plugins.sandbox import PluginSandbox
+        sandbox = PluginSandbox(Path(record.path).parent)
+        return sandbox.run_tests(Path(record.path))
+
     def hot_swap(self, active: PluginRecord, candidate: PluginRecord, services: dict[str, Any] | None = None) -> PluginRecord:
         loaded = self.load(candidate, services)
         if loaded.state != PluginState.ACTIVE:
             return loaded
-        if active.instance is not None:
-            active.instance.deactivate()
+        try:
+            if active.instance is not None:
+                active.instance.deactivate()
+        except Exception as exc:
+            loaded.instance.deactivate() if loaded.instance else None
+            PluginLifecycle.transition(loaded, PluginState.FAILED, f"Hot swap failed during deactivation: {exc}")
+            return loaded
         PluginLifecycle.transition(active, PluginState.DISABLED)
         self.registry.register(loaded)
         return loaded

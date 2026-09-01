@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import Any
+
 from friday.security.action_request import ActionRequest
 
 
@@ -26,8 +27,19 @@ class ExecutionResult:
 class Executor:
     """Isolated execution environment that runs tools and captures errors."""
 
-    def execute(self, tool, step: Any, max_time_budget: float = 120.0) -> ExecutionResult:
-        """Runs the tool safely, catching and classifying exceptions."""
+    def execute(
+        self,
+        tool,
+        step: Any,
+        max_time_budget: float = 120.0,
+        request: ActionRequest | None = None,
+    ) -> ExecutionResult:
+        """Runs the tool safely, catching and classifying exceptions.
+
+        `request` is the trusted, pre-authorized ActionRequest from the
+        orchestrator when one exists; otherwise one is derived here so the
+        execution binds to the same typed contract either way.
+        """
         start_time = time.time()
 
         # Enforce step retry limits
@@ -47,8 +59,13 @@ class Executor:
                 return ExecutionResult(result=None, observation="Execution timed out.", verification_passed=False, error="timeout")
 
             try:
-                # Construct ActionRequest
-                req = ActionRequest.from_tool(tool, args, step_id=getattr(step, "intent", ""))
+                # Construct or reuse the ActionRequest that binds tool + arguments
+                req = request or ActionRequest.from_tool(
+                    tool,
+                    args,
+                    task_id=getattr(step, "task_id", ""),
+                    step_id=getattr(step, "intent", ""),
+                )
 
                 # Execute tool
                 if hasattr(tool, "run"):
@@ -61,7 +78,9 @@ class Executor:
                     raise ValueError(f"Tool {tool} is not callable")
 
                 obs = str(res)
-                return ExecutionResult(result=res, observation=obs, verification_passed=True)
+                # A tool returning without raising does NOT prove the intended
+                # state was reached; leave verification to the Evaluator.
+                return ExecutionResult(result=res, observation=obs, verification_passed=None)
             except Exception as e:
                 last_error = str(e)
                 if attempt < retry_limit - 1:

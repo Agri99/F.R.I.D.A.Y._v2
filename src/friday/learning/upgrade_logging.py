@@ -4,9 +4,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +28,7 @@ class UpgradeReport:
     performance_after: dict[str, Any] = field(default_factory=dict)
     rollback: str = "available"
     status: str = "PROMOTED"
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class UpgradeLogger:
@@ -43,11 +42,25 @@ class UpgradeLogger:
         timestamp = report.timestamp.replace(":", "-").replace("+", "_").replace(".", "-")
         json_path = date_dir / f"upgrade_{timestamp}.json"
         md_path = date_dir / f"upgrade_{timestamp}.md"
-        json_path.write_text(json.dumps(asdict(report), indent=2, default=str), encoding="utf-8")
-        md_path.write_text(self._render_markdown(report), encoding="utf-8")
+
+        # Atomic write: render both, flush both to disk, fsync, then notify.
+        json_blob = json.dumps(asdict(report), indent=2, default=str)
+        md_blob = self._render_markdown(report)
+        with open(json_path, "w", encoding="utf-8") as fh:
+            fh.write(json_blob)
+            fh.flush()
+            os.fsync(fh.fileno())
+        with open(md_path, "w", encoding="utf-8") as fh:
+            fh.write(md_blob)
+            fh.flush()
+            os.fsync(fh.fileno())
+
         notification = "not requested"
         if open_editor:
-            notification = "opened" if open_report_in_editor(md_path) else "failed"
+            try:
+                notification = "opened" if open_report_in_editor(md_path) else "failed"
+            except Exception as exc:
+                notification = f"failed: {exc}"
         self.audit.log_tool_execution(
             task_id=report.task_id,
             tool="upgrade.report_notification",

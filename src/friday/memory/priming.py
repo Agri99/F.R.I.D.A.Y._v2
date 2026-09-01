@@ -1,17 +1,17 @@
-"""
-Context Priming Engine (§13).
+"""Context Priming Engine (§13).
+
 Builds task-specific context bundles before planning.
 
-Pipeline: User request → Task classification → Relevant memory → Project knowledge → Preferences → Relevant skills → Bounded context → Planner
-
-Context is: relevant, bounded, ranked, source-aware, confidence-aware.
+Pipeline: User request → Task classification → Relevant memory → Project knowledge → Preferences → Relevant skills → Known failures → Bounded context → Planner
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
 from enum import Enum
+from typing import Any
+
+from friday.context.budget import ContextBudget
+from friday.context.selector import ContextItem, ContextSelector
 
 
 class TaskType(Enum):
@@ -40,10 +40,20 @@ class PrimedContext:
 
 
 class ContextPrimingEngine:
-    def __init__(self, memory_db: Any, skill_registry: Any, preference_store: Any):
+    def __init__(
+        self,
+        memory_db: Any,
+        skill_registry: Any,
+        preference_store: Any,
+        episodic_memory: Any | None = None,
+        budget: ContextBudget | None = None,
+    ) -> None:
         self.memory_db = memory_db
         self.skill_registry = skill_registry
         self.preference_store = preference_store
+        self.episodic_memory = episodic_memory
+        self.budget = budget or ContextBudget()
+        self.selector = ContextSelector(self.budget)
         self._task_keywords = {
             TaskType.COMPUTER_USE: ["click", "type", "open", "close", "window", "app", "screen", "ui"],
             TaskType.WEB_SEARCH: ["search", "find", "look up", "google", "web", "online"],
@@ -54,194 +64,168 @@ class ContextPrimingEngine:
         }
 
     def prime(self, user_goal: str, conversation_history: list[dict] | None = None) -> PrimedContext:
-        """Build task-specific context bundle from all memory sources."""
-
-        # 1. Task Classification
         task_type = self._classify_task(user_goal)
-
-        # 2. Extract keywords for search
         keywords = self._extract_keywords(user_goal, task_type)
+        items: list[ContextItem] = []
 
-        # 3. Search semantic memory (relevant, ranked by confidence)
-        relevant_memories = self._search_semantic_memory(user_goal, keywords, limit=8)
+        items.extend(self._search_semantic_memory_items(user_goal, keywords))
+        items.extend(self._search_project_knowledge_items(user_goal, keywords))
+        items.extend(self._preference_items(keywords))
+        items.extend(self._skill_items(user_goal, task_type))
+        items.extend(self._known_failure_items(user_goal))
 
-        # 4. Search project knowledge
-        relevant_projects = self._search_project_knowledge(user_goal, keywords, limit=5)
+        selected = self.selector.select(items)
 
-        # 5. Look up user preferences (source-aware)
-        relevant_preferences = self._get_relevant_preferences(keywords)
+        sections: dict[str, list[ContextItem]] = {name: [] for name in
+            ("memories", "projects", "preferences", "skills", "failures")}
+        for item in selected:
+            kind = item.metadata.get("kind", "memory")
+            sections.setdefault(kind, []).append(item)
 
-        # 6. Find matching skills (bounded, ranked)
-        relevant_skills = self._find_relevant_skills(user_goal, task_type, limit=5)
-
-        # 7. Find known failures for similar tasks
-        known_failures = self._find_known_failures(user_goal, task_type, limit=3)
-
-        # 8. Determine required capabilities
-        required_capabilities = self._determine_capabilities(user_goal, relevant_skills, task_type)
-
-        # 9. Build bounded, ranked context
         context = PrimedContext(
-            relevant_memories=relevant_memories,
-            relevant_projects=relevant_projects,
-            relevant_preferences=relevant_preferences,
-            relevant_skills=relevant_skills,
-            known_failures=known_failures,
-            required_capabilities=required_capabilities,
+            relevant_memories=[item.metadata.get("raw", item.content) for item in sections["memories"]],
+            relevant_projects=[item.content for item in sections["projects"]],
+            relevant_preferences=[item.metadata.get("raw", item.content) for item in sections["preferences"]],
+            relevant_skills=[item.content for item in sections["skills"]],
+            known_failures=[item.content for item in sections["failures"]],
             task_type=task_type,
         )
-
-        # 10. Rank and bound context
-        self._rank_and_bound_context(context, max_tokens=2000)
-
-        # 11. Build summary
+        context.required_capabilities = self._determine_capabilities(user_goal, context.relevant_skills, task_type)
+        context.bounded_context_tokens = sum(self.budget.estimate_tokens(str(item.content)) for item in selected)
+        context.confidence = self._compute_overall_confidence(context)
         context.summary = self._build_summary(context, user_goal)
-
         return context
 
     def _classify_task(self, goal: str) -> TaskType:
-        """Classify task type from goal text."""
         goal_lower = goal.lower()
-        scores = {}
+        scores: dict[TaskType, int] = {}
         for task_type, keywords in self._task_keywords.items():
             score = sum(1 for kw in keywords if kw in goal_lower)
             if score > 0:
                 scores[task_type] = score
-
         if scores:
             return max(scores, key=scores.get)
         return TaskType.GENERAL_QUERY
 
     def _extract_keywords(self, goal: str, task_type: TaskType) -> list[str]:
-        """Extract relevant keywords for search."""
-        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from", "as", "is", "was", "are", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them", "my", "your", "his", "its", "our", "their", "mine", "yours", "hers", "ours", "theirs", "this", "that", "these", "those", "am", "is", "are", "was", "were"}
-
+        stop_words = {
+            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+            "by", "from", "as", "is", "was", "are", "were", "be", "been", "being", "have", "has",
+            "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must",
+            "can", "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+            "my", "your", "his", "its", "our", "their", "mine", "yours", "hers", "ours", "theirs",
+            "this", "that", "these", "those", "am",
+        }
         goal_lower = goal.lower()
         words = goal_lower.split()
         keywords = [w for w in words if w not in stop_words and len(w) > 2]
-
-        # Add task-type specific keywords
         if task_type in self._task_keywords:
-            keywords.extend([kw for kw in self._task_keywords[task_type] if kw in goal_lower])
+            keywords.extend(kw for kw in self._task_keywords[task_type] if kw in goal_lower)
+        return list(dict.fromkeys(keywords))
 
-        return list(set(keywords))
-
-    def _search_semantic_memory(self, query: str, keywords: list[str], limit: int) -> list[dict]:
-        """Search semantic memory, ranked by confidence."""
-        if not hasattr(self.memory_db, 'search_by_relevance'):
+    def _search_semantic_memory_items(self, query: str, keywords: list[str]) -> list[ContextItem]:
+        if not hasattr(self.memory_db, "search_by_relevance"):
             return []
-
-        # Search with full query
-        results = self.memory_db.search_by_relevance(query, limit=limit)
-
-        # Also search with individual keywords for broader coverage
+        results = self.memory_db.search_by_relevance(query, limit=8)
         for kw in keywords[:3]:
-            kw_results = self.memory_db.search_by_relevance(kw, limit=3)
-            for r in kw_results:
-                if r not in results:
-                    results.append(r)
+            results.extend(self.memory_db.search_by_relevance(kw, limit=3))
+        seen: set[str] = set()
+        items: list[ContextItem] = []
+        for result in results:
+            content = f"{result.get('subject')} {result.get('predicate')} {result.get('value')}"
+            identity = result.get("subject", "") + result.get("predicate", "") + result.get("value", "")
+            if identity in seen:
+                continue
+            seen.add(identity)
+            items.append(ContextItem(
+                content=content,
+                source="memory.semantic",
+                relevance=float(result.get("confidence", 0.5)),
+                confidence=float(result.get("confidence", 0.5)),
+                metadata={"kind": "memories", "raw": result},
+            ))
+        return items
 
-        # Deduplicate and rank by confidence
-        seen = set()
-        unique = []
-        for r in results:
-            key = (r.get("subject"), r.get("predicate"), r.get("value"))
-            if key not in seen:
-                seen.add(key)
-                unique.append(r)
-
-        unique.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-        return unique[:limit]
-
-    def _search_project_knowledge(self, query: str, keywords: list[str], limit: int) -> list[dict]:
-        """Search project-specific knowledge."""
-        if not hasattr(self.memory_db, 'search_by_relevance'):
+    def _search_project_knowledge_items(self, query: str, keywords: list[str]) -> list[ContextItem]:
+        if not hasattr(self.memory_db, "search_by_relevance"):
             return []
+        seen: set[str] = set()
+        items: list[ContextItem] = []
+        for term in ["project"] + keywords[:2]:
+            for result in self.memory_db.search_by_relevance(f"project {term}", limit=5):
+                if not str(result.get("subject", "")).startswith("project:"):
+                    continue
+                identity = f"{result['subject']}{result.get('value')}"
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                items.append(ContextItem(
+                    content=f"{result['subject']}: {result.get('value')}",
+                    source="memory.project",
+                    relevance=float(result.get("confidence", 0.5)) * 1.1,
+                    confidence=float(result.get("confidence", 0.5)),
+                    metadata={"kind": "projects"},
+                ))
+        return items
 
-        # Search for project facts
-        project_results = []
-        for kw in ["project", "repo", "repository", "codebase"] + keywords[:2]:
-            results = self.memory_db.search_by_relevance(f"project {kw}", limit=limit)
-            for r in results:
-                if r.get("subject", "").startswith("project:"):
-                    if r not in project_results:
-                        project_results.append(r)
-
-        project_results.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-        return project_results[:limit]
-
-    def _get_relevant_preferences(self, keywords: list[str]) -> list[dict]:
-        """Get user preferences matching keywords, ranked by confidence."""
-        if not hasattr(self.preference_store, 'list_preferences'):
+    def _preference_items(self, keywords: list[str]) -> list[ContextItem]:
+        if not hasattr(self.preference_store, "list_preferences"):
             return []
-
-        prefs = self.preference_store.list_preferences()
-        relevant = []
-
-        for pref in prefs:
-            confidence = pref.confidence
-            # Check keyword match
+        items: list[ContextItem] = []
+        for pref in self.preference_store.list_preferences():
             matched = any(kw in pref.key.lower() for kw in keywords)
-            if matched or confidence > 0.8:  # High confidence prefs always relevant
-                relevant.append({
-                    "key": pref.key,
-                    "value": pref.value,
-                    "confidence": confidence,
-                    "source": "user_explicit",
-                    "matched": matched
-                })
+            if not (matched or pref.confidence > 0.8):
+                continue
+            items.append(ContextItem(
+                content=f"{pref.key}: {pref.value}",
+                source="memory.preference",
+                relevance=1.0 if matched else 0.6,
+                confidence=pref.confidence,
+                metadata={"kind": "preferences", "raw": {"key": pref.key, "value": pref.value, "confidence": pref.confidence}},
+            ))
+        return items
 
-        # Rank: matched + high confidence first
-        relevant.sort(key=lambda x: (x["matched"], x["confidence"]), reverse=True)
-        return relevant[:5]
+    def _skill_items(self, goal: str, task_type: TaskType) -> list[ContextItem]:
+        if self.skill_registry is None:
+            return []
+        search = getattr(self.skill_registry, "search_skills", None)
+        if not callable(search):
+            return []
+        items: list[ContextItem] = []
+        for skill in search(goal):
+            items.append(ContextItem(
+                content=skill,
+                source="skills",
+                relevance=1.0 if skill.get("trigger_match") else 0.5,
+                confidence=0.8,
+                metadata={"kind": "skills"},
+            ))
+        return items
 
-    def _find_relevant_skills(self, goal: str, task_type: TaskType, limit: int) -> list[dict]:
-        """Find skills relevant to the task."""
-        if not hasattr(self.skill_registry, 'search_skills'):
-            # Fallback: load from skill directory if available
-            return self._load_skills_from_directory(goal, task_type, limit)
-
-        skills = self.skill_registry.search_skills(goal)
-
-        # Filter and rank by relevance
-        ranked = []
-        for skill in skills:
-            skill_type = skill.get("risk_profile", "GREEN")
-            triggers = skill.get("triggers", [])
-            trigger_match = any(goal.lower() in t.lower() or t.lower() in goal.lower() for t in triggers)
-
-            ranked.append({
-                "name": skill.get("name", ""),
-                "purpose": skill.get("purpose", ""),
-                "triggers": triggers,
-                "required_capabilities": skill.get("required_capabilities", []),
-                "risk_profile": skill_type,
-                "trigger_match": trigger_match,
-                "source": "skill_registry",
-            })
-
-        ranked.sort(key=lambda x: (x["trigger_match"], -len(x.get("required_capabilities", []))), reverse=True)
-        return ranked[:limit]
-
-    def _load_skills_from_directory(self, goal: str, task_type: TaskType, limit: int) -> list[dict]:
-        """Fallback: load skills from disk."""
-        # Placeholder - would scan skills/ directory
-        return []
-
-    def _find_known_failures(self, goal: str, task_type: TaskType, limit: int) -> list[dict]:
-        """Find known failures for similar tasks."""
-        # Would query episodic memory for failed trajectories
-        # Placeholder implementation
-        return []
+    def _known_failure_items(self, goal: str) -> list[ContextItem]:
+        if self.episodic_memory is None or not hasattr(self.episodic_memory, "recall_similar"):
+            return []
+        items: list[ContextItem] = []
+        try:
+            episodes = self.episodic_memory.recall_similar(goal, limit=5)
+        except Exception:
+            return []
+        for episode in episodes:
+            if episode.outcome in {"SUCCESS", "COMPLETED"}:
+                continue
+            items.append(ContextItem(
+                content=f"Known failure for similar goal: {episode.outcome} — {episode.goal}",
+                source="memory.episodic",
+                relevance=0.7,
+                confidence=0.6,
+                metadata={"kind": "failures"},
+            ))
+        return items
 
     def _determine_capabilities(self, goal: str, skills: list[dict], task_type: TaskType) -> list[str]:
-        """Determine required capabilities from skills and task type."""
-        caps = set()
-
+        caps: set[str] = set()
         for skill in skills:
-            caps.update(skill.get("required_capabilities", []))
-
-        # Add task-type defaults
+            caps.update(skill.get("required_capabilities", []) if isinstance(skill, dict) else [])
         type_caps = {
             TaskType.COMPUTER_USE: ["computer", "accessibility"],
             TaskType.WEB_SEARCH: ["browser", "online"],
@@ -250,60 +234,28 @@ class ContextPrimingEngine:
             TaskType.COMMUNICATION: ["gmail", "calendar"],
             TaskType.CODING: ["terminal", "filesystem"],
         }
-
-        if task_type in type_caps:
-            caps.update(type_caps[task_type])
-
-        return sorted(list(caps))
-
-    def _rank_and_bound_context(self, context: PrimedContext, max_tokens: int = 2000) -> None:
-        """Rank all context items by confidence/relevance and bound to token limit."""
-        # Already ranked during retrieval, just track approximate token count
-        # Estimate: 1 token ≈ 4 chars
-        total_chars = 0
-
-        for section in ["relevant_memories", "relevant_projects", "relevant_preferences", "relevant_skills", "known_failures"]:
-            items = getattr(context, section)
-            for item in items:
-                total_chars += len(str(item))
-
-        context.bounded_context_tokens = total_chars // 4
-        context.confidence = self._compute_overall_confidence(context)
+        caps.update(type_caps.get(task_type, []))
+        return sorted(caps)
 
     def _compute_overall_confidence(self, context: PrimedContext) -> float:
-        """Compute weighted confidence across all context items."""
-        confidences = []
-        weights = []
-
-        for item in context.relevant_memories:
-            confidences.append(item.get("confidence", 0.5))
+        confidences = [0.5]
+        weights = [1.0]
+        for memory in context.relevant_memories:
+            confidences.append(float(memory.get("confidence", 0.5)))
             weights.append(1.0)
-
-        for item in context.relevant_preferences:
-            confidences.append(item.get("confidence", 0.5))
+        for pref in context.relevant_preferences:
+            confidences.append(float(pref.get("confidence", 0.5)))
             weights.append(0.8)
-
-        for item in context.relevant_skills:
-            confidences.append(0.8 if item.get("trigger_match") else 0.5)
+        if context.relevant_skills:
+            confidences.append(0.8)
             weights.append(0.6)
-
-        if not confidences:
-            return 0.0
-
         return sum(c * w for c, w in zip(confidences, weights)) / sum(weights)
 
     def _build_summary(self, context: PrimedContext, goal: str) -> str:
-        """Build concise context summary."""
-        parts = [
-            f"Goal: {goal}",
-            f"Task: {context.task_type.value}",
-            f"Memories: {len(context.relevant_memories)}",
-            f"Projects: {len(context.relevant_projects)}",
-            f"Prefs: {len(context.relevant_preferences)}",
-            f"Skills: {len(context.relevant_skills)}",
-            f"Failures: {len(context.known_failures)}",
-            f"Capabilities: {', '.join(context.required_capabilities) or 'none'}",
-            f"Confidence: {context.confidence:.1%}",
-            f"Tokens: ~{context.bounded_context_tokens}",
-        ]
-        return " | ".join(parts)
+        return (
+            f"Goal: {goal} | Task: {context.task_type.value} | "
+            f"Memories: {len(context.relevant_memories)} | Projects: {len(context.relevant_projects)} | "
+            f"Prefs: {len(context.relevant_preferences)} | Skills: {len(context.relevant_skills)} | "
+            f"Failures: {len(context.known_failures)} | Capabilities: {', '.join(context.required_capabilities) or 'none'} | "
+            f"Confidence: {context.confidence:.1%} | Tokens: ~{context.bounded_context_tokens}"
+        )
