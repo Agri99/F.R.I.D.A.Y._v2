@@ -15,7 +15,47 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Iterator
+
+
+class ModelFormat(str, Enum):
+    GGUF = "GGUF"
+    SAFETENSORS = "SAFETENSORS"
+    ONNX = "ONNX"
+    REMOTE = "REMOTE"
+
+
+class Quantization(str, Enum):
+    Q4_K_M = "Q4_K_M"
+    Q5_K_M = "Q5_K_M"
+    Q6_K = "Q6_K"
+    FP16 = "FP16"
+    BF16 = "BF16"
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    family: str
+    parameters_billions: float
+    format: ModelFormat
+    quantization: Quantization
+    runtime: str
+    context_length: int
+    role: str
+    model_id: str = ""
+
+    @property
+    def estimated_memory_gb(self) -> float:
+        bits_per_weight = {
+            Quantization.Q4_K_M: 4.5,
+            Quantization.Q5_K_M: 5.5,
+            Quantization.Q6_K: 6.5,
+            Quantization.FP16: 16.0,
+            Quantization.BF16: 16.0,
+        }[self.quantization]
+        weights = self.parameters_billions * bits_per_weight / 8.0
+        return round(weights * 1.15, 2)
 
 
 @dataclass

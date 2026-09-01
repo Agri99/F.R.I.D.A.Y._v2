@@ -16,10 +16,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Type
+from typing import Any, Type
 
 from friday.config import Settings, ModelRoleConfig
-from friday.models.base import ModelProvider
+from friday.models.base import ModelProvider, ModelSpec, Quantization
 from friday.models.ollama_backend import OllamaProvider
 from friday.models.cloud_backend import CloudProvider
 from friday.models.hardware import HardwareProfile, detect_hardware, recommend_models_for_tier
@@ -76,6 +76,7 @@ class RoutingContext:
     online: bool = True
     prefer_local: bool = True
     max_tokens: int = 4096
+    minimum_quantization: Quantization | None = None
 
 
 class ModelRouter:
@@ -93,6 +94,30 @@ class ModelRouter:
         # Hardware-aware model selection
         self._hardware_profile: HardwareProfile | None = None
         self._model_recommendations: dict[str, str] = {}
+        self._model_specs: dict[str, ModelSpec] = {}
+
+    def register_model_spec(self, spec: ModelSpec) -> None:
+        """Register portable model metadata without coupling business logic to model IDs."""
+        key = spec.model_id or f"{spec.family}:{spec.role}:{spec.quantization.value}"
+        self._model_specs[key] = spec
+
+    def get_model_spec(self, key: str) -> ModelSpec | None:
+        return self._model_specs.get(key)
+
+    def select_quantization(self, role: str, available_memory_gb: float) -> Quantization:
+        """Choose the highest validated precision that fits current available memory."""
+        candidates = [spec for spec in self._model_specs.values() if spec.role == role]
+        order = {
+            Quantization.BF16: 5,
+            Quantization.FP16: 5,
+            Quantization.Q6_K: 4,
+            Quantization.Q5_K_M: 3,
+            Quantization.Q4_K_M: 2,
+        }
+        fitting = [spec for spec in candidates if spec.estimated_memory_gb <= available_memory_gb]
+        if not fitting:
+            return Quantization.Q4_K_M
+        return max(fitting, key=lambda spec: order[spec.quantization]).quantization
 
     def _detect_hardware_if_needed(self) -> HardwareProfile:
         """Lazy hardware detection."""

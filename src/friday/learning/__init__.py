@@ -1,6 +1,6 @@
-"""
-Learning subsystem for F.R.I.D.A.Y. v2.
-"""
+"""Learning and trusted autonomous-upgrade subsystem."""
 from __future__ import annotations
 
-__all__ = []
+from friday.learning.upgrade_logging import UpgradeLogger, UpgradeReport, open_report_in_editor
+
+__all__ = ["UpgradeLogger", "UpgradeReport", "open_report_in_editor"]

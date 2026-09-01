@@ -10,18 +10,24 @@ from __future__ import annotations
 
 from friday.models.base import (
     ModelDelta,
+    ModelFormat,
     ModelMessage,
     ModelProvider,
     ModelResponse,
+    ModelSpec,
     ProviderHealth,
+    Quantization,
 )
 from friday.models.router import ModelRouter
 
 __all__ = [
     "ModelDelta",
+    "ModelFormat",
     "ModelMessage",
     "ModelProvider",
     "ModelResponse",
-    "ProviderHealth",
     "ModelRouter",
+    "ModelSpec",
+    "ProviderHealth",
+    "Quantization",
 ]

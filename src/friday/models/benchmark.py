@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from friday.models.base import ModelProvider
+from friday.models.base import ModelProvider, ModelSpec
 
 @dataclass
 class BenchmarkResult:
@@ -23,6 +23,15 @@ class BenchmarkResult:
     memory_usage_mb: float
     model_load_time_seconds: float
     passed_threshold: bool
+    format: str = ""
+    quantization: str = ""
+    context_length: int = 0
+    planning_score: float = 0.0
+    replanning_score: float = 0.0
+    structured_output_score: float = 0.0
+    computer_use_score: float = 0.0
+    vision_score: float = 0.0
+    voice_latency_ms: float = 0.0
 
 class ModelBenchmark:
     def __init__(self, provider: ModelProvider):
@@ -43,8 +52,8 @@ class ModelBenchmark:
         """Test ability to accurately produce tool calls."""
         return 0.98 # 98% validity
         
-    def run_full_benchmark(self, model: str, role: str) -> BenchmarkResult:
-        """Run a full suite of tests on the model."""
+    def run_full_benchmark(self, model: str, role: str, spec: ModelSpec | None = None) -> BenchmarkResult:
+        """Run the model benchmark and attach portable format/quantization metadata."""
         load_start = time.time()
         self.provider.health()
         load_time = time.time() - load_start
@@ -63,5 +72,8 @@ class ModelBenchmark:
             tool_call_validity_rate=validity,
             memory_usage_mb=4096.0, # Mock memory usage
             model_load_time_seconds=load_time,
-            passed_threshold=passed
+            passed_threshold=passed,
+            format=spec.format.value if spec else "",
+            quantization=spec.quantization.value if spec else "",
+            context_length=spec.context_length if spec else 0,
         )
