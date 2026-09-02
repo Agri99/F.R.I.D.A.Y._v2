@@ -85,6 +85,7 @@ class ModelRouter:
         self._hardware = hardware_manager
         self._cache: dict[str, ModelProvider] = {}
         self._model_specs: dict[str, ModelSpec] = {}
+        self._reasoning_preference: str | None = None
         self._fallback_chain = {
             ModelRole.REASONING.value: ModelRole.FAST.value,
             ModelRole.CODE.value: ModelRole.REASONING.value,
@@ -186,6 +187,12 @@ class ModelRouter:
             return False
         return True
 
+    def set_reasoning_preference(self, preference: str) -> None:
+        """Prefer fast or deep reasoning on subsequent routes."""
+        if preference not in {"fast", "deep"}:
+            raise ModelRoutingError(f"Unknown reasoning preference '{preference}'")
+        self._reasoning_preference = preference
+
     def _select_preferred_role(self, context: RoutingContext) -> str:
         if context.required_role:
             if context.required_role not in ROLES:
@@ -200,6 +207,9 @@ class ModelRouter:
         if context.needs_audio:
             raise ModelRoutingError("Audio routing requires audio_role='stt' or audio_role='tts'")
         if self._hardware_manager().state().pressure == ResourcePressure.CRITICAL:
+            return ModelRole.FAST.value
+        # Explicit user preference overrides task complexity.
+        if getattr(self, "_reasoning_preference", None) == "fast":
             return ModelRole.FAST.value
         if context.task_complexity == TaskComplexity.LOW:
             return ModelRole.FAST.value

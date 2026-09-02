@@ -102,27 +102,29 @@ def _active_window() -> dict[str, Any]:
 def _control_window(action: str) -> dict[str, Any]:
     """Control foreground window: maximize, minimize, restore, or close."""
     action = action.strip().lower()
-    
+
     # Get the active window name for natural responses
     active = _window_mgr.get_active_window()
     app_name = active.title.split(" - ")[-1] if active.title else "the window"
-    
-    # Fuzzy match common typos
+
     if action in ("maximize", "maximise", "maximizr", "max"):
-        _window_mgr.maximize()
+        success, msg = _window_mgr.maximize()
         action = "maximize"
     elif action in ("minimize", "minimise", "min"):
-        _window_mgr.minimize()
+        success, msg = _window_mgr.minimize()
         action = "minimize"
     elif action in ("restore", "unmaximize", "unminimize"):
-        _window_mgr.restore()
+        success, msg = _window_mgr.restore()
         action = "restore"
     elif action in ("close", "exit", "quit"):
-        _window_mgr.close()
+        success, msg = _window_mgr.close()
         action = "close"
     else:
         return {"status": "error", "message": f"Unknown window action: {action}"}
-    return {"status": "ok", "action": action, "app_name": app_name}
+
+    if not success:
+        return {"status": "error", "message": msg}
+    return {"status": "ok", "action": action, "app_name": app_name, "message": msg}
 
 
 def register_all_tools(registry) -> None:

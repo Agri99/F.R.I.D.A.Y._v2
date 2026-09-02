@@ -10,6 +10,38 @@ All notable changes to this project will be documented in this file.
 - **Recovery/pause wiring.** `AgentOrchestrator._trigger_replan` and `_pause_execution` now record audit events instead of being empty stubs; the task state machine captures every transition.
 - **Loop completion message.** Final `task.last_message` is built from the last *verified* step's result rather than falling back to "Done." when step indices advance past plan length.
 - **Job executor honesty.** `JobExecutor` without an orchestrator reports `success=False` instead of pretending to verify a simulated run.
+- **Inconsistent confirmation.** Voice controls now speak acknowledgements ("I'm offline now", "I'll use fast mode"); pending authorization resumes on follow-up instead of creating new tasks.
+- **Shutdown flow.** Fastpath shutdown now RED tier (requires voice confirmation); execution verified before marking complete.
+- **Typing/window verification.** `computer.type` validates foreground window; `computer.control_window` returns verified `(success, message)` tuples with post-action state checking.
+- **Nonsense transcripts.** STT confidence filtering via `avg_logprob`/`no_speech_prob`/`compression_ratio`; returns `""` on low-confidence/garbled audio.
+- **Orb idle during follow-up.** `FOLLOWUP_LISTENING` state now uses listening color/speed (5x) instead of idle.
+
+### Added
+- **`learning/benchmark.py`** — `SkillBenchmarkRunner` runs configurable benchmark suites; `AutoPromotionManager` evaluates criteria + benchmark before auto-promotion.
+- **`jobs/triggers.py`** — `TriggerMonitor` watches for idle, network change, resource conditions, startup, idle, network change, resource condition, application event, calendar lead time; triggers registered jobs.
+- **`jobs/triggers.py`** — `TriggerType` enum extended: `STARTUP`, `IDLE`, `NETWORK_CHANGE`, `RESOURCE_CONDITION`, `APPLICATION_EVENT`, `CALENDAR_LEAD_TIME`.
+- **`tests/unit/test_skill_benchmark.py`** — benchmark config, result validation, auto-promotion approval/rejection logic.
+- **`tests/unit/test_job_triggers.py`** — idle, network change, resource condition trigger coverage.
+- **`tests/unit/test_skill_benchmark.py`** — benchmark config, result validation, auto-promotion approval/rejection logic.
+- **`tests/unit/test_window_control.py`** — verified window control contracts.
+
+### Changed
+- `src/friday/app.py` — voice controls with spoken announcements, resume path for authorization, mode/model preference routing.
+- `src/friday/interaction/session.py` — `VoiceSession` accepts `announce` callback, resumes pending auth tasks on follow-up.
+- `src/friday/interaction/stt.py` — transcript confidence filtering using faster-whisper segment metadata.
+- `src/friday/models/router.py` — `set_reasoning_preference()` for fast/deep mode routing.
+- `src/friday/computer/controller.py` — foreground window validation before typing.
+- `src/friday/computer/windows.py` — `WindowManager` methods return verified `(success, message)` tuples with post-action state checking.
+- `src/friday/tools/computer.py` — window control tool uses verified results.
+- `src/friday/ui/static/index.html` — particle texture opacity restored, `followup_listening` state, state speeds: listening 5x, speaking 3x, thinking 7x.
+- `src/friday/jobs/scheduler.py` — `TriggerType` enum extended; `parse_trigger` handles all blueprint trigger types.
+- `src/friday/jobs/triggers.py` — new `TriggerMonitor` with idle, network change, resource condition, startup, idle, network change, resource condition, application event, calendar lead time monitoring.
+- `src/friday/agent/fastpath.py` — shutdown fastpath now RED tier.
+- `src/friday/agent/orchestrator.py` — fastpath tier binding, reasoning preference wiring.
+- `src/friday/learning/benchmark.py` — `SkillBenchmarkRunner` + `AutoPromotionManager` for skill auto-promotion.
+- `src/friday/learning/promotion.py` — `promote()` accepts optional `benchmark_result`.
+
+Tests: 225 passed, 0 failures. Healthcheck: 100% green.
 
 ### Added
 - **`models/llamacpp_backend.py`** — GGUF/Q4_K_M/Q5_K_M/Q6_K/FP16/BF16 provider implementing the existing `ModelProvider` interface.

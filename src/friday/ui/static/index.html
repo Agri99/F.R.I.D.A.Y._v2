@@ -28,7 +28,9 @@
   renderer.setClearColor(0x000000, 0);
   document.body.appendChild(renderer.domElement);
 
-  // Helper function to generate a soft glowing circular particle texture
+  // Helper function to generate a soft glowing circular particle texture.
+  // Bright opaque white alpha keeps the particles fully visible; the
+  // material's color (tinted by targetColor) is what provides the hue.
   function createParticleTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
@@ -69,7 +71,7 @@
   const raysMat = new THREE.LineBasicMaterial({
     color: 0x00ffff,
     transparent: true,
-    opacity: 0.2,
+    opacity: 0.35,
     blending: THREE.AdditiveBlending
   });
   const centerRays = new THREE.LineSegments(raysGeo, raysMat);
@@ -135,7 +137,7 @@
   const middleRaysMat = new THREE.LineBasicMaterial({
     color: 0x00ffff,
     transparent: true,
-    opacity: 0.15,
+    opacity: 0.3,
     blending: THREE.AdditiveBlending
   });
   const middleCenterRays = new THREE.LineSegments(middleRaysGeo, middleRaysMat);
@@ -158,12 +160,13 @@
   // 5. State Colors & Dynamics
   const styles = {
     idle:                 { color: 0x00ffff, speed: 1.0,  pulse: 0.008 },
-    listening:            { color: 0x00ff88, speed: 2.0,  pulse: 0.030 },
-    thinking:             { color: 0xbb33ff, speed: 4.0,  pulse: 0.025 },
-    speaking:             { color: 0xff1000, speed: 2.0,  pulse: 0.035 },
+    listening:            { color: 0x00ff88, speed: 5.0,  pulse: 0.030 },
+    thinking:             { color: 0xbb33ff, speed: 7.0,  pulse: 0.025 },
+    speaking:             { color: 0xff1000, speed: 3.0,  pulse: 0.035 },
 
 
     waiting_confirmation: { color: 0xffdd00, speed: 1.4,  pulse: 0.025 },
+    followup_listening: { color: 0x00ff88, speed: 5.0,  pulse: 0.030 },
     executing:            { color: 0x33ff66, speed: 2.0,  pulse: 0.025 },
     error:                { color: 0xff2244, speed: 0.8,  pulse: 0.015 }
   };

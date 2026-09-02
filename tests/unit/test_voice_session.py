@@ -92,3 +92,50 @@ def test_runtime_control_does_not_reach_agent():
 
     assert called == ["offline"]
     assert agent_calls == []
+
+
+def test_awaiting_auth_resumes_same_task():
+    stt = FakeSTT(["open notepad", "yes please"], ["confirm.wav", None])
+
+    class FakeTask:
+        id = "task-1"
+
+        class Status:
+            value = "AWAITING_AUTHORIZATION"
+
+        status = Status()
+        last_message = "Do you want me to open notepad?"
+
+    def agent(text):
+        return FakeTask()
+
+    def resume(task_id, text):
+        return type("Done", (), {"status": type("S", (), {"value": "COMPLETED"})(), "last_message": "Opened notepad"})()
+
+    tts = FakeTTS()
+    session = VoiceSession(stt, tts, FakeWake(), agent, resume_agent=resume)
+
+    response = session.run_once()
+
+    assert session._pending_task_id is None
+    assert "Opened notepad" in tts.spoken[-1]
+
+
+def test_announce_callback_speaks_for_control():
+    stt = FakeSTT(["use fast mode"], [None])
+    announcements = []
+
+    def fast_control():
+        announcements.append("I'll use fast mode")
+
+    session = VoiceSession(
+        stt,
+        FakeTTS(),
+        FakeWake(),
+        lambda text: "never called",
+        controls={"fast": fast_control},
+    )
+
+    session.run_once()
+
+    assert announcements and "fast" in announcements[0].lower()

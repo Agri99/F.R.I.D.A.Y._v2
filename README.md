@@ -7,16 +7,16 @@ A local-first, privacy-respecting personal AI computer assistant for Windows 11.
 ## Overview
 
 F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs entirely on-device:
-- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer and domain vocabulary biasing
+- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer, domain vocabulary biasing, and **confidence filtering** (avg_logprob, no_speech_prob, compression_ratio) to reject nonsense transcripts
 - **Wake Word Detection:** `openWakeWord` with real-time audio barge-in
-- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) with multi-step replanning
+- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) with multi-step replanning, **fast/deep reasoning preference**, and hardware-aware model routing
 - **Vision Perception:** Local vision models (`llava`, `qwen3-vl`) + progressive screen perception + OCR
-- **Speech Synthesis:** Local `Piper` neural TTS (`en_GB-jenny_dioco-medium`)
-- **Computer-Use Subsystem:** Target resolver (UIA $\rightarrow$ Automation ID $\rightarrow$ DOM $\rightarrow$ Visual match $\rightarrow$ Coordinates), safety checks, and native Windows automation
-- **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server
-- **Self-Improvement:** Trajectory logging, pattern distillation into reusable `SKILL.md` workflows, and isolated sandbox validation
-- **Proactive Jobs:** Cron/event-driven job scheduler executing background tasks within strict policy limits
-- **Hardware Portability:** Automatic CPU/GPU/VRAM hardware profiling (`laptop.yaml`, `balanced.yaml`, `workstation.yaml`)
+- **Speech Synthesis:** Local `Piper` neural TTS (`en_GB-jenny_dioco-medium`) with **interruptible streaming**, barge-in cancellation, and **spoken acknowledgements** for mode changes
+- **Computer-Use Subsystem:** Target resolver (UIA $\rightarrow$ Automation ID $\rightarrow$ DOM $\rightarrow$ Visual match $\rightarrow$ Coordinates), **foreground window validation**, **verified post-action state checking**, safety checks, and native Windows automation
+- **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server — **opaque particle texture**, **state-matched speeds** (listening 5x, speaking 3x, thinking 7x, follow-up 5x), state-color sync
+- **Self-Improvement:** Trajectory logging, pattern distillation into reusable `SKILL.md` workflows, **skill benchmark auto-promotion** (configurable success rate, execution time, verification rate thresholds), and isolated sandbox validation (Docker + subprocess)
+- **Proactive Jobs:** Cron/event-driven job scheduler with **idle, network change, resource condition, startup, application event, calendar lead time** triggers; strict policy enforcement
+- **Hardware Portability:** Automatic CPU/GPU/VRAM hardware profiling (`laptop.yaml`, `balanced.yaml`, `workstation.yaml`), **backup/restore/migration** round-trip
 
 ---
 
@@ -240,4 +240,4 @@ Run the full automated test suite:
 ```bash
 pytest tests/ -v
 ```
-All **165+ automated tests** pass cleanly (165 unit tests, 12 learning benchmarks, security & computer benchmarks).
+All **276 automated tests** pass cleanly (unit, integration, security, evaluation, smoke, computer, browser, skills, tools, memory, learning).

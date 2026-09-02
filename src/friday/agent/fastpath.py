@@ -102,6 +102,7 @@ class FastPathRouter:
                 tool_name="system.shutdown_friday",
                 arguments={},
                 success_reply="Shutting down FRIDAY. Goodbye!",
+                risk_tier="RED",
             )
 
         # 2. Orb visibility

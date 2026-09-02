@@ -238,7 +238,11 @@ class SpeechRecognizer:
         return self._model
 
     def transcribe(self, audio_file: str) -> str:
-        """Transcribe an audio file to text using initial prompt and beam search."""
+        """Transcribe an audio file to text using initial prompt and beam search.
+
+        Returns "" for empty or low-confidence audio so the caller never
+        executes a nonsense transcript.
+        """
         self._set_state(VoiceState.THINKING)
         try:
             segments, _ = self.model.transcribe(
@@ -250,15 +254,46 @@ class SpeechRecognizer:
                 vad_filter=True,
                 vad_parameters=dict(min_silence_duration_ms=400),
             )
-            text = " ".join(segment.text for segment in segments).strip()
-            self.context.last_transcription = text
-            return text
+            return self._filter_segments(segments)
         except Exception:
             # Fallback to standard transcribe if VAD or options encounter issue
             segments, _ = self.model.transcribe(audio_file, language="en")
-            text = " ".join(segment.text for segment in segments).strip()
-            self.context.last_transcription = text
-            return text
+            return self._filter_segments(segments)
+
+    def _filter_segments(self, segments) -> str:
+        """Return "" when the transcript is empty, too short, or low-confidence."""
+        texts = []
+        for segment in segments:
+            text = (segment.text or "").strip()
+            if not text:
+                continue
+            logprob = getattr(segment, "avg_logprob", 0.0)
+            no_speech = getattr(segment, "no_speech_prob", 0.0)
+            compression = getattr(segment, "compression_ratio", 0.0)
+
+            # Reject likely-nonsense or empty output.
+            if no_speech > 0.5 and logprob < -1.0:
+                continue
+            if compression > 2.5 or logprob < -2.0:
+                continue
+            if len(text) < 2 and no_speech > 0.3:
+                continue
+            texts.append(text)
+
+        text = " ".join(texts).strip()
+        self.context.last_transcription = text
+        self.context.last_confidence = self._segment_confidence(segments)
+        return text
+
+    @staticmethod
+    def _segment_confidence(segments) -> float:
+        """Average log-probability translated into a 0..1 confidence score."""
+        logprobs = [getattr(s, "avg_logprob", -0.5) for s in segments]
+        if not logprobs:
+            return 0.0
+        avg = sum(logprobs) / len(logprobs)
+        # Typical whisper avg_logprob range ~[-1.5, 0]; map to [0, 1].
+        return max(0.0, min(1.0, 1.0 - abs(avg) / 1.5))
 
     def record_until_silence(self, path: str = "data/audio.wav") -> str:
         return record_until_silence(path, on_state_change=self._set_state)

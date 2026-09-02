@@ -48,21 +48,51 @@ class WindowManager:
             
         return WindowInfo(title, process_name, rect, True)
 
-    def maximize(self) -> None:
+    def _foreground_hwnd(self) -> int:
         hwnd = win32gui.GetForegroundWindow()
-        if hwnd: win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        if not hwnd:
+            raise RuntimeError("No foreground window available")
+        return hwnd
 
-    def minimize(self) -> None:
-        hwnd = win32gui.GetForegroundWindow()
-        if hwnd: win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+    def _window_state(self, hwnd: int) -> str:
+        placement = win32gui.GetWindowPlacement(hwnd)
+        return placement[1] if len(placement) > 1 else "unknown"
 
-    def restore(self) -> None:
-        hwnd = win32gui.GetForegroundWindow()
-        if hwnd: win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+    def maximize(self) -> tuple[bool, str]:
+        try:
+            hwnd = self._foreground_hwnd()
+            title = win32gui.GetWindowText(hwnd)
+            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+            return True, f"Maximized '{title}'"
+        except Exception as exc:
+            return False, f"Maximize failed: {exc}"
 
-    def close(self) -> None:
-        hwnd = win32gui.GetForegroundWindow()
-        if hwnd: win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+    def minimize(self) -> tuple[bool, str]:
+        try:
+            hwnd = self._foreground_hwnd()
+            title = win32gui.GetWindowText(hwnd)
+            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+            return True, f"Minimized '{title}'"
+        except Exception as exc:
+            return False, f"Minimize failed: {exc}"
+
+    def restore(self) -> tuple[bool, str]:
+        try:
+            hwnd = self._foreground_hwnd()
+            title = win32gui.GetWindowText(hwnd)
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            return True, f"Restored '{title}'"
+        except Exception as exc:
+            return False, f"Restore failed: {exc}"
+
+    def close(self) -> tuple[bool, str]:
+        try:
+            hwnd = self._foreground_hwnd()
+            title = win32gui.GetWindowText(hwnd)
+            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            return True, f"Sent close to '{title}'"
+        except Exception as exc:
+            return False, f"Close failed: {exc}"
 
     def focus(self, title: str) -> None:
         """Focus a window by its exact or partial title."""

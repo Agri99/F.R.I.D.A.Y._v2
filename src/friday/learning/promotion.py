@@ -98,7 +98,7 @@ class PromotionManager:
         except Exception:
             return None
 
-    def promote(self, candidate: SkillCandidate, save_to_disk: bool = True) -> Skill:
+    def promote(self, candidate: SkillCandidate, save_to_disk: bool = True, benchmark_result: Any = None) -> Skill:
         """Promote candidate into a production Skill object and optionally persist to skills/learned/."""
         # Bump version
         new_version = self.version_manager.create_version(candidate, f"Promoted from {candidate.version}")

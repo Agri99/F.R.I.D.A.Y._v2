@@ -227,13 +227,19 @@ class WindowsComputerController:
         """Type text into semantic control or directly to focused window with verification."""
 
         def do_type():
+            # Focus the named field first if a label was given
             if target and target.text_label:
                 element = self.accessibility.find_element_by_label(target.text_label)
                 if element and self.accessibility.type_into_element(element, text):
                     return (True, f"Typed text into '{target.text_label}'")
 
+            # Verify that a foreground window actually exists before sending keys
+            win = self.window_manager.get_active_window()
+            if not win or not win.title:
+                return (False, "No foreground window found to type into")
+
             keyboard.type_text(text)
-            return (True, f"Typed {len(text)} characters into foreground window")
+            return (True, f"Typed {len(text)} characters into '{win.title}'")
 
         return self._execute_and_verify(do_type, expected_change)
 

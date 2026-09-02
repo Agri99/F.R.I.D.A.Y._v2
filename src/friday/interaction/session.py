@@ -42,17 +42,22 @@ class VoiceSession:
         followup_window_seconds: float = 5.0,
         controls: dict[str, Callable[[], Any]] | None = None,
         on_state_change: Callable[[SessionState], None] | None = None,
+        resume_agent: Callable[[str, str], Any] | None = None,
+        announce: Callable[[str], Any] | None = None,
     ) -> None:
         self.stt = stt
         self.tts = tts
         self.wakeword = wakeword
         self.agent = agent
+        self.resume_agent = resume_agent
+        self.announce = announce
         self.followup_window_seconds = followup_window_seconds
         self.controls = controls or {}
         self.on_state_change = on_state_change
         self.state = SessionState.IDLE
         self.cancelled = False
         self._turn_generation = 0
+        self._pending_task_id: str | None = None
 
     def set_state(self, state: SessionState) -> None:
         self.state = state
@@ -97,15 +102,28 @@ class VoiceSession:
             self.set_state(SessionState.TRANSCRIBING)
             transcript = self.stt.transcribe(current_path).strip()
             if not transcript:
+                # No speech detected.  If we are awaiting authorization,
+                # re-prompt the user instead of silently dropping the task.
+                if self._pending_task_id is not None and last_response:
+                    self.set_state(SessionState.SPEAKING)
+                    self.tts.speak_interruptible(last_response, self.wakeword, on_interrupt=self.cancel)
                 return last_response
             if self._run_control(transcript):
                 return last_response
 
             self.set_state(SessionState.THINKING)
-            response = self.agent(transcript)
+            if self._pending_task_id and self.resume_agent is not None:
+                response = self.resume_agent(self._pending_task_id, transcript)
+                self._pending_task_id = None
+            else:
+                response = self.agent(transcript)
             response_text = self._response_text(response)
             if generation != self._turn_generation or self.cancelled:
                 return last_response
+
+            # Keep an authorization task alive for the next follow-up turn.
+            if self.resume_agent is not None and self._is_awaiting_auth(response):
+                self._pending_task_id = getattr(response, "id", None)
 
             self.set_state(SessionState.SPEAKING)
             result = self.tts.speak_interruptible(
@@ -134,6 +152,13 @@ class VoiceSession:
         if callback:
             callback()
         return True
+
+    @staticmethod
+    def _is_awaiting_auth(response: Any) -> bool:
+        status = getattr(response, "status", None)
+        if status is None:
+            return False
+        return getattr(status, "value", str(status)) == "AWAITING_AUTHORIZATION"
 
     @staticmethod
     def _response_text(response: Any) -> str:

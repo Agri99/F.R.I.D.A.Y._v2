@@ -233,18 +233,66 @@ def run_voice() -> None:
         owner_p, _ = load_personas()
 
         controls = {
-            "offline": lambda: setattr(orch, "_offline_override", True),
-            "online": lambda: setattr(orch, "_offline_override", False),
-            "fast": lambda: setattr(orch, "_reasoning_preference", "fast"),
-            "deep": lambda: setattr(orch, "_reasoning_preference", "deep"),
+            "offline": lambda: _set_offline(orch, True),
+            "online": lambda: _set_offline(orch, False),
+            "fast": lambda: _set_model_pref(orch, "fast"),
+            "deep": lambda: _set_model_pref(orch, "deep"),
             "safer": lambda: setattr(orch, "_safer_mode", True),
             "pause": orch._pause_execution,
-            "explain": lambda: setattr(orch, "_explain_progress", True),
+            "explain": lambda: _explain_progress(orch),
         }
 
         def voice_agent(text: str):
             orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
             return orch.run(text)
+
+        def voice_resume(task_id: str, text: str):
+            return orch.resume_with_voice(task_id, text)
+
+        def _set_offline(orch, offline: bool):
+            """Toggle offline mode on the orchestrator and online manager."""
+            orch._offline_override = offline
+            if hasattr(orch, "online_manager") and orch.online_manager is not None:
+                orch.online_manager.set_offline(offline)
+
+        def _set_model_pref(orch, pref: str):
+            orch._reasoning_preference = pref
+            if hasattr(orch, "model_router") and hasattr(orch.model_router, "set_reasoning_preference"):
+                orch.model_router.set_reasoning_preference(pref)
+
+        def _explain_progress(orch):
+            """Open the current task's trajectory report in the configured editor."""
+            from friday.learning.upgrade_logging import open_report_in_editor
+            from pathlib import Path
+            import json
+            audit_dir = Path("data/audit")
+            latest = max(audit_dir.glob("audit_*.jsonl"), key=lambda p: p.stat().st_mtime, default=None)
+            if latest:
+                open_report_in_editor(latest)
+            else:
+                print("FRIDAY: No recent activity to explain.")
+
+        def announce(msg: str):
+            """Speak the announcement via TTS and print to terminal."""
+            print(f"FRIDAY: {msg}")
+            synthesizer.speak_interruptible(msg, wakeword)
+
+        controls = {
+            "offline": lambda: (_set_offline(orch, True), announce("I'm offline now")),
+            "online": lambda: (_set_offline(orch, False), announce("I'm online now")),
+            "fast": lambda: (_set_model_pref(orch, "fast"), announce("I'll use fast mode")),
+            "deep": lambda: (_set_model_pref(orch, "deep"), announce("I'll use deep reasoning")),
+            "safer": lambda: (setattr(orch, "_safer_mode", True), announce("I'll use safer mode")),
+            "pause": lambda: (orch._pause_execution(), announce("Paused")),
+            "explain": lambda: (_explain_progress(orch), announce("Here's what I'm doing")),
+        }
+
+        def voice_agent(text: str):
+            orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
+            return orch.run(text)
+
+        def voice_resume(task_id: str, text: str):
+            return orch.resume_with_voice(task_id, text)
 
         def on_state(state: SessionState):
             set_state(state.value)
@@ -254,6 +302,8 @@ def run_voice() -> None:
             tts=synthesizer,
             wakeword=wakeword,
             agent=voice_agent,
+            resume_agent=voice_resume,
+            announce=announce,
             followup_window_seconds=orch.settings.voice.followup_window_seconds,
             controls=controls,
             on_state_change=on_state,

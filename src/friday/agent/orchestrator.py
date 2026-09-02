@@ -298,11 +298,13 @@ class AgentOrchestrator:
 
         fast_intent = self.fastpath.match(goal)
         if fast_intent:
+            tool = self.tools.get(fast_intent.tool_name) if hasattr(self.tools, "get") else None
+            tier = self.tools.tier_of(fast_intent.tool_name) if hasattr(self.tools, "tier_of") else None
             task.plan = [Step(
-                action=fast_intent.tool_name, 
-                arguments=fast_intent.arguments, 
+                action=fast_intent.tool_name,
+                arguments=fast_intent.arguments,
                 expected_observation=fast_intent.success_reply or f"Executed {fast_intent.tool_name}",
-                risk_scope=getattr(fast_intent, 'risk_tier', ''),
+                risk_scope=tier or getattr(fast_intent, 'risk_tier', ''),
             )]
             return self._execute_plan(task)
 

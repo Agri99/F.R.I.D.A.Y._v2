@@ -29,6 +29,12 @@ class TriggerType(Enum):
     INTERVAL = "interval"
     EVENT = "event"
     ONCE = "once"
+    STARTUP = "startup"
+    IDLE = "idle"
+    NETWORK_CHANGE = "network_change"
+    RESOURCE_CONDITION = "resource_condition"
+    APPLICATION_EVENT = "application_event"
+    CALENDAR_LEAD_TIME = "calendar_lead_time"
 
 
 class FailurePolicy(Enum):
@@ -286,7 +292,31 @@ class JobScheduler:
             # Event triggers don't have a predictable next run
             return None
 
-        if trigger.startswith("once:"):
+        if trigger == "startup":
+            # Triggered at startup - run immediately if this is the first run
+            return None
+
+        if trigger == "idle":
+            # Triggered when system is idle - handled by idle monitor
+            return None
+
+        if trigger == "network_change":
+            # Triggered on network state change
+            return None
+
+        if trigger == "resource_condition":
+            # Triggered when resource condition is met
+            return None
+
+        if trigger == "application_event":
+            # Triggered by application event
+            return None
+
+        if trigger == "calendar_lead_time":
+            # Triggered based on calendar event lead time
+            return None
+
+        if trigger == "once:":
             try:
                 date_str = trigger.split(":", 1)[1]
                 return datetime.fromisoformat(date_str)
@@ -297,6 +327,9 @@ class JobScheduler:
             return base + timedelta(days=1)
         if trigger == "hourly":
             return base + timedelta(hours=1)
+
+        # Default fallback
+        return None
 
         return base + timedelta(hours=24)
 
