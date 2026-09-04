@@ -44,6 +44,10 @@ class ResolvedTarget:
     bounding_box: tuple[int, int, int, int] | None = None
     safety_check: bool = True  # True = safe to interact, False = requires confirmation
     fallback_attempted: bool = False
+    timestamp: float = 0.0  # wall-clock time of resolution (runbook §35)
+    locator_method: str = ""  # human-readable locator method used
+    application: str = ""  # application context at resolution time
+    window: str = ""  # window title at resolution time
 
 
 class TargetResolver:
@@ -70,6 +74,27 @@ class TargetResolver:
         """
         context = context or {}
         desc_lower = description.strip().lower()
+        import time as _time
+        now = _time.time()
+
+        # Capture application/window context for provenance (runbook §35).
+        app_id, hwnd, err = self.accessibility.find_allowlisted_window()
+        app_context = app_id or ""
+        window_context = ""
+        if hwnd:
+            try:
+                import win32gui
+                window_context = win32gui.GetWindowText(hwnd) or ""
+            except Exception:
+                window_context = ""
+
+        def _stamp(target: ResolvedTarget) -> ResolvedTarget:
+            target.timestamp = now
+            target.application = app_context
+            target.window = window_context
+            if not target.locator_method:
+                target.locator_method = target.method.value
+            return target
 
         # 0. Check if direct coordinates provided in description or context
         coord_match = re.match(r"(?:at\s+)?\(?(\d+)\s*,\s*(\d+)\)?", desc_lower)
@@ -83,7 +108,7 @@ class TargetResolver:
                 bounding_box=(x, y, x, y),
                 safety_check=True,  # Coordinates are explicit user intent
             )
-            self._last_resolution = target
+            self._last_resolution = _stamp(target)
             return target
 
         # Browser context has priority when explicitly provided
@@ -96,7 +121,7 @@ class TargetResolver:
                 description=f"Browser selector '{selector}'",
                 safety_check=True,
             )
-            self._last_resolution = target
+            self._last_resolution = _stamp(target)
             return target
 
         # 1. UI Automation: Search allowlisted active window elements
@@ -116,7 +141,7 @@ class TargetResolver:
                             bounding_box=el.bounding_rect,
                             safety_check=True,
                         )
-                        self._last_resolution = target
+                        self._last_resolution = _stamp(target)
                         return target
 
                 # Priority 2: Exact Accessibility Name/Label match
@@ -130,7 +155,7 @@ class TargetResolver:
                             bounding_box=el.bounding_rect,
                             safety_check=True,
                         )
-                        self._last_resolution = target
+                        self._last_resolution = _stamp(target)
                         return target
 
                 # Priority 3: Partial Accessibility Name/Label match
@@ -144,7 +169,7 @@ class TargetResolver:
                             bounding_box=el.bounding_rect,
                             safety_check=True,
                         )
-                        self._last_resolution = target
+                        self._last_resolution = _stamp(target)
                         return target
 
                 # Priority 4: Role + Label (e.g., "save button", "search edit")
@@ -160,7 +185,7 @@ class TargetResolver:
                             bounding_box=el.bounding_rect,
                             safety_check=True,
                         )
-                        self._last_resolution = target
+                        self._last_resolution = _stamp(target)
                         return target
 
                 # Priority 5: Role-only match (lower confidence)
@@ -175,7 +200,7 @@ class TargetResolver:
                             bounding_box=el.bounding_rect,
                             safety_check=False,  # Ambiguous, needs verification
                         )
-                        self._last_resolution = target
+                        self._last_resolution = _stamp(target)
                         return target
 
         except Exception as e:
@@ -185,7 +210,7 @@ class TargetResolver:
         visual_result = self._resolve_visual_match(description, context)
         if visual_result:
             visual_result.fallback_attempted = True
-            self._last_resolution = visual_result
+            self._last_resolution = _stamp(visual_result)
             return visual_result
 
         # 4. Default: return low-confidence target requiring verification
@@ -203,7 +228,7 @@ class TargetResolver:
             safety_check=False,
             fallback_attempted=True,
         )
-        self._last_resolution = target
+        self._last_resolution = _stamp(target)
         return target
 
     def _resolve_visual_match(self, description: str, context: dict) -> ResolvedTarget | None:
@@ -275,7 +300,7 @@ class TargetResolver:
 
     def verify_target_still_valid(self, target: ResolvedTarget) -> bool:
         """Verify that a previously resolved target is still valid on screen."""
-        if not target or not target.bounding_box:
+        if not target:
             return False
 
         try:
@@ -295,3 +320,36 @@ class TargetResolver:
             return False
         except Exception:
             return False
+
+    def re_resolve_after_ui_change(
+        self,
+        previous: ResolvedTarget,
+        description: str | None = None,
+        context: dict | None = None,
+    ) -> ResolvedTarget | None:
+        """Re-resolve a target after a major UI change.
+
+        Runbook §35: after a major UI change (window switch, dialog, app
+        launch), the previously resolved target is no longer valid and must
+        be re-resolved from the current screen state. Returns the new
+        ResolvedTarget, or None if no usable target can be found.
+        """
+        if not previous:
+            return None
+
+        # Use the original description if not provided.
+        text = description or previous.description or previous.element.name \
+            if isinstance(previous.element, UIElement) else None
+        if not text:
+            return None
+
+        new_target = self.resolve(text, context=context)
+        if new_target is None:
+            return None
+
+        # Only accept the re-resolution if it found something with at least
+        # medium confidence. A low-confidence re-resolution is worse than no
+        # re-resolution because it gives the caller a false sense of certainty.
+        if new_target.confidence < self.MEDIUM_CONFIDENCE:
+            return None
+        return new_target
