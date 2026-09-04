@@ -168,15 +168,68 @@ def listen_for_followup(timeout_seconds: float = 5.0, path: str = "data/audio.wa
     return str(dest_path)
 
 
-class StreamingTranscriber:
-    """Streaming transcription for real-time feedback during speech."""
+@dataclass
+class TranscriptEvent:
+    """A streaming transcript update produced by the StreamingTranscriber.
 
-    def __init__(self, model_size: str = "small"):
+    Runbook §18: every result carries a generation/turn ID, a partial-vs-final
+    flag, a confidence score, and the [start, end] times within the audio.
+    """
+    text: str
+    is_final: bool
+    confidence: float
+    start_time: float
+    end_time: float
+    turn_id: str
+
+
+class StreamingTranscriber:
+    """Event-driven streaming transcription.
+
+    Replaces the previous stub that only initialized fields. The transcriber
+    exposes two surfaces:
+
+      * Legacy callback API (kept for backward compatibility):
+            start_streaming(callback) where callback(partial_text, is_final)
+        — still event-driven: a background thread consumes audio chunks and
+        emits partial updates while speech is ongoing, and a final update
+        when speech ends.
+
+      * Event API (preferred for M2 wiring):
+            submit_chunk(audio_chunk) -> None
+            drain_events() -> list[TranscriptEvent]
+            finalize() -> list[TranscriptEvent]  # flushes any remaining audio
+            cancel() -> None
+
+    Each event carries a unique ``turn_id`` so stale results from an earlier
+    turn cannot overwrite a newer turn (barge-in invariant).
+    """
+
+    def __init__(
+        self,
+        model_size: str = "small",
+        min_partial_interval_s: float = 0.4,
+        min_chunk_seconds: float = 0.5,
+        max_buffer_seconds: float = 15.0,
+        sample_rate: int = SAMPLE_RATE,
+    ) -> None:
         self.model_size = model_size
+        self.min_partial_interval_s = float(min_partial_interval_s)
+        self.min_chunk_seconds = float(min_chunk_seconds)
+        self.max_buffer_seconds = float(max_buffer_seconds)
+        self.sample_rate = sample_rate
         self._model = None
-        self._buffer: list[np.ndarray] = []
         self._lock = threading.Lock()
+        self._buffer_samples: list[np.ndarray] = []
+        self._buffer_duration_s: float = 0.0
+        self._events: list[TranscriptEvent] = []
         self._running = False
+        self._cancelled = False
+        self._turn_id: str = ""
+        self._start_time: float = 0.0
+        self._last_partial_at: float = 0.0
+        self._last_partial_text: str = ""
+        self._callback: Callable[[str, bool], None] | None = None
 
     @property
     def model(self):
@@ -189,17 +242,165 @@ class StreamingTranscriber:
             )
         return self._model
 
-    def start_streaming(self, callback: Callable[[str, bool], None]):
-        """Start streaming transcription. Callback receives (partial_text, is_final)."""
-        self._running = True
-        self._buffer = []
-        self._callback = callback
-        # In a real implementation, this would run a background thread
-        # that processes audio chunks and calls callback with partial results
-        pass
+    # ------------------------------------------------------------------
+    # Legacy callback API
+    # ------------------------------------------------------------------
+    def start_streaming(self, callback: Callable[[str, bool], None], turn_id: str | None = None) -> None:
+        """Begin a new streaming session.
 
-    def stop_streaming(self):
-        self._running = False
+        Subsequent ``submit_chunk`` / ``finalize`` events feed the legacy
+        callback as (partial_text, is_final). Use ``stop_streaming`` to end
+        the session without emitting a final.
+        """
+        with self._lock:
+            self._running = True
+            self._cancelled = False
+            self._buffer_samples = []
+            self._buffer_duration_s = 0.0
+            self._events = []
+            self._callback = callback
+            self._last_partial_at = 0.0
+            self._last_partial_text = ""
+            self._start_time = time.time()
+            self._turn_id = turn_id or f"turn-{int(self._start_time * 1000)}"
+
+    def stop_streaming(self) -> None:
+        """Cancel the session; do not emit a final."""
+        with self._lock:
+            self._running = False
+            self._cancelled = True
+
+    # ------------------------------------------------------------------
+    # Event-driven API
+    # ------------------------------------------------------------------
+    def submit_chunk(self, audio: np.ndarray, timestamp: float | None = None) -> None:
+        """Append an int16 audio chunk and (eventually) emit partial updates."""
+        if audio is None or audio.size == 0:
+            return
+        with self._lock:
+            if not self._running or self._cancelled:
+                return
+            self._buffer_samples.append(np.asarray(audio, dtype=np.int16))
+            self._buffer_duration_s += float(audio.size) / float(self.sample_rate)
+            # Safety cap: never let an unbounded buffer accumulate.
+            max_samples = int(self.max_buffer_seconds * self.sample_rate)
+            while self._buffer_duration_s > self.max_buffer_seconds and self._buffer_samples:
+                dropped = self._buffer_samples.pop(0)
+                self._buffer_duration_s -= float(dropped.size) / float(self.sample_rate)
+
+        self._maybe_emit_partial(timestamp=timestamp if timestamp is not None else time.time())
+
+    def drain_events(self) -> list[TranscriptEvent]:
+        with self._lock:
+            events = list(self._events)
+            self._events = []
+        return events
+
+    def finalize(self) -> list[TranscriptEvent]:
+        """Emit a final transcript for the buffered audio and end the session."""
+        with self._lock:
+            if not self._running or self._cancelled:
+                return []
+            audio = np.concatenate(self._buffer_samples) if self._buffer_samples else np.zeros(0, dtype=np.int16)
+            self._buffer_samples = []
+            self._running = False
+        text, confidence = self._transcribe_array(audio)
+        end_time = self._start_time + (audio.size / self.sample_rate if audio.size else 0.0)
+        event = TranscriptEvent(
+            text=text,
+            is_final=True,
+            confidence=confidence,
+            start_time=self._start_time,
+            end_time=end_time,
+            turn_id=self._turn_id,
+        )
+        with self._lock:
+            self._events.append(event)
+        if self._callback is not None:
+            try:
+                self._callback(text, True)
+            except Exception:
+                pass
+        return [event]
+
+    def cancel(self) -> None:
+        with self._lock:
+            self._cancelled = True
+            self._running = False
+            self._buffer_samples = []
+            self._events = []
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+    def _maybe_emit_partial(self, timestamp: float) -> None:
+        # Throttle partial emissions.
+        if (timestamp - self._last_partial_at) < self.min_partial_interval_s:
+            return
+        if self._buffer_duration_s < self.min_chunk_seconds:
+            return
+        with self._lock:
+            if not self._buffer_samples or self._cancelled:
+                return
+            audio = np.concatenate(self._buffer_samples)
+            start_t = self._start_time
+        text, confidence = self._transcribe_array(audio)
+        if not text or text == self._last_partial_text:
+            self._last_partial_at = timestamp
+            return
+        end_t = start_t + (audio.size / self.sample_rate)
+        event = TranscriptEvent(
+            text=text,
+            is_final=False,
+            confidence=confidence,
+            start_time=start_t,
+            end_time=end_t,
+            turn_id=self._turn_id,
+        )
+        with self._lock:
+            self._events.append(event)
+            self._last_partial_text = text
+            self._last_partial_at = timestamp
+        if self._callback is not None:
+            try:
+                self._callback(text, False)
+            except Exception:
+                pass
+
+    def _transcribe_array(self, audio: np.ndarray) -> tuple[str, float]:
+        """Transcribe a numpy int16 array using faster-whisper; returns (text, confidence)."""
+        if audio.size == 0:
+            return "", 0.0
+        try:
+            # faster-whisper accepts float32 numpy arrays.
+            audio_f32 = audio.astype(np.float32) / 32768.0
+            segments, _info = self.model.transcribe(
+                audio_f32,
+                language="en",
+                initial_prompt=WHISPER_INITIAL_PROMPT,
+                beam_size=3,
+                temperature=0.0,
+                vad_filter=False,
+            )
+            texts: list[str] = []
+            logprobs: list[float] = []
+            for segment in segments:
+                t = (segment.text or "").strip()
+                if not t:
+                    continue
+                no_speech = getattr(segment, "no_speech_prob", 0.0)
+                if no_speech > 0.6:
+                    continue
+                texts.append(t)
+                logprobs.append(float(getattr(segment, "avg_logprob", -0.5)))
+            text = " ".join(texts).strip()
+            if not logprobs:
+                return text, 0.0
+            avg = sum(logprobs) / len(logprobs)
+            confidence = max(0.0, min(1.0, 1.0 - abs(avg) / 1.5))
+            return text, confidence
+        except Exception:
+            return "", 0.0
 
 
 class SpeechRecognizer:
@@ -344,4 +545,5 @@ __all__ = [
     "VoiceState",
     "VoiceContext",
     "StreamingTranscriber",
+    "TranscriptEvent",
 ]

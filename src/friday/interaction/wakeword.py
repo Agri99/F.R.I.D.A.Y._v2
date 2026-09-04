@@ -8,6 +8,7 @@ Wake word detection using openWakeWord (ONNX runtime) with audio frame streaming
 from __future__ import annotations
 
 import logging
+import time
 import typing
 import numpy as np
 import sounddevice as sd
@@ -50,19 +51,44 @@ class WakeWordListener:
 
         return score > self.threshold
 
-    def listen_for_wakeword(self) -> None:
-        """Block until the wake word is detected."""
+    def listen_for_wakeword(self, max_seconds: float = 30.0) -> bool:
+        """Block until the wake word is detected.
+
+        Returns True when the wake word was detected, False on timeout. The
+        stream is always closed before returning so the capture loop can
+        open its own ``AudioInputStream`` on the same device. The capture
+        loop's ``AudioInputStream.start()`` retries with backoff, which is
+        what handles the Windows WASAPI "device busy" case.
+        """
         print("Listening for wake word...")
-        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=FRAME_SIZE) as stream:
+        deadline = time.time() + max_seconds
+        stream = None
+        try:
+            stream = sd.InputStream(
+                samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=FRAME_SIZE
+            )
+            stream.start()
             warmup_frames = 5
             frame_count = 0
 
-            while True:
+            while time.time() < deadline:
                 frame_count += 1
                 if frame_count <= warmup_frames:
-                    stream.read(FRAME_SIZE)
+                    try:
+                        stream.read(FRAME_SIZE)
+                    except Exception:
+                        return False
                     continue
 
                 if self.check_frame(stream):
                     print("Wake word detected!")
-                    return
+                    return True
+            print("Wake word timeout.")
+            return False
+        finally:
+            if stream is not None:
+                try:
+                    stream.stop()
+                    stream.close()
+                except Exception:
+                    pass

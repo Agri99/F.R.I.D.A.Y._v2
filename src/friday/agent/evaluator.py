@@ -71,6 +71,32 @@ Respond with ONLY a JSON object:
         returns its EvaluationResult - recording it is evaluate()'s job,
         done once, in one place."""
 
+        # Strategy 0: the tool itself declared a verify() callback and we
+        # haven't run it yet. This is the primary path for registered tools
+        # that know what post-conditions look like (e.g. applications.open
+        # checks that the process is actually running 2s later). The LLM
+        # semantic path below is for cases where no tool verifier exists.
+        if (
+            tool is not None
+            and getattr(tool, "verify", None) is not None
+            and not getattr(step, "_tool_verified", False)
+        ):
+            try:
+                args = getattr(step, "arguments", getattr(step, "args", {})) or {}
+                verification = tool.verify(args, result.result)
+                step._tool_verified = True
+                return EvaluationResult(
+                    passed=bool(verification.passed),
+                    confidence=0.9 if verification.passed else 0.7,
+                    reason=verification.message or "Tool-level verification",
+                    observation_summary=result.observation,
+                    needs_replan=not verification.passed,
+                )
+            except Exception as e:
+                # A faulty verifier must not silently pass. Fall through to
+                # the next strategy but flag it.
+                step._tool_verified = True
+
         # Strategy 1: the controller already did verification (e.g. WindowsComputerController)
         if hasattr(result, "verification_passed") and result.verification_passed is not None:
             passed = result.verification_passed

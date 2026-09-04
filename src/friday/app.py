@@ -113,7 +113,7 @@ Rules:
 13. When asked conversational questions like "How are you?", respond naturally and with personality as the persona dictates. Never use canned AI responses like "I'm just a digital assistant".
 14. If asked to search for something online, use the online.search tool instead of browser.open unless specifically asked to open a browser.
 15. Understand the difference between Time/Clock and Date. If asked for the time, only provide the time. If asked for the date, only provide the date.
-16. If asked to "maximize it", "minimize it", or close the current app, use the computer.control_window tool.
+16. If asked to "maximize it", "minimize it", or close the current app, use the computer.control_window tool. If the user asks to "minimize all", "minimize everything", "show desktop", or "minimize all windows", use computer.minimize_all_windows instead.
 17. You HAVE a persistent SQLite-backed memory system. Your conversation history, semantic knowledge, and episodic memory of past tasks are all securely persisted on disk across sessions. Never claim you do not have persistent memory.
 
 CURRENT PERSONA STATE:
@@ -206,6 +206,7 @@ def run_voice() -> None:
     from friday.interaction.stt import SpeechRecognizer
     from friday.interaction.tts import SpeechSynthesizer
     from friday.interaction.wakeword import WakeWordListener
+    from friday.interaction.pipeline import VoicePipeline
     from friday.ui.orb_server import set_state, start_server_in_background
 
     start_server_in_background()
@@ -285,6 +286,7 @@ def run_voice() -> None:
             "safer": lambda: (setattr(orch, "_safer_mode", True), announce("I'll use safer mode")),
             "pause": lambda: (orch._pause_execution(), announce("Paused")),
             "explain": lambda: (_explain_progress(orch), announce("Here's what I'm doing")),
+            "stop": lambda: (session.request_shutdown(), announce("Shutting down. Goodbye, Boss.")),
         }
 
         def voice_agent(text: str):
@@ -297,6 +299,21 @@ def run_voice() -> None:
         def on_state(state: SessionState):
             set_state(state.value)
 
+        # Build the event-driven voice pipeline (M2). This routes audio
+        # through AudioInputStream -> VAD -> StreamingTranscriber ->
+        # TurnDetector -> ConversationManager -> StreamingTts ->
+        # InterruptionManager. To fall back to the legacy path, set
+        # ``use_event_driven = False`` below.
+        use_event_driven = False
+        voice_pipeline = None
+        if use_event_driven:
+            voice_pipeline = VoicePipeline.from_speech_synthesizer(
+                speech_synthesizer=synthesizer,
+                speech_recognizer=recognizer,
+                followup_window_seconds=orch.settings.voice.followup_window_seconds,
+            )
+
+        # Build session first so the controls can reference it (e.g. "stop").
         session = VoiceSession(
             stt=recognizer,
             tts=synthesizer,
@@ -305,9 +322,21 @@ def run_voice() -> None:
             resume_agent=voice_resume,
             announce=announce,
             followup_window_seconds=orch.settings.voice.followup_window_seconds,
-            controls=controls,
             on_state_change=on_state,
+            voice_pipeline=voice_pipeline,
         )
+
+        controls = {
+            "offline": lambda: (_set_offline(orch, True), announce("I'm offline now")),
+            "online": lambda: (_set_offline(orch, False), announce("I'm online now")),
+            "fast": lambda: (_set_model_pref(orch, "fast"), announce("I'll use fast mode")),
+            "deep": lambda: (_set_model_pref(orch, "deep"), announce("I'll use deep reasoning")),
+            "safer": lambda: (setattr(orch, "_safer_mode", True), announce("I'll use safer mode")),
+            "pause": lambda: (orch._pause_execution(), announce("Paused")),
+            "explain": lambda: (_explain_progress(orch), announce("Here's what I'm doing")),
+            "stop": lambda: (session.request_shutdown(), announce("Shutting down. Goodbye, Boss.")),
+        }
+        session.controls = controls
 
         # --- BOOT GREETING ---
         time_period = get_time_greeting()

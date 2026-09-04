@@ -29,12 +29,54 @@ def _verify_get_status(args: dict, result: dict) -> VerificationResult:
     return VerificationResult(False, "Missing expected keys in status result")
 
 
-def _get_time() -> dict:
-    now = datetime.datetime.now()
+def _get_time(timezone: str | None = None, **kwargs) -> dict:
+    """Return the current time.
+
+    ``timezone`` accepts an IANA name (e.g. ``"America/New_York"``) or a
+    fixed-offset string (e.g. ``"+05:30"``, ``"UTC-8"``). When None or
+    unrecognised, the host's local time is returned.
+    """
+    tzinfo = None
+    if timezone:
+        try:
+            from zoneinfo import ZoneInfo
+            tzinfo = ZoneInfo(timezone)
+        except Exception:
+            # Fall back to fixed offset like "+05:30" or "UTC-8".
+            tzinfo = _parse_offset(timezone)
+    now = datetime.datetime.now(tz=tzinfo)
     return {
         "time": now.strftime("%I:%M %p"),
-        "date": now.strftime("%A, %B %d, %Y")
+        "date": now.strftime("%A, %B %d, %Y"),
+        "timezone": str(tzinfo) if tzinfo else "local",
     }
+
+
+def _parse_offset(spec: str) -> datetime.tzinfo | None:
+    """Parse ``"+HH:MM"`` / ``"-HH:MM"`` / ``"UTC-8"`` into a tzinfo."""
+    spec = spec.strip()
+    sign = 1
+    body = spec
+    if body.startswith("UTC") or body.startswith("utc"):
+        body = body[3:].strip()
+    if body.startswith("+"):
+        sign = 1
+        body = body[1:]
+    elif body.startswith("-"):
+        sign = -1
+        body = body[1:]
+    if not body:
+        return None
+    if ":" in body:
+        h_s, m_s = body.split(":", 1)
+    else:
+        h_s, m_s = body, "0"
+    try:
+        hours = int(h_s)
+        minutes = int(m_s)
+    except ValueError:
+        return None
+    return datetime.timezone(datetime.timedelta(hours=sign * hours, minutes=sign * minutes))
 
 
 def _lock() -> dict:
@@ -75,10 +117,18 @@ def register_all_tools(registry) -> None:
     ))
     registry.register(Tool(
         name="system.get_time",
-        description="Get the current local date and time.",
+        description=(
+            "Get the current date and time. Pass an IANA timezone name "
+            "(e.g. 'America/New_York') or fixed offset (e.g. '+05:30', "
+            "'UTC-8') to convert. Without a timezone argument, returns "
+            "the host's local time."
+        ),
         tier="GREEN",
         capability_scope="system.read",
-        input_schema=build_schema({}),
+        input_schema=build_schema(
+            {"timezone": {"type": "string", "description": "Optional IANA name or offset."}},
+            ["timezone"],
+        ),
         handler=_get_time,
     ))
     registry.register(Tool(

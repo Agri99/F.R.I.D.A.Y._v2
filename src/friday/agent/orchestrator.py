@@ -130,8 +130,17 @@ def _format_natural_reply(action: str, result: Any) -> str:
             app_name = result.get("app_name", "the window")
             return f"Done, I've {op}d {app_name}."
 
+        if action == "computer.minimize_all_windows":
+            count = int(result.get("minimized", 0))
+            if count <= 0:
+                return "There weren't any windows open to minimize."
+            return f"Minimized {count} window{'s' if count != 1 else ''}. Desktop is clear."
+
         if action == "system.get_time":
             t = result.get("time", "")
+            tz = result.get("timezone", "local")
+            if tz and tz != "local":
+                return f"The current time in {tz} is {t}."
             return f"The current time is {t}."
 
         if action == "system.get_status":

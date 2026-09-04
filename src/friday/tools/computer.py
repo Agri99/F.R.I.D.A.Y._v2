@@ -127,6 +127,77 @@ def _control_window(action: str) -> dict[str, Any]:
     return {"status": "ok", "action": action, "app_name": app_name, "message": msg}
 
 
+def _minimize_all_windows() -> dict[str, Any]:
+    """Minimize every visible top-level window (show desktop).
+
+    Iterates all top-level windows via ``EnumWindows`` and sends
+    ``SW_MINIMIZE`` to each visible window whose title is non-empty.
+    Skips the FRIDAY orb and console window so the assistant stays usable.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        SW_MINIMIZE = 6
+        minimized: list[int] = []
+        skipped: list[int] = []
+
+        def _should_skip(title: str) -> bool:
+            t = title.lower()
+            return any(
+                needle in t
+                for needle in (
+                    "friday",
+                    "orb",
+                    "windows input experience",
+                    "windows shell experience",
+                    "msctfime",
+                    "default ime",
+                )
+            )
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _enum(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            # Skip windows that don't belong to the user's foreground desktop
+            ex_style = user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
+            if ex_style & 0x80:  # WS_EX_TOOLWINDOW
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length == 0:
+                return True
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buf, length + 1)
+            title = buf.value
+            if _should_skip(title):
+                skipped.append(hwnd)
+                return True
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            minimized.append(hwnd)
+            return True
+
+        user32.EnumWindows(_enum, 0)
+        return {
+            "status": "ok",
+            "minimized": len(minimized),
+            "skipped": len(skipped),
+            "message": f"Minimized {len(minimized)} window(s).",
+        }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+def _verify_minimize_all(args: dict, result: dict) -> VerificationResult:
+    """Verify at least one window was minimized and none errored."""
+    if result.get("status") != "ok":
+        return VerificationResult(False, result.get("message", "Minimize-all failed."))
+    if int(result.get("minimized", 0)) <= 0:
+        return VerificationResult(False, "No windows were minimized.")
+    return VerificationResult(True, f"Minimized {result.get('minimized')} window(s).")
+
+
 def register_all_tools(registry) -> None:
     registry.register(Tool(
         name="computer.capture",
@@ -214,4 +285,17 @@ def register_all_tools(registry) -> None:
         capability_scope="system.control",
         input_schema=build_schema({"action": {"type": "string"}}, ["action"]),
         handler=_control_window,
+    ))
+    registry.register(Tool(
+        name="computer.minimize_all_windows",
+        description=(
+            "Minimize every visible top-level window (show desktop). "
+            "Skips the FRIDAY orb and IME/tool windows so the assistant "
+            "stays reachable."
+        ),
+        tier="YELLOW",
+        capability_scope="system.control",
+        input_schema=build_schema({}),
+        handler=_minimize_all_windows,
+        verify=_verify_minimize_all,
     ))
