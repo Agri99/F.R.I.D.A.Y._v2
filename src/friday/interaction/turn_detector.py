@@ -117,15 +117,21 @@ class TurnDetector:
         if event.kind == VadEventKind.SPEECH_STARTED:
             self._in_speech = True
             self._last_speech_at = event.timestamp
+            self._last_silence_at = None
             if self._turn_started_at is None:
                 self._turn_started_at = event.timestamp
         elif event.kind == VadEventKind.SPEECH_CONTINUED:
+            self._in_speech = True
             self._last_speech_at = event.timestamp
+            self._last_silence_at = None
         elif event.kind == VadEventKind.SPEECH_ENDED:
             self._in_speech = False
-            self._last_silence_at = event.timestamp
+            if self._last_silence_at is None:
+                self._last_silence_at = event.timestamp
         else:
-            if self._turn_started_at is not None:
+            # NO_SPEECH
+            self._in_speech = False
+            if self._turn_started_at is not None and self._last_silence_at is None:
                 self._last_silence_at = event.timestamp
 
     def observe_partial(self, event: TranscriptEvent) -> None:

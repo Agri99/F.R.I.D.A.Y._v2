@@ -96,3 +96,16 @@ class TestTurnDetector:
         decision = td.decide(now=1.5, transcript="")
         assert decision.action == TurnAction.KEEP_LISTENING
         assert decision.reason == "awaiting_input"
+
+    def test_streaming_no_speech_after_speech_ended_ends_turn(self):
+        td = TurnDetector()
+        td.observe_vad(_vad(VadEventKind.SPEECH_STARTED, 1.0))
+        td.observe_vad(_vad(VadEventKind.SPEECH_CONTINUED, 1.2))
+        td.observe_vad(_vad(VadEventKind.SPEECH_ENDED, 1.5))
+        # Simulate ongoing stream of 20ms NO_SPEECH chunks during silence
+        for t in [1.52, 1.54, 1.56, 1.60, 1.80, 2.0, 2.2]:
+            td.observe_vad(_vad(VadEventKind.NO_SPEECH, t))
+        # At t=2.25 (0.75s since speech ended at 1.5):
+        decision = td.decide(now=2.25, transcript="what time is it")
+        assert decision.action == TurnAction.END_TURN
+        assert decision.reason == "silence_after_speech"
