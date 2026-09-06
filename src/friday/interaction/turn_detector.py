@@ -176,9 +176,8 @@ class TurnDetector:
         if not self._in_speech and self._last_silence_at is not None and self._last_silence_at > 0:
             silence_duration = now - self._last_silence_at
             if silence_duration >= silence_threshold:
-                # Require either: stable partial, or wake-word present, or non-empty transcript.
-                if self._stable_count >= self.config.partial_stability_window or text:
-                    return TurnDecision(TurnAction.END_TURN, "silence_after_speech", transcript=text)
+                # If there's no text but we had silence, we still end the turn to avoid hanging.
+                return TurnDecision(TurnAction.END_TURN, "silence_after_speech", transcript=text)
 
         # Mid-speech with no silence yet -> keep listening.
         if self._in_speech:

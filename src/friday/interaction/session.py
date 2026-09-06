@@ -206,7 +206,8 @@ class VoiceSession:
         turn_detector.set_system_speaking(conversation.snapshot().speaking)
 
         max_idle_seconds = 5.0
-        max_capture_seconds = 30.0  # Maximum total capture duration
+        max_capture_seconds = 30.0  # Maximum total capture duration once speech starts
+        max_wait_for_speech = 8.0   # How long to wait for speech to start after wake word
         last_chunk_at = time.time()
         capture_started_at = time.time()
 
@@ -233,9 +234,9 @@ class VoiceSession:
                     if now - last_heartbeat > 3.0:
                         print(f"FRIDAY [Voice]: state={current_state} still listening...")
                         last_heartbeat = now
-                    # Overall capture timeout - give up if no speech detected
-                    if now - capture_started_at > max_capture_seconds:
-                        print(f"FRIDAY [Voice]: capture timeout after {max_capture_seconds}s")
+                    # Give up if no speech detected within max_wait_for_speech
+                    if now - capture_started_at > max_wait_for_speech:
+                        print(f"FRIDAY [Voice]: capture timeout after {max_wait_for_speech}s waiting for speech")
                         break
                 elif last_logged_state != "transcribing":
                     print(f"FRIDAY [Voice]: state=transcribing")
