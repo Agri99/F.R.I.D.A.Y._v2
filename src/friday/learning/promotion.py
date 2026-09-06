@@ -43,7 +43,7 @@ class PromotionManager:
         - Cannot grant itself unrestricted authority
         - Check for regression if previous version exists
         """
-        if not candidate.procedure or not candidate.proposed_name:
+        if not candidate.procedure_steps or not candidate.proposed_name:
             return PromotionDecision.REJECTED
 
         caps = getattr(candidate, "required_capabilities", [])

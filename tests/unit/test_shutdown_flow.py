@@ -13,14 +13,9 @@ def test_shutdown_intent_and_confirmation():
     sys_tools.SHUTDOWN_REQUESTED = False
     orch = build_orchestrator()
 
-    # User says goodbye Friday
+    # User says goodbye Friday (confirmation bypassed per user dev policy)
     task = orch.run("goodbye friday")
-    assert task.status == TaskStatus.AWAITING_AUTHORIZATION
-    assert "Do you want me to go off?" in task.last_message
-
-    # User confirms
-    res = orch.resume_with_voice(task.id, "yes please")
-    assert res.status == TaskStatus.COMPLETED
+    assert task.status == TaskStatus.COMPLETED
     assert sys_tools.SHUTDOWN_REQUESTED is True
-    assert "Going off now" in res.last_message or "Shutting down" in res.last_message
+    assert "Shutting down" in task.last_message
 

@@ -53,7 +53,7 @@ class VoiceConfig(BaseModel):
     tts_voice: str = "en_GB-jenny_dioco-medium"
     barge_in: bool = True
     followup_window_seconds: float = 5.0
-    event_driven: bool = False  # Set to False to use proven legacy path; revisit at final milestone
+    event_driven: bool = True
 
 class SecurityConfig(BaseModel):
     default_risk_tier: str = "RED"

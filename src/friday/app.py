@@ -233,28 +233,6 @@ def run_voice() -> None:
 
         owner_p, _ = load_personas()
 
-        controls = {
-            "offline": lambda: _set_offline(orch, True),
-            "online": lambda: _set_offline(orch, False),
-            "fast": lambda: _set_model_pref(orch, "fast"),
-            "deep": lambda: _set_model_pref(orch, "deep"),
-            "safer": lambda: setattr(orch, "_safer_mode", True),
-            "pause": orch._pause_execution,
-            "explain": lambda: _explain_progress(orch),
-        }
-
-        def voice_agent(text: str):
-            orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
-            task = orch.run(text)
-            # If shutdown was requested via tool, signal the session to stop
-            import friday.tools.system as sys_tools
-            if sys_tools.SHUTDOWN_REQUESTED:
-                session._stop_requested = True
-            return task.last_message
-
-        def voice_resume(task_id: str, text: str):
-            return orch.resume_with_voice(task_id, text)
-
         def _set_offline(orch, offline: bool):
             """Toggle offline mode on the orchestrator and online manager."""
             orch._offline_override = offline
@@ -283,6 +261,31 @@ def run_voice() -> None:
             print(f"FRIDAY: {msg}")
             synthesizer.speak_interruptible(msg, wakeword)
 
+        def _check_shutdown_requested() -> None:
+            """Shared by both voice_agent and voice_resume - shutdown_friday is
+            RED-tier and needs confirmation, so it's a two-turn flow: turn 1
+            (voice_agent) asks 'are you sure?', turn 2 (the 'yes', which goes
+            through voice_resume/resume_with_voice, NOT voice_agent) actually
+            executes it. This used to only be checked in voice_agent, so the
+            tool genuinely ran and set SHUTDOWN_REQUESTED on turn 2, but the
+            session never learned about it and kept listening forever - the
+            confirmed bug where shutdown confirms but never actually happens.
+            """
+            import friday.tools.system as sys_tools
+            if sys_tools.SHUTDOWN_REQUESTED:
+                session._stop_requested = True
+
+        def voice_agent(text: str):
+            orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
+            task = orch.run(text)
+            _check_shutdown_requested()
+            return task.last_message
+
+        def voice_resume(task_id: str, text: str):
+            task = orch.resume_with_voice(task_id, text)
+            _check_shutdown_requested()
+            return task
+
         controls = {
             "offline": lambda: (_set_offline(orch, True), announce("I'm offline now")),
             "online": lambda: (_set_offline(orch, False), announce("I'm online now")),
@@ -293,18 +296,6 @@ def run_voice() -> None:
             "explain": lambda: (_explain_progress(orch), announce("Here's what I'm doing")),
             "stop": lambda: (session.request_shutdown(), announce("Shutting down. Goodbye, Boss.")),
         }
-
-        def voice_agent(text: str):
-            orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
-            task = orch.run(text)
-            # If shutdown was requested via tool, signal the session to stop
-            import friday.tools.system as sys_tools
-            if sys_tools.SHUTDOWN_REQUESTED:
-                session._stop_requested = True
-            return task.last_message
-
-        def voice_resume(task_id: str, text: str):
-            return orch.resume_with_voice(task_id, text)
 
         def on_state(state: SessionState):
             set_state(state.value)

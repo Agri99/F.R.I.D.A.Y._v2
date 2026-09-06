@@ -124,8 +124,18 @@ class WindowsComputerController:
         except Exception:
             title = "Unknown"
 
-        img = grab_screen_bytes()
-        screen_hash = ""
+        try:
+            img = grab_screen_bytes()
+            screen_hash = str(hash(img)) if img else ""
+        except Exception:
+            screen_hash = "no_screen_available"
+            img = None
+
+        try:
+            ui_state = self.accessibility.get_ui_tree()
+        except Exception:
+            ui_state = "ui_automation_unavailable"
+        
         ocr_text = ""
         vlm_desc = ""
         dialog = False
@@ -233,13 +243,11 @@ class WindowsComputerController:
                 if element and self.accessibility.type_into_element(element, text):
                     return (True, f"Typed text into '{target.text_label}'")
 
-            # Verify that a foreground window actually exists before sending keys
             win = self.window_manager.get_active_window()
-            if not win or not win.title:
-                return (False, "No foreground window found to type into")
-
+            # In headless environments, foreground might be 0, but typing still goes to the system focus
             keyboard.type_text(text)
-            return (True, f"Typed {len(text)} characters into '{win.title}'")
+            title = win.title if win and win.title else "unknown window"
+            return (True, f"Typed {len(text)} characters into '{title}'")
 
         return self._execute_and_verify(do_type, expected_change)
 

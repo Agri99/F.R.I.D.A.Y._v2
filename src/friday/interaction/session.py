@@ -218,6 +218,7 @@ class VoiceSession:
             return None
 
         final_text: str | None = None
+        current_partial: str = ""
         last_heartbeat = time.time()
         last_logged_state: str | None = None
         try:
@@ -247,7 +248,7 @@ class VoiceSession:
                     # Idle watchdog. Only fires AFTER speech has started so we
                     # don't return to the wake listener while the user is just
                     # quiet. Without a ``turn_started_at``, the user hasn't said
-                    # anything yet — keep listening indefinitely.
+                    # anything yet - keep listening indefinitely.
                     idle = time.time() - last_chunk_at
                     if turn_detector._turn_started_at is not None and idle > max_idle_seconds:
                         break
@@ -263,7 +264,9 @@ class VoiceSession:
                 for ev in transcriber.drain_events():
                     if isinstance(ev, TranscriptEvent):
                         turn_detector.observe_partial(ev)
-                decision = turn_detector.decide(now=time.time(), transcript="")
+                        if ev.text:
+                            current_partial = ev.text
+                decision = turn_detector.decide(now=time.time(), transcript=current_partial)
                 if decision.action.value == "wake_detected":
                     self.set_state(SessionState.WAKE_DETECTED)
                     continue
@@ -271,7 +274,6 @@ class VoiceSession:
                     interruption.interrupt(reason="turn_detector_interrupt")
                     return None
                 if decision.action.value == "end_turn":
-                    final_text = decision.transcript or self._collect_final_transcript(transcriber)
                     break
         finally:
             try:
@@ -279,8 +281,10 @@ class VoiceSession:
             except Exception:
                 pass
             events = transcriber.finalize()
-            if final_text is None and events:
+            if events:
                 final_text = events[-1].text
+            else:
+                final_text = current_partial or None
         return (final_text or "").strip() or None
 
     @staticmethod

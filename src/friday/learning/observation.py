@@ -18,23 +18,22 @@ class ObservationClassifier:
     
     def classify(self, trajectory: Trajectory) -> ObservationType:
         """Determine outcome category from trajectory data."""
-        # Normalize outcome string
-        outcome = str(trajectory.outcome).upper()
-        
+        outcome_str = str(trajectory.outcome).split(".")[-1].upper()
+
         # Check for corrected failure
         failures = 0
         for step in trajectory.steps:
             res = step.get("result") if isinstance(step, dict) else getattr(step, "result", None)
             if isinstance(res, dict) and res.get("status") == "error":
                 failures += 1
-                
-        if failures > 0 and outcome in ("SUCCESS", "DONE"):
+
+        if failures > 0 and outcome_str in ("SUCCESS", "DONE", "COMPLETED"):
             return ObservationType.CORRECTED
 
-        if outcome in ("SUCCESS", "DONE"):
+        if outcome_str in ("SUCCESS", "DONE", "COMPLETED"):
             return ObservationType.SUCCESS
-            
-        if outcome in ("FAILURE", "FAILED", "BLOCKED"):
+
+        if outcome_str in ("FAILURE", "FAILED", "BLOCKED", "ERROR", "CANCELLED"):
             return ObservationType.FAILURE
-            
+
         return ObservationType.PARTIAL

@@ -51,7 +51,7 @@ class TestPatternDistiller:
         assert candidate is not None
         assert isinstance(candidate, SkillCandidate)
         assert candidate.proposed_name.startswith("open_vs_code")
-        assert len(candidate.procedure) >= 2
+        assert len(candidate.procedure_steps) >= 2
 
     def test_normalize_removes_timestamps(self, distiller):
         traj = {

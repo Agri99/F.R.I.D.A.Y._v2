@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-09-06 19:14:11",
+  "categories": [
+    {
+      "name": "Basic Computer Use",
+      "tests": 6,
+      "passed": 5,
+      "verified": 5,
+      "recovered": 0,
+      "replans": 0,
+      "blocked": 0,
+      "avg_latency_ms": 325.8157833382332
+    },
+    {
+      "name": "Intermediate Computer Use",
+      "tests": 7,
+      "passed": 7,
+      "verified": 7,
+      "recovered": 0,
+      "replans": 0,
+      "blocked": 0,
+      "avg_latency_ms": 54.43841429327482
+    },
+    {
+      "name": "Complex Computer Use",
+      "tests": 7,
+      "passed": 7,
+      "verified": 7,
+      "recovered": 5,
+      "replans": 7,
+      "blocked": 0,
+      "avg_latency_ms": 0.024485701162900244
+    },
+    {
+      "name": "Security",
+      "tests": 14,
+      "passed": 12,
+      "verified": 0,
+      "recovered": 0,
+      "replans": 0,
+      "blocked": 12,
+      "avg_latency_ms": 0.0
+    },
+    {
+      "name": "Learning",
+      "tests": 14,
+      "passed": 14,
+      "verified": 0,
+      "recovered": 0,
+      "replans": 0,
+      "blocked": 0,
+      "avg_latency_ms": 0.0
+    }
+  ],
+  "total_tests": 48,
+  "total_passed": 45,
+  "total_verified": 19,
+  "total_recovered": 5,
+  "total_replans": 7,
+  "total_blocked": 12,
+  "overall_success_rate": 0.9375,
+  "overall_verification_rate": 0.95,
+  "overall_recovery_rate": 0.10416666666666667,
+  "overall_block_rate": 0.25,
+  "avg_latency_ms": 48.66947916646799
+}

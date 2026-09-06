@@ -213,9 +213,9 @@ class ComplexComputerUseBenchmarks:
             print(f"Running {test.__name__}...")
             result = test()
             self.results.append(result)
-            status = "✓" if result.success else "✗"
-            recovery = "🔄" if result.recovery_triggered else ""
-            print(f"  {status} {result.test_name}: {result.latency_ms:.1f}ms (verified: {'✓' if result.verification_passed else '✗'}) {recovery}")
+            status = "PASS" if result.success else "FAIL"
+            recovery = "[RECOVERED]" if result.recovery_triggered else ""
+            print(f"  {status} {result.test_name}: {result.latency_ms:.1f}ms (verified: {'PASS' if result.verification_passed else 'FAIL'}) {recovery}")
 
         return self.results
 
@@ -285,10 +285,10 @@ def run_benchmarks():
     print(f"Avg Latency: {avg_latency:.1f}ms")
 
     for r in results:
-        status = "✓" if r.success else "✗"
-        recovery = "🔄" if r.recovery_triggered else ""
+        status = "PASS" if r.success else "FAIL"
+        recovery = "[RECOVERED]" if r.recovery_triggered else ""
         replan = f" (replans: {r.replan_count})" if r.replan_count > 0 else ""
-        print(f"  {status} {r.test_name}: {r.latency_ms:.1f}ms (verified: {'✓' if r.verification_passed else '✗'}){recovery}{replan}")
+        print(f"  {status} {r.test_name}: {r.latency_ms:.1f}ms (verified: {'PASS' if r.verification_passed else 'FAIL'}){recovery}{replan}")
 
     return results
 

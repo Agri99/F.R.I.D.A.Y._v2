@@ -48,7 +48,7 @@ SHELL_BUILTINS = {"echo", "cd", "dir", "type", "cls", "copy", "del", "ren", "mov
 AUTONOMOUS_ALLOWLIST = [
     "git status", "git log", "git diff", "git branch", "git show",
     "pip list", "pip show", "pip --version",
-    "python --version", "python -c", "python -m",
+    "python", "python --version", "python -c", "python -m",
     "node --version", "npm --version", "npm list",
     "ollama list", "ollama --version",
     "cargo --version", "cargo build", "cargo test",

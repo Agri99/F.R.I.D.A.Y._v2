@@ -270,10 +270,10 @@ def main():
 
     # Exit with error code if success rate below threshold
     if report.overall_success_rate < 0.80:
-        print("\n⚠️  WARNING: Overall success rate below 80% threshold!")
+        print("\n[WARN]  WARNING: Overall success rate below 80% threshold!")
         return 1
     if report.overall_verification_rate < 0.75:
-        print("\n⚠️  WARNING: Overall verification rate below 75% threshold!")
+        print("\n[WARN]  WARNING: Overall verification rate below 75% threshold!")
         return 1
 
     print("\n✅ All benchmarks passed thresholds!")

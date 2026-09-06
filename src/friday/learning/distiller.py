@@ -14,105 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass
-class SkillCandidate:
-    proposed_name: str = ""
-    name: str = ""
-    purpose: str = ""
-    triggers: list[str] = field(default_factory=list)
-    prerequisites: list[str] = field(default_factory=list)
-    required_capabilities: list[str] = field(default_factory=list)
-    risk_profile: str = "GREEN"
-    inputs: list[dict] = field(default_factory=list)        # {name, type, description, required}
-    procedure: list[dict] = field(default_factory=list)     # ordered action steps
-    expected_observations: list[str] = field(default_factory=list)
-    verification: list[dict] = field(default_factory=list)
-    failure_modes: list[str] = field(default_factory=list)
-    recovery: list[dict] = field(default_factory=list)
-    source_trajectory_ids: list[str] = field(default_factory=list)
-    procedure_steps: list[dict] = field(default_factory=list)  # {action, args, intent, expected}
-    verification_rules: list[dict] = field(default_factory=list)
-    failure_recovery: list[dict] = field(default_factory=list)
-    variables: dict = field(default_factory=dict)
-    prerequisites: list[str] = field(default_factory=list)
-    context_requirements: list[str] = field(default_factory=list)
-    permissions: list[str] = field(default_factory=list)
-    examples: list[dict] = field(default_factory=list)
-    version: str = "1.0"
-    attempts: int = 0
-    successes: int = 0
-    failures: int = 0
-    failure_causes: list[str] = field(default_factory=list)
-    avg_execution_time_ms: float = 0.0
-    verification_rate: float = 0.0
-    user_corrections: int = 0
-    regression_history: list[dict] = field(default_factory=list)
-    created_at: str = ""
-    updated_at: str = ""
-
-    def __post_init__(self):
-        if self.proposed_name and not self.name:
-            self.name = self.proposed_name
-        elif self.name and not self.proposed_name:
-            self.proposed_name = self.name
-
-    @property
-    def success_rate(self) -> float:
-        if self.attempts > 0:
-            return self.successes / self.attempts
-        return 0.0
-
-    def to_markdown(self) -> str:
-        """Render skill candidate into valid SKILL.md format."""
-        procedure_lines = []
-        for i, step in enumerate(self.procedure, 1):
-            action = step.get("action", "unknown")
-            args = step.get("arguments", {})
-            procedure_lines.append(f"{i}. **action:** `{action}`\n   **args:** `{args}`")
-
-        caps_str = ", ".join(self.required_capabilities) or "none"
-        obs_str = "\n".join(f"- {o}" for o in self.expected_observations) or "- Action completed successfully"
-        ver_str = "\n".join(f"- {v}" for v in self.verification) or "- Check status == 'DONE'"
-        fail_str = "\n".join(f"- {f}" for f in self.failure_modes) or "- Tool execution timeout"
-        rec_str = "\n".join(f"- {r}" for r in self.recovery) or "- Retry with max 2 attempts"
-        prereq_str = "\n".join(f"- {p}" for p in self.prerequisites) or "- System online"
-
-        return f"""# {self.name}
-
-## Purpose
-{self.purpose}
-
-## Triggers
-{chr(10).join(f"- \"{t}\"" for t in self.triggers)}
-
-## Prerequisites
-{prereq_str}
-
-## Capabilities
-{caps_str}
-
-## Risk Profile
-{self.risk_profile}
-
-## Inputs
-{chr(10).join(f"- {inp}" for inp in self.inputs) if self.inputs else "none"}
-
-## Procedure
-{chr(10).join(procedure_lines)}
-
-## Expected Observations
-{obs_str}
-
-## Verification
-{ver_str}
-
-## Failure Modes
-{fail_str}
-
-## Recovery
-{rec_str}
-"""
-
+from friday.skills.learner import SkillCandidate
 
 class PatternDistiller:
     def __init__(self, model_provider: Any = None):
@@ -217,8 +119,10 @@ class PatternDistiller:
 
         # Merge steps from all trajectories (naïve union for now)
         merged_steps: list[dict] = []
+        variables: list[dict] = []
         for n in norm_steps:
             merged_steps.extend(n["steps"])
+            variables.extend(n["variables"])
         # Deduplicate by (action, arguments) tuple
         seen = set()
         unique_steps = []
@@ -232,21 +136,22 @@ class PatternDistiller:
         safe_name = primary_goal.lower().replace(" ", "_").replace("-", "_")
         safe_name = "".join(c for c in safe_name if c.isalnum() or c == "_")[:32] or "distilled_skill"
 
-        # For verification we just assert that each step succeeded (placeholder)
-        verification = [{"check": f"{step['action']} succeeded"} for step in unique_steps]
-
         return SkillCandidate(
-            name=safe_name,
+            proposed_name=safe_name,
             purpose=f"Distilled workflow for '{primary_goal}'",
             triggers=[primary_goal.lower(), f"execute {safe_name}"],
             prerequisites=["System online"],
             required_capabilities=[step["action"].split(".")[0] for step in unique_steps],
             risk_profile="YELLOW" if any(cap in ("filesystem", "terminal", "computer") for cap in [step["action"].split(".")[0] for step in unique_steps]) else "GREEN",
-            inputs=[],
-            procedure=unique_steps,
+            procedure="",
+            procedure_steps=unique_steps,
             expected_observations=[f"Step {i+1} completed" for i in range(len(unique_steps))],
-            verification=[{"check": f"{step['action']} succeeded"} for step in unique_steps],
-            failure_modes=["Tool execution timeout", "Target not found"],
-            recovery=[{"on_failure": "retry", "max_attempts": 2}],
-            source_trajectory_ids=[str(_get_attr(t, "id")) for t in successes]
+            verification="",
+            verification_rules=[{"check": f"{step['action']} succeeded"} for step in unique_steps],
+            failure_recovery=[{"action": "retry", "args": {}} for _ in unique_steps],
+            variables=variables,
+            examples=[{
+                "input": primary_goal,
+                "output": "Success"
+            }]
         )

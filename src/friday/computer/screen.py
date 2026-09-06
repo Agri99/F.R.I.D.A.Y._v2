@@ -112,9 +112,13 @@ def save_screenshot(filename: str = "screenshot.png", workspace_dir: str | Path 
     if not safe_name.lower().endswith((".png", ".jpg", ".jpeg")):
         safe_name += ".png"
     output_path = dest_dir / safe_name
-    img = ImageGrab.grab()
-    img.save(output_path)
-    return str(output_path)
+    try:
+        img = ImageGrab.grab()
+        img.save(output_path)
+        return str(output_path)
+    except Exception as e:
+        print(f"FRIDAY [Screen]: Screenshot failed: {e}")
+        return ""
 
 
 def compute_screen_hash(image: Image.Image | None = None) -> str:

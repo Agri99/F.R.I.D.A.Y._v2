@@ -103,14 +103,26 @@ class ControlVerifier:
         if not target_hwnd:
             return VerificationResult(False, f"Window matching '{window_hint}' not found.")
 
-        control_hwnd = self._find_child_control(target_hwnd, control_hint)
-        if not control_hwnd:
-            return VerificationResult(False, f"Control matching '{control_hint}' not found in window '{window_hint}'.")
+        # Try win32gui first
+        control_hwnd = self._find_child_control_win32(target_hwnd, control_hint)
+        if control_hwnd:
+            control_text = win32gui.GetWindowText(control_hwnd)
+            if control_hint.lower() in control_text.lower():
+                return VerificationResult(True, f"Control '{control_hint}' text matches in window '{window_hint}'.")
 
-        control_text = win32gui.GetWindowText(control_hwnd)
-        if control_hint.lower() in control_text.lower():
-            return VerificationResult(True, f"Control '{control_hint}' text matches in window '{window_hint}'.")
-        return VerificationResult(False, f"Control '{control_hint}' found but text is '{control_text}'.")
+        # Fallback to UI Automation for modern apps (Win11 Notepad, Electron, etc.)
+        try:
+            from pywinauto import Application
+            app = Application(backend="uia").connect(handle=target_hwnd)
+            window = app.window(handle=target_hwnd)
+            for elem in window.descendants():
+                text = elem.window_text() or elem.element_info.name or ""
+                if control_hint.lower() in text.lower():
+                    return VerificationResult(True, f"Control '{control_hint}' text matches in window '{window_hint}' (UIA).")
+        except Exception as e:
+            pass
+            
+        return VerificationResult(False, f"Control '{control_hint}' not found in window '{window_hint}'.")
 
     @staticmethod
     def _find_window_by_hint(hint: str) -> int | None:
@@ -128,7 +140,7 @@ class ControlVerifier:
         return result[0] if result else None
 
     @staticmethod
-    def _find_child_control(parent_hwnd: int, hint: str) -> int | None:
+    def _find_child_control_win32(parent_hwnd: int, hint: str) -> int | None:
         import win32gui
         result: list[int] = []
 
@@ -296,21 +308,38 @@ class TextEntryVerifier:
         if not target_hwnd:
             return VerificationResult(False, f"Window '{self.expected.window_hint}' not focused.")
 
-        control_hwnd = ControlVerifier._find_child_control(
-            target_hwnd, self.expected.control_hint
-        )
-        if not control_hwnd:
-            return VerificationResult(
-                False,
-                f"Control '{self.expected.control_hint}' not found in focused window.",
-            )
-
         foreground = win32gui.GetForegroundWindow()
         if foreground != target_hwnd:
             return VerificationResult(
                 False,
                 f"Window '{self.expected.window_hint}' not in foreground during entry.",
             )
+
+        control_hwnd = ControlVerifier._find_child_control_win32(
+            target_hwnd, self.expected.control_hint
+        )
+        if not control_hwnd:
+            # Fallback to UI Automation for modern apps (Win11 Notepad, Electron, etc.)
+            try:
+                from pywinauto import Application
+                app = Application(backend="uia").connect(handle=target_hwnd)
+                window = app.window(handle=target_hwnd)
+                found = False
+                for elem in window.descendants():
+                    text = elem.window_text() or elem.element_info.name or ""
+                    if self.expected.control_hint.lower() in text.lower():
+                        found = True
+                        break
+                if not found:
+                    return VerificationResult(
+                        False,
+                        f"Control '{self.expected.control_hint}' not found in focused window.",
+                    )
+            except Exception:
+                return VerificationResult(
+                    False,
+                    f"Control '{self.expected.control_hint}' not found in focused window.",
+                )
 
         if post_value is None:
             return VerificationResult(False, "No post-value observed; cannot verify entry.")

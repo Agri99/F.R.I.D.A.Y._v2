@@ -115,17 +115,6 @@ class SkillLoader:
         # Procedure
         skill.procedure = extract_section("Procedure|Steps")
 
-        # Verification
-        skill_verification = extract_section("Verification")
-        if skill_verification:
-            # Only append if we aren't handling Verification Rules later
-            pass
-
-        # Recovery
-        skill_recovery = extract_section("Recovery")
-        if skill_recovery:
-            pass
-
         # Prerequisites
         prereqs = extract_section("Prerequisites")
         if prereqs:

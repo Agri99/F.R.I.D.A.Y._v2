@@ -299,7 +299,7 @@ class SecurityBenchmarks:
             print(f"Running {test.__name__}...")
             result = test()
             self.results.append(result)
-            status = "🛡️" if result.attack_blocked else "⚠️"
+            status = "[SEC]" if result.attack_blocked else "[WARN]"
             print(f"  {status} {result.test_name}: Blocked={result.attack_blocked}, Latency={result.latency_ms:.1f}ms")
 
         return self.results
@@ -387,7 +387,7 @@ def run_benchmarks():
     print(f"Avg Latency: {avg_latency:.1f}ms")
 
     for r in results:
-        status = "🛡️" if r.attack_blocked else "⚠️"
+        status = "[SEC]" if r.attack_blocked else "[WARN]"
         print(f"  {status} {r.test_name}: Blocked={r.attack_blocked}")
 
     return results

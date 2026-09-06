@@ -25,8 +25,8 @@ from .state import TaskStateMachine
 from .steering import SteeringController
 from .task import Step, Task, TaskManager, TaskStatus
 
-APPROVE_WORDS = {"yes", "yeah", "yep", "confirm", "do it", "proceed", "go ahead", "sure", "ok", "okay"}
-DENY_WORDS = {"no", "nope", "cancel", "stop", "don't", "abort"}
+APPROVE_WORDS = {"yes", "yeah", "yep", "confirm", "do it", "proceed", "go ahead", "sure", "ok", "okay", "absolutely", "please"}
+DENY_WORDS = {"no", "nope", "cancel", "stop", "don't", "abort", "nah"}
 
 def _format_confirmation_prompt(action: str, args: dict[str, Any]) -> str:
     """Produce a natural spoken confirmation prompt without robotic phrasing."""

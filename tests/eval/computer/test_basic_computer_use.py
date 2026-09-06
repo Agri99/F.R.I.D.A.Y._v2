@@ -240,8 +240,8 @@ def run_benchmarks():
     print(f"Avg Latency: {avg_latency:.1f}ms")
 
     for r in results:
-        status = "✓" if r.success else "✗"
-        verify = "✓" if r.verification_passed else "✗"
+        status = "PASS" if r.success else "FAIL"
+        verify = "PASS" if r.verification_passed else "FAIL"
         print(f"  {status} {r.test_name}: {r.latency_ms:.1f}ms (verified: {verify})")
 
     return results

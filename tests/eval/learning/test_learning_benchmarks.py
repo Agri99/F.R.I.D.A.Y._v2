@@ -113,7 +113,7 @@ class LearningBenchmarks:
         ]
 
         candidate = distiller.distill(trajectories)
-        success = candidate is not None and len(candidate.procedure) > 0
+        success = candidate is not None and len(candidate.procedure_steps) > 0
         return type('Result', (), {'success': success, 'latency_ms': 0})()
 
     def test_skill_distillation_requires_multiple_trajectories(self) -> Any:
@@ -165,7 +165,7 @@ class LearningBenchmarks:
         ]
 
         candidate = distiller.distill(trajectories)
-        success = candidate is not None and len(candidate.procedure) > 0
+        success = candidate is not None and len(candidate.procedure_steps) > 0
         return type('Result', (), {'success': success, 'latency_ms': 0})()
 
     def test_skill_distillation_requires_multiple_trajectories(self) -> Any:
@@ -217,7 +217,7 @@ class LearningBenchmarks:
         ]
 
         candidate = distiller.distill(trajectories)
-        success = candidate is not None and len(candidate.procedure) > 0
+        success = candidate is not None and len(candidate.procedure_steps) > 0
         return type('Result', (), {'success': success, 'latency_ms': 0})()
 
     def test_skill_distillation_requires_multiple_trajectories(self) -> Any:
@@ -281,7 +281,7 @@ class LearningBenchmarks:
             proposed_name='valid_skill',
             purpose='Test skill',
             triggers=['run test'],
-            procedure=[{'action': 'test', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['success'],
@@ -300,7 +300,7 @@ class LearningBenchmarks:
             proposed_name='destructive_skill',
             purpose='Delete files',
             triggers=['delete all'],
-            procedure=[{'action': 'filesystem.delete', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'filesystem.delete', 'args': {}}],
             required_capabilities=['filesystem.delete'],
             risk_profile='RED',
             expected_observations=['deleted'],
@@ -320,7 +320,7 @@ class LearningBenchmarks:
             proposed_name='regressed_skill',
             purpose='Regressed skill',
             triggers=['run'],
-            procedure=[{'action': 'test', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['success'],
@@ -350,7 +350,7 @@ class LearningBenchmarks:
             name='test_skill',
             purpose='Test',
             trigger='run',
-            procedure=[{'action': 'echo', 'args': {'text': 'hello'}}],
+            procedure="", procedure_steps=[{'action': 'echo', 'args': {'text': 'hello'}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['hello'],
@@ -370,7 +370,7 @@ class LearningBenchmarks:
             name='test_skill',
             purpose='Test',
             trigger='run',
-            procedure=[{'action': 'terminal.run', 'args': {'command': 'rm -rf /'}}],
+            procedure="", procedure_steps=[{'action': 'terminal.run', 'args': {'command': 'rm -rf /'}}],
             required_capabilities=['terminal'],
             risk_profile='RED',
             expected_observations=['deleted'],
@@ -462,7 +462,7 @@ class LearningBenchmarks:
             proposed_name='valid_skill',
             purpose='Test skill',
             triggers=['run test'],
-            procedure=[{'action': 'test', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['success'],
@@ -481,7 +481,7 @@ class LearningBenchmarks:
             proposed_name='destructive_skill',
             purpose='Delete files',
             triggers=['delete all'],
-            procedure=[{'action': 'filesystem.delete', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'filesystem.delete', 'args': {}}],
             required_capabilities=['filesystem.delete'],
             risk_profile='RED',
             expected_observations=['deleted'],
@@ -501,7 +501,7 @@ class LearningBenchmarks:
             proposed_name='regressed_skill',
             purpose='Regressed skill',
             triggers=['run'],
-            procedure=[{'action': 'test', 'args': {}}],
+            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['success'],
@@ -532,7 +532,7 @@ class LearningBenchmarks:
             name='test_skill',
             purpose='Test',
             trigger='run',
-            procedure=[{'action': 'echo', 'args': {'text': 'hello'}}],
+            procedure="", procedure_steps=[{'action': 'echo', 'args': {'text': 'hello'}}],
             required_capabilities=['system'],
             risk_profile='GREEN',
             expected_observations=['hello'],
@@ -552,7 +552,7 @@ class LearningBenchmarks:
             name='test_skill',
             purpose='Test',
             trigger='run',
-            procedure=[{'action': 'terminal.run', 'args': {'command': 'rm -rf /'}}],
+            procedure="", procedure_steps=[{'action': 'terminal.run', 'args': {'command': 'rm -rf /'}}],
             required_capabilities=['terminal'],
             risk_profile='RED',
             expected_observations=['deleted'],
@@ -638,7 +638,7 @@ system
             print(f"Running {test.__name__}...")
             result = test()
             self.results.append(result)
-            status = "✓" if getattr(result, 'success', False) else "✗"
+            status = "PASS" if getattr(result, 'success', False) else "FAIL"
             print(f"  {status} {test.__name__}")
 
         return self.results
@@ -718,7 +718,7 @@ def run_benchmarks():
     print(f"Avg Latency: {avg_latency:.1f}ms")
 
     for r in results:
-        status = "✓" if getattr(r, 'success', False) else "✗"
+        status = "PASS" if getattr(r, 'success', False) else "FAIL"
         print(f"  {status} {getattr(r, 'test_name', 'unknown')}")
 
     return results
