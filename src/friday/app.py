@@ -245,7 +245,12 @@ def run_voice() -> None:
 
         def voice_agent(text: str):
             orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
-            return orch.run(text)
+            task = orch.run(text)
+            # If shutdown was requested via tool, signal the session to stop
+            import friday.tools.system as sys_tools
+            if sys_tools.SHUTDOWN_REQUESTED:
+                session._stop_requested = True
+            return task.last_message
 
         def voice_resume(task_id: str, text: str):
             return orch.resume_with_voice(task_id, text)
@@ -291,7 +296,12 @@ def run_voice() -> None:
 
         def voice_agent(text: str):
             orch.system_prompt = BASE_SYSTEM_PROMPT.format(persona=owner_p)
-            return orch.run(text)
+            task = orch.run(text)
+            # If shutdown was requested via tool, signal the session to stop
+            import friday.tools.system as sys_tools
+            if sys_tools.SHUTDOWN_REQUESTED:
+                session._stop_requested = True
+            return task.last_message
 
         def voice_resume(task_id: str, text: str):
             return orch.resume_with_voice(task_id, text)
@@ -302,16 +312,23 @@ def run_voice() -> None:
         # Build the event-driven voice pipeline (M2). This routes audio
         # through AudioInputStream -> VAD -> StreamingTranscriber ->
         # TurnDetector -> ConversationManager -> StreamingTts ->
-        # InterruptionManager. To fall back to the legacy path, set
-        # ``use_event_driven = False`` below.
-        use_event_driven = False
+        # InterruptionManager.
+        #
+        # The flag is read from config (voice.event_driven, default True).
+        # To revert to the legacy path, set event_driven: false in config/default.yaml.
+        use_event_driven = getattr(orch.settings.voice, "event_driven", True)
         voice_pipeline = None
         if use_event_driven:
-            voice_pipeline = VoicePipeline.from_speech_synthesizer(
-                speech_synthesizer=synthesizer,
-                speech_recognizer=recognizer,
-                followup_window_seconds=orch.settings.voice.followup_window_seconds,
-            )
+            try:
+                voice_pipeline = VoicePipeline.from_speech_synthesizer(
+                    speech_synthesizer=synthesizer,
+                    speech_recognizer=recognizer,
+                    followup_window_seconds=orch.settings.voice.followup_window_seconds,
+                )
+                print("FRIDAY [Boot]: Event-driven voice pipeline (M2) active.")
+            except Exception as _pipe_err:
+                print(f"FRIDAY [Boot]: Event-driven pipeline failed to init ({_pipe_err}); using legacy path.")
+                voice_pipeline = None
 
         # Build session first so the controls can reference it (e.g. "stop").
         session = VoiceSession(
@@ -389,12 +406,37 @@ def run_text() -> None:
             task = orch.run(text)
             reply = _reply_text(task)
             print(f"[FRIDAY]: {reply}")
+
+            # Check if the tool triggered a shutdown (e.g. "shut down friday")
+            import friday.tools.system as sys_tools
+            if sys_tools.SHUTDOWN_REQUESTED:
+                print("[FRIDAY]: Goodbye, Boss.")
+                break
         except (KeyboardInterrupt, EOFError):
             break
 
 
+def _acquire_lock() -> None:
+    import os
+    import psutil
+    pid_file = Path("data/friday.pid")
+    pid_file.parent.mkdir(exist_ok=True)
+    if pid_file.exists():
+        try:
+            old_pid = int(pid_file.read_text(encoding="utf-8").strip())
+            if psutil.pid_exists(old_pid):
+                print(f"[!] F.R.I.D.A.Y. is already running (PID: {old_pid}). Exiting.")
+                sys.exit(1)
+        except ValueError:
+            pass
+    pid_file.write_text(str(os.getpid()), encoding="utf-8")
+    import atexit
+    atexit.register(lambda: pid_file.unlink(missing_ok=True))
+
+
 def main() -> None:
     """CLI entry point."""
+    _acquire_lock()
     if "--text" in sys.argv:
         run_text()
     else:

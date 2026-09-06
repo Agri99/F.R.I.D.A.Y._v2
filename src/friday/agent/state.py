@@ -8,7 +8,7 @@ _ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.PLANNING: {TaskStatus.AWAITING_AUTHORIZATION, TaskStatus.EXECUTING, TaskStatus.BLOCKED, TaskStatus.FAILED, TaskStatus.CANCELLED},
 
     TaskStatus.AWAITING_AUTHORIZATION: {TaskStatus.AWAITING_AUTHORIZATION, TaskStatus.EXECUTING, TaskStatus.BLOCKED, TaskStatus.FAILED, TaskStatus.CANCELLED},
-    TaskStatus.EXECUTING: {TaskStatus.VERIFYING, TaskStatus.FAILED, TaskStatus.CANCELLED},
+    TaskStatus.EXECUTING: {TaskStatus.VERIFYING, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.COMPLETED},
 
     TaskStatus.VERIFYING: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.RECOVERING, TaskStatus.EXECUTING, TaskStatus.AWAITING_AUTHORIZATION},
     TaskStatus.COMPLETED: set(),

@@ -29,26 +29,153 @@ def _verify_get_status(args: dict, result: dict) -> VerificationResult:
     return VerificationResult(False, "Missing expected keys in status result")
 
 
+# Common city-to-timezone mapping for user convenience
+# Also includes explicit UTC offsets as fallback when ZoneInfo DB is unavailable
+_CITY_TO_IANA = {
+    "tokyo": "Asia/Tokyo",
+    "new york": "America/New_York",
+    "london": "Europe/London",
+    "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles",
+    "san francisco": "America/Los_Angeles",
+    "sf": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "denver": "America/Denver",
+    "phoenix": "America/Phoenix",
+    "houston": "America/Chicago",
+    "dallas": "America/Chicago",
+    "miami": "America/New_York",
+    "seattle": "America/Los_Angeles",
+    "boston": "America/New_York",
+    "washington": "America/New_York",
+    "dc": "America/New_York",
+    "washington dc": "America/New_York",
+    "paris": "Europe/Paris",
+    "berlin": "Europe/Berlin",
+    "moscow": "Europe/Moscow",
+    "beijing": "Asia/Shanghai",
+    "shanghai": "Asia/Shanghai",
+    "hong kong": "Asia/Hong_Kong",
+    "singapore": "Asia/Singapore",
+    "sydney": "Australia/Sydney",
+    "melbourne": "Australia/Melbourne",
+    "auckland": "Pacific/Auckland",
+    "dubai": "Asia/Dubai",
+    "mumbai": "Asia/Kolkata",
+    "delhi": "Asia/Kolkata",
+    "bangalore": "Asia/Kolkata",
+    "kolkata": "Asia/Kolkata",
+    "chennai": "Asia/Kolkata",
+    "seoul": "Asia/Seoul",
+    "taipei": "Asia/Taipei",
+    "bangkok": "Asia/Bangkok",
+    "jakarta": "Asia/Jakarta",
+    "manila": "Asia/Manila",
+    "kuala lumpur": "Asia/Kuala_Lumpur",
+}
+
+# Explicit UTC offsets for when ZoneInfo database is unavailable
+# Format: city_name -> (offset_hours, offset_minutes)
+_CITY_TO_UTC_OFFSET = {
+    "tokyo": (9, 0),
+    "new york": (-5, 0),      # EST (will be -4 during DST)
+    "london": (0, 0),         # GMT (will be +1 during BST)
+    "los angeles": (-8, 0),   # PST (will be -7 during PDT)
+    "la": (-8, 0),
+    "san francisco": (-8, 0),
+    "sf": (-8, 0),
+    "chicago": (-6, 0),       # CST (will be -5 during CDT)
+    "denver": (-7, 0),        # MST (will be -6 during MDT)
+    "phoenix": (-7, 0),       # MST (no DST)
+    "houston": (-6, 0),
+    "dallas": (-6, 0),
+    "miami": (-5, 0),
+    "seattle": (-8, 0),
+    "boston": (-5, 0),
+    "washington": (-5, 0),
+    "dc": (-5, 0),
+    "washington dc": (-5, 0),
+    "paris": (1, 0),          # CET (will be +2 during CEST)
+    "berlin": (1, 0),
+    "moscow": (3, 0),
+    "beijing": (8, 0),
+    "shanghai": (8, 0),
+    "hong kong": (8, 0),
+    "singapore": (8, 0),
+    "sydney": (10, 0),        # AEST (will be +11 during AEDT)
+    "melbourne": (10, 0),
+    "auckland": (12, 0),      # NZST (will be +13 during NZDT)
+    "dubai": (4, 0),
+    "mumbai": (5, 30),
+    "delhi": (5, 30),
+    "bangalore": (5, 30),
+    "kolkata": (5, 30),
+    "chennai": (5, 30),
+    "seoul": (9, 0),
+    "taipei": (8, 0),
+    "bangkok": (7, 0),
+    "jakarta": (7, 0),
+    "manila": (8, 0),
+    "kuala lumpur": (8, 0),
+}
+
+
 def _get_time(timezone: str | None = None, **kwargs) -> dict:
     """Return the current time.
 
     ``timezone`` accepts an IANA name (e.g. ``"America/New_York"``) or a
     fixed-offset string (e.g. ``"+05:30"``, ``"UTC-8"``). When None or
     unrecognised, the host's local time is returned.
+
+    For convenience, common city names (e.g. "tokyo", "new york") are also
+    accepted and mapped to their IANA timezone.
     """
     tzinfo = None
+    tz_name = "local"
     if timezone:
+        tz_key = timezone.strip().lower()
+        # Try city mapping first (for IANA zoneinfo)
+        if tz_key in _CITY_TO_IANA:
+            timezone = _CITY_TO_IANA[tz_key]
         try:
             from zoneinfo import ZoneInfo
             tzinfo = ZoneInfo(timezone)
         except Exception:
-            # Fall back to fixed offset like "+05:30" or "UTC-8".
-            tzinfo = _parse_offset(timezone)
+            # ZoneInfo database not available on this system (e.g. Windows without tzdata).
+            # First try the raw key as a city name.
+            if tz_key in _CITY_TO_UTC_OFFSET:
+                hours, minutes = _CITY_TO_UTC_OFFSET[tz_key]
+                from datetime import timezone as dt_timezone, timedelta
+                tzinfo = dt_timezone(timedelta(hours=hours, minutes=minutes))
+                tz_name = f"UTC{hours:+d}:{minutes:02d}"
+            else:
+                # If the timezone looks like an IANA name (e.g. "America/New_York"),
+                # extract the city part ("new york") and try the city offset map.
+                city_part = timezone.split("/")[-1].replace("_", " ").lower()
+                if city_part in _CITY_TO_UTC_OFFSET:
+                    hours, minutes = _CITY_TO_UTC_OFFSET[city_part]
+                    from datetime import timezone as dt_timezone, timedelta
+                    tzinfo = dt_timezone(timedelta(hours=hours, minutes=minutes))
+                    tz_name = f"{timezone} (UTC{hours:+d}:{minutes:02d})"
+                else:
+                    # Last resort: try fixed offset parser (e.g. "+05:30", "UTC-8")
+                    tzinfo = _parse_offset(timezone)
+        if tzinfo is None:
+            # Could not resolve the timezone at all — fall back to local time with
+            # an honest label so FRIDAY doesn't silently claim the wrong timezone.
+            tz_name = f"{timezone} (fallback to local — tzdata not installed)"
     now = datetime.datetime.now(tz=tzinfo)
+    if tzinfo is not None and tz_name == "local":
+        tz_name = str(tzinfo)
+    elif tzinfo is None and not tz_name.endswith(")"):
+        if timezone and timezone not in ("local", ""):
+            tz_name = f"{timezone} (fallback to local — tzdata not installed)"
+        else:
+            tz_name = "local"
     return {
         "time": now.strftime("%I:%M %p"),
         "date": now.strftime("%A, %B %d, %Y"),
-        "timezone": str(tzinfo) if tzinfo else "local",
+        "timezone": tz_name,
     }
 
 
@@ -92,6 +219,11 @@ SHUTDOWN_REQUESTED = False
 
 
 def _shutdown_friday() -> dict:
+    """Shut down FRIDAY gracefully.
+
+    Sets the global shutdown flag and returns a result. The caller
+    (voice loop in app.py) is responsible for actually exiting the process.
+    """
     global SHUTDOWN_REQUESTED
     SHUTDOWN_REQUESTED = True
     return {"status": "shutting down", "message": "Shutting down FRIDAY. Goodbye!"}

@@ -26,6 +26,7 @@ class NavigationResult:
     error: str | None = None
     status_code: int | None = None
     title: str | None = None
+    content: str | None = None
     risk_level: str = "GREEN"
     policy_approved: bool = False
     requires_approval: bool = False

@@ -289,6 +289,11 @@ class AgentOrchestrator:
         except Exception:
             pass
 
+    def _check_shutdown_requested(self) -> bool:
+        """Check if shutdown was requested via the system.shutdown_friday tool."""
+        import friday.tools.system as sys_tools
+        return sys_tools.SHUTDOWN_REQUESTED
+
     def run(self, goal: str, on_transition: Callable[[TaskStatus], None] | None = None) -> Task:
         task = self.tasks.create(goal)
         self._remember("user", goal)
@@ -404,7 +409,7 @@ class AgentOrchestrator:
                     task.last_message = prompt
                     task.pending_auth = {
                         "step": step,
-                        "stage": "voice" if dec_val == "REQUIRE_CONFIRMATION" else "second_factor",
+                        "stage": "voice" if dec_val == "REQUIRE_CONFIRMATION" else "passphrase",
                         "action": step.action,
                         "args": step.arguments,
                     }
@@ -437,9 +442,17 @@ class AgentOrchestrator:
             )
             exec_result = self.executor.execute(tool, step, max_time_budget=task.max_time_seconds, request=req)
 
-            
             task.observations.append(exec_result.observation)
-            
+
+            # If shutdown tool was executed, skip evaluation and complete task
+            if self._check_shutdown_requested():
+                self.state_machine.transition(task, TaskStatus.COMPLETED, reason="Shutdown requested")
+                reply = _format_natural_reply(step.action, exec_result.result)
+                task.last_message = reply
+                self._remember("assistant", reply)
+                self.trajectory_recorder.finish("SUCCESS")
+                return task
+
             self.state_machine.transition(task, TaskStatus.VERIFYING, reason="Evaluating execution")
             eval_result = self.evaluator.evaluate(task, step, exec_result, tool)
 
@@ -554,6 +567,10 @@ class AgentOrchestrator:
             self.steering.reset_verification_failures()
             task.current_step_index += 1
 
+            # Check if shutdown was requested (from system.shutdown_friday tool)
+            if self._check_shutdown_requested():
+                return task
+
         completed_step = task.plan[-1] if task.plan else None
         last_exec = task.actions[-1] if task.actions else None
         self.state_machine.transition(task, TaskStatus.COMPLETED, reason="All steps completed")
@@ -610,7 +627,13 @@ class AgentOrchestrator:
                 step = auth_data.get("step")
                 if step:
                     step.authorized = True
-            task.pending_auth = None
-            return self._execute_plan(task)
+                task.pending_auth = None
+                return self._execute_plan(task)
+            else:
+                task.pending_auth = None
+                self.state_machine.transition(task, TaskStatus.BLOCKED, reason="Incorrect passphrase")
+                task.last_message = "Incorrect passphrase. Action blocked."
+                self._remember("assistant", task.last_message)
+                return task
 
         return task

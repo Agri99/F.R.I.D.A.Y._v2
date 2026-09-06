@@ -8,6 +8,16 @@ from .evaluator import Evaluator, EvaluationResult
 from .recovery import RecoveryManager, RecoveryStrategy
 from .fastpath import FastPathRouter, FastPathResult
 from .orchestrator import AgentOrchestrator
+from .multi_agent import (
+    SpecialistRole,
+    SpecialistResult,
+    WorkerSpecialist,
+    ResearcherSpecialist,
+    ComputerSpecialist,
+    CoderSpecialist,
+    ReviewerSpecialist,
+    MultiAgentCoordinator,
+)
 
 __all__ = [
     "Task",
@@ -25,4 +35,12 @@ __all__ = [
     "FastPathRouter",
     "FastPathResult",
     "AgentOrchestrator",
+    "SpecialistRole",
+    "SpecialistResult",
+    "WorkerSpecialist",
+    "ResearcherSpecialist",
+    "ComputerSpecialist",
+    "CoderSpecialist",
+    "ReviewerSpecialist",
+    "MultiAgentCoordinator",
 ]

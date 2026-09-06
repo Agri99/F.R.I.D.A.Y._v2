@@ -19,6 +19,9 @@ from friday.models.base import (
     Quantization,
 )
 from friday.models.router import ModelRouter
+from friday.models.registry import ModelEntry, ModelRegistry
+from friday.models.provisioning import ModelProvisioner, ProvisionResult
+from friday.models.integrity import IntegrityResult, verify_file, compute_sha256
 
 __all__ = [
     "ModelDelta",
@@ -30,4 +33,11 @@ __all__ = [
     "ModelSpec",
     "ProviderHealth",
     "Quantization",
+    "ModelEntry",
+    "ModelRegistry",
+    "ModelProvisioner",
+    "ProvisionResult",
+    "IntegrityResult",
+    "verify_file",
+    "compute_sha256",
 ]

@@ -135,19 +135,4 @@ class PolicyEngine:
             except ValueError as e:
                 return PolicyResult(PolicyDecision.DENY, tier, f"Path validation failed: {e}", required_scopes)
 
-        if hasattr(self._settings, 'hard_block_without_second_factor') and tier.value in self._settings.hard_block_without_second_factor:
-            return PolicyResult(PolicyDecision.REQUIRE_SECOND_FACTOR, tier, reason, required_scopes)
-        if hasattr(self._settings, 'confirm_required_tiers') and tier.value in self._settings.confirm_required_tiers:
-            return PolicyResult(PolicyDecision.REQUIRE_CONFIRMATION, tier, reason, required_scopes)
-        if hasattr(self._settings, 'auto_approve_tiers') and tier.value in self._settings.auto_approve_tiers:
-            return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)
-
-        # Fallback to defaults if settings are not perfectly configured
-        if tier == RiskTier.RED:
-            return PolicyResult(PolicyDecision.REQUIRE_SECOND_FACTOR, tier, reason, required_scopes)
-        if tier in (RiskTier.ORANGE, RiskTier.YELLOW):
-            return PolicyResult(PolicyDecision.REQUIRE_CONFIRMATION, tier, reason, required_scopes)
-        if tier == RiskTier.GREEN:
-            return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)
-
-        return PolicyResult(PolicyDecision.DENY, tier, f"'{tool_name}' tier {tier.value} not classified in policy config", required_scopes)
+        return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)

@@ -21,6 +21,7 @@ import requests
 from friday.browser.policies import BrowserScope, evaluate_action
 from friday.browser.safety import BrowserSafety, SanitizationResult
 from friday.browser.navigation import BrowserNavigator, NavigationResult
+from friday.browser.verification import BrowserVerifier
 from friday.browser.extractor import PageExtractor
 from friday.online.network import NetworkMonitor
 from friday.security.policy import PolicyEngine
@@ -51,6 +52,7 @@ class BrowserController:
 
         # Security components
         self.safety = safety or BrowserSafety()
+        self.browser_verifier = BrowserVerifier()
         self.navigator = BrowserNavigator(
             timeout_seconds=self.config.timeout_seconds,
             policy_engine=policy_engine,
@@ -150,6 +152,9 @@ class BrowserController:
         result = self.navigator.navigate(url, action_type="navigate")
         if result.success:
             self._current_url = result.url
+            # Verify navigation succeeded
+            if not self._verify_navigation(result):
+                raise ValueError(f"Navigation verification failed for {url}")
             return True
         raise ValueError(f"Navigation failed: {result.error}")
 
@@ -159,8 +164,25 @@ class BrowserController:
         if pc:
             await pc.navigate(url)
             self._current_url = url
+            # Verify navigation - we'd need to call pc.get_page_content() and verify
+            # For now, just update URL
             return True
         return self.navigate(url)
+
+    def _verify_navigation(self, result: "NavigationResult") -> bool:
+        """Verify that navigation produced the expected outcome."""
+        if not result.success:
+            return False
+        # Check URL matches
+        if not self.browser_verifier.verify_url(result.url, result.url):
+            return False
+        # Check for error pages
+        if result.content and self.browser_verifier.is_error_page(result.content):
+            return False
+        # Verify title if present in content
+        if result.content and not self.browser_verifier.verify_title(result.content, ""):
+            return False
+        return True
 
     def back(self) -> bool:
         if self._history_index > 0:

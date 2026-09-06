@@ -14,6 +14,7 @@ dependencies = [
     "requests>=2.31",
     "psutil>=5.9",
     "pillow>=10.0",
+    "tzdata>=2024.1",  # IANA timezone database for Windows (ZoneInfo fallback)
     # ── Model client ──
     "ollama>=0.4.0",
     # ── Audio/Voice ──
@@ -63,7 +64,7 @@ all = [
 ]
 
 [project.scripts]
-friday = "friday.app:main"
+friday = "friday.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

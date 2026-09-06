@@ -169,6 +169,9 @@ class VoiceSession:
                 return last_response
             last_response = response_text
 
+            if self._stop_requested:
+                break
+
             self.set_state(SessionState.FOLLOWUP_LISTENING)
             require_wake = False
             if not self._wait_for_followup_event_driven(pipeline):
@@ -203,7 +206,9 @@ class VoiceSession:
         turn_detector.set_system_speaking(conversation.snapshot().speaking)
 
         max_idle_seconds = 5.0
+        max_capture_seconds = 30.0  # Maximum total capture duration
         last_chunk_at = time.time()
+        capture_started_at = time.time()
 
         try:
             audio_in.start()
@@ -227,6 +232,10 @@ class VoiceSession:
                     if now - last_heartbeat > 3.0:
                         print(f"FRIDAY [Voice]: state={current_state} still listening...")
                         last_heartbeat = now
+                    # Overall capture timeout - give up if no speech detected
+                    if now - capture_started_at > max_capture_seconds:
+                        print(f"FRIDAY [Voice]: capture timeout after {max_capture_seconds}s")
+                        break
                 elif last_logged_state != "transcribing":
                     print(f"FRIDAY [Voice]: state=transcribing")
                     last_logged_state = "transcribing"
@@ -416,6 +425,9 @@ class VoiceSession:
                 self.set_state(SessionState.INTERRUPTED)
                 return last_response
             last_response = response_text
+
+            if self._stop_requested:
+                break
 
             self.set_state(SessionState.FOLLOWUP_LISTENING)
             current_path = self.stt.listen_for_followup(timeout_seconds=self.followup_window_seconds)

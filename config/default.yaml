@@ -34,6 +34,7 @@ voice:
   tts_voice: "en_GB-jenny_dioco-medium"
   barge_in: true
   followup_window_seconds: 5.0
+  event_driven: false
 
 security:
   default_risk_tier: "RED"

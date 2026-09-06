@@ -65,6 +65,11 @@ class FastPathRouter:
         "current time",
         "what is the time",
         "tell me the time",
+        "what's the time",
+        "what time is it in",
+    )
+    TIME_IN_PATTERNS = re.compile(
+        r"(?:what(?:'s|\s+is)\s+the\s+time|current\s+time|tell\s+me\s+the\s+time|time\s+is\s+it)\s+(?:in|for)\s+(.+?)(?:\s*\?|$)"
     )
 
     # Explicit "go search for X" phrasings. Routed directly to online.search,
@@ -148,6 +153,25 @@ class FastPathRouter:
                         arguments={"query": query},
                         success_reply="Let me look that up.",
                     )
+
+        # 5. Time queries - with timezone or without
+        m = self.TIME_IN_PATTERNS.search(text)
+        if m:
+            location = m.group(1).strip().rstrip("?.!")
+            return FastPathResult(
+                tool_name="system.get_time",
+                arguments={"timezone": location},
+                success_reply="",
+                risk_tier="GREEN",
+            )
+        # Basic "what time is it" without a city → local time
+        if any(text == p or text.startswith(p) for p in self.TIME_PHRASES):
+            return FastPathResult(
+                tool_name="system.get_time",
+                arguments={},
+                success_reply="",
+                risk_tier="GREEN",
+            )
 
         return None
 
