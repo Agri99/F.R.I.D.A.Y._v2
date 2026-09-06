@@ -230,6 +230,9 @@ class StreamingTranscriber:
         self._last_partial_at: float = 0.0
         self._last_partial_text: str = ""
         self._callback: Callable[[str, bool], None] | None = None
+        import concurrent.futures
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="streaming_stt")
+        self._partial_future: concurrent.futures.Future | None = None
 
     @property
     def model(self):
@@ -304,6 +307,14 @@ class StreamingTranscriber:
             audio = np.concatenate(self._buffer_samples) if self._buffer_samples else np.zeros(0, dtype=np.int16)
             self._buffer_samples = []
             self._running = False
+
+        if self._partial_future is not None:
+            try:
+                self._partial_future.result(timeout=0.2)
+            except Exception:
+                pass
+            self._partial_future = None
+
         text, confidence = self._transcribe_array(audio)
         end_time = self._start_time + (audio.size / self.sample_rate if audio.size else 0.0)
         event = TranscriptEvent(
@@ -339,33 +350,45 @@ class StreamingTranscriber:
             return
         if self._buffer_duration_s < self.min_chunk_seconds:
             return
+        if self._partial_future is not None and not self._partial_future.done():
+            # Transcription already in progress in background thread
+            return
         with self._lock:
-            if not self._buffer_samples or self._cancelled:
+            if not self._buffer_samples or self._cancelled or not self._running:
                 return
             audio = np.concatenate(self._buffer_samples)
             start_t = self._start_time
-        text, confidence = self._transcribe_array(audio)
-        if not text or text == self._last_partial_text:
-            self._last_partial_at = timestamp
-            return
-        end_t = start_t + (audio.size / self.sample_rate)
-        event = TranscriptEvent(
-            text=text,
-            is_final=False,
-            confidence=confidence,
-            start_time=start_t,
-            end_time=end_t,
-            turn_id=self._turn_id,
-        )
-        with self._lock:
-            self._events.append(event)
-            self._last_partial_text = text
-            self._last_partial_at = timestamp
-        if self._callback is not None:
+            turn_id = self._turn_id
+
+        self._last_partial_at = timestamp
+
+        def _worker():
             try:
-                self._callback(text, False)
+                text, confidence = self._transcribe_array(audio)
+                if not text or text == self._last_partial_text:
+                    return
+                end_t = start_t + (audio.size / self.sample_rate)
+                event = TranscriptEvent(
+                    text=text,
+                    is_final=False,
+                    confidence=confidence,
+                    start_time=start_t,
+                    end_time=end_t,
+                    turn_id=turn_id,
+                )
+                with self._lock:
+                    if self._running and not self._cancelled and self._turn_id == turn_id:
+                        self._events.append(event)
+                        self._last_partial_text = text
+                if self._callback is not None:
+                    try:
+                        self._callback(text, False)
+                    except Exception:
+                        pass
             except Exception:
                 pass
+
+        self._partial_future = self._executor.submit(_worker)
 
     def _transcribe_array(self, audio: np.ndarray) -> tuple[str, float]:
         """Transcribe a numpy int16 array using faster-whisper; returns (text, confidence)."""

@@ -88,3 +88,11 @@ class TestTurnDetector:
         # Silence = 0.5s, threshold under auth_pending = max(0.25, 0.7*0.6)=0.42.
         decision = td.decide(now=0.7, transcript="yes", authorization_pending=True)
         assert decision.action == TurnAction.END_TURN
+
+    def test_silence_before_speech_does_not_end_turn(self):
+        td = TurnDetector()
+        td.observe_vad(_vad(VadEventKind.NO_SPEECH, 0.0))
+        td.observe_vad(_vad(VadEventKind.NO_SPEECH, 0.5))
+        decision = td.decide(now=1.5, transcript="")
+        assert decision.action == TurnAction.KEEP_LISTENING
+        assert decision.reason == "awaiting_input"

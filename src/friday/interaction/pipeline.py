@@ -81,6 +81,8 @@ class VoicePipeline:
 
         if transcriber is None:
             transcriber = StreamingTranscriber(model_size=model_size)
+            if hasattr(speech_recognizer, "_model") and speech_recognizer._model is not None:
+                transcriber._model = speech_recognizer._model
 
         return cls(
             audio_input=AudioInputStream(sample_rate=16000, channels=1, block_ms=20),

@@ -125,7 +125,8 @@ class TurnDetector:
             self._in_speech = False
             self._last_silence_at = event.timestamp
         else:
-            self._last_silence_at = event.timestamp
+            if self._turn_started_at is not None:
+                self._last_silence_at = event.timestamp
 
     def observe_partial(self, event: TranscriptEvent) -> None:
         """Track partial transcripts to detect stability / wake word / interrupts."""
@@ -172,11 +173,10 @@ class TurnDetector:
         if self._in_speech and any(tok in (" " + text_lower + " ") for tok in _CONTINUATION_TOKENS):
             return TurnDecision(TurnAction.KEEP_LISTENING, "continuation_token", transcript=text)
 
-        # End the turn when we have a stable partial AND silence past threshold.
-        if not self._in_speech and self._last_silence_at is not None and self._last_silence_at > 0:
+        # End the turn when speech has occurred, speech has ended, and silence has exceeded threshold.
+        if self._turn_started_at is not None and not self._in_speech and self._last_silence_at is not None:
             silence_duration = now - self._last_silence_at
             if silence_duration >= silence_threshold:
-                # If there's no text but we had silence, we still end the turn to avoid hanging.
                 return TurnDecision(TurnAction.END_TURN, "silence_after_speech", transcript=text)
 
         # Mid-speech with no silence yet -> keep listening.

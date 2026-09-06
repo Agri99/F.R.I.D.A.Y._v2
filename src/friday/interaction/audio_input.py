@@ -167,6 +167,12 @@ class AudioInputStream:
         """
         if self._running:
             return
+        # Drain any residual chunks from previous turns
+        while not self.queue._q.empty():
+            try:
+                self.queue._q.get_nowait()
+            except Exception:
+                break
         try:
             import sounddevice as sd
         except Exception as e:
