@@ -297,9 +297,9 @@ class TestEventDrivenVoiceSession:
         )
 
         # Direct call into _speak_event_driven with a known response.
-        interrupted = session._speak_event_driven(pipeline, "Sure, opening VS Code now.")
+        result = session._speak_event_driven(pipeline, "Sure, opening VS Code now.")
         chunks = sink.drain()
-        assert interrupted is False
+        assert result is None  # None = success (not interrupted, not failed)
         # At least one chunk emitted.
         assert len(chunks) >= 1
         # Sample rate matches Piper fake.

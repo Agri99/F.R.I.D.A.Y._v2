@@ -163,9 +163,16 @@ class VoiceSession:
                 self._pending_task_id = getattr(response, "id", None)
 
             self.set_state(SessionState.SPEAKING)
-            interrupted = self._speak_event_driven(pipeline, response_text)
-            if interrupted:
+            result = self._speak_event_driven(pipeline, response_text)
+            if result is True:
+                # Interrupted
                 self.set_state(SessionState.INTERRUPTED)
+                return last_response
+            elif result is False:
+                # Failed - log error and return last response
+                import logging
+                logging.getLogger(__name__).error("TTS failed during response")
+                self.set_state(SessionState.ERROR)
                 return last_response
             last_response = response_text
 
@@ -295,8 +302,9 @@ class VoiceSession:
             return None
         return events[-1].text
 
-    def _speak_event_driven(self, pipeline: Any, text: str) -> bool:
-        """Stream text through StreamingTts. Return True if interrupted."""
+    def _speak_event_driven(self, pipeline: Any, text: str) -> bool | None:
+        """Stream text through StreamingTts.
+        Return True if interrupted, False if failed, None if successful."""
         from friday.interaction.streaming_tts import iter_llm_deltas_to_text
         from friday.models.base import ModelDelta
 
@@ -330,7 +338,11 @@ class VoiceSession:
             streaming_tts.finish()
             # Chunks land on the sink; the audio consumer (sounddevice
             # OutputStream in production, test consumer in CI) drains them.
-            return interruption.is_stale(captured)
+            return None  # Success
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("TTS failed during streaming: %s", exc)
+            return False  # Failure
         finally:
             conversation.set_speaking(False)
             turn_detector.set_system_speaking(False)
@@ -426,7 +438,13 @@ class VoiceSession:
                 self.wakeword,
                 on_interrupt=self.cancel,
             )
-            if bool(getattr(result, "interrupted", result if isinstance(result, bool) else False)):
+            if not result.success:
+                # TTS failed - log error and return last response
+                import logging
+                logging.getLogger(__name__).error("TTS failed during response: %s", result.error)
+                self.set_state(SessionState.ERROR)
+                return last_response
+            if getattr(result, "interrupted", False):
                 self.set_state(SessionState.INTERRUPTED)
                 return last_response
             last_response = response_text

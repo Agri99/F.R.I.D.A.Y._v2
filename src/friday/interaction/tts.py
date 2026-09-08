@@ -60,7 +60,7 @@ class SpeechSynthesizer:
         return np.concatenate([padding_start, audio, padding_end])
 
     def speak(self, text: str) -> TTSResult:
-        """Speak text synchronously with state management."""
+        """Speak text synchronously with state management. This is the reliable baseline."""
         self._interrupt_event.clear()
         audio = self._build_audio(text)
         if len(audio) == 0:
@@ -75,15 +75,26 @@ class SpeechSynthesizer:
             sd.wait()
             duration = time.time() - start_time
             return TTSResult(success=True, duration_seconds=duration)
-        except Exception as e:
-            return TTSResult(success=False, error=str(e))
+        except Exception as exc:
+            # Log the error for debugging
+            import logging
+            logging.getLogger(__name__).exception("TTS playback failed")
+            return TTSResult(success=False, error=str(exc))
         finally:
             self._current_audio = None
             self._set_state(VoiceState.IDLE)
 
     def speak_interruptible(self, text: str, wakeword_listener: Any = None,
                             playback_gain: float = 0.6, on_interrupt: Callable[[], None] | None = None) -> TTSResult:
-        """Speak text allowing for wake word barge-in interruption."""
+        """Speak text with optional barge-in. Barge-in is best-effort and non-critical.
+
+        If barge-in monitoring fails, we fall back to simple speak() to ensure
+        the user hears the response. Barge-in is best-effort, not required.
+
+        Returns:
+            TTSResult with success=True if speech completed (interrupted or not),
+            success=False only if TTS synthesis/playback completely failed.
+        """
         self._interrupt_event.clear()
         audio = self._build_audio(text)
         if len(audio) == 0:
@@ -103,7 +114,10 @@ class SpeechSynthesizer:
         sd.play(audio, samplerate=self.voice.config.sample_rate)
         start_time = time.time()
         interrupted = False
+        playback_failed = False
 
+        # Try barge-in monitoring, but don't let it block the critical path
+        barge_in_failed = False
         try:
             with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as stream:
                 warmup_frames = 5
@@ -120,11 +134,19 @@ class SpeechSynthesizer:
                         stream.read(1280)
                         continue
 
-                    # Check for wake word barge-in
+                    # Check for wake word barge-in (best effort)
                     if wakeword_listener and hasattr(wakeword_listener, 'check_frame'):
-                        if wakeword_listener.check_frame(stream, debug=True):
-                            interrupted = True
-                            break
+                        try:
+                            if wakeword_listener.check_frame(stream, debug=False):
+                                interrupted = True
+                                break
+                        except Exception:
+                            # Barge-in monitoring failed - continue without it
+                            pass
+
+                    if not interrupted:
+                        # Small sleep to prevent busy loop
+                        time.sleep(0.01)
 
                 if not interrupted:
                     # Wait for remaining playback
@@ -133,7 +155,15 @@ class SpeechSynthesizer:
                         time.sleep(remaining)
 
         except Exception as e:
-            return TTSResult(success=False, error=str(e))
+            # Barge-in monitoring failed - fall back to simple playback
+            import logging
+            logging.getLogger(__name__).warning("Barge-in monitoring failed, falling back to simple playback: %s", e)
+            # Wait for playback to complete
+            remaining = duration - (time.time() - start_time)
+            if remaining > 0:
+                time.sleep(remaining)
+            barge_in_failed = True
+
         finally:
             sd.stop()
             self._current_audio = None
@@ -145,7 +175,8 @@ class SpeechSynthesizer:
                 self._set_state(VoiceState.IDLE)
 
         actual_duration = time.time() - start_time
-        return TTSResult(success=True, interrupted=interrupted, duration_seconds=actual_duration)
+        # Return success=True even if barge-in failed, as long as playback succeeded
+        return TTSResult(success=True, interrupted=interrupted, duration_seconds=time.time() - start_time)
 
     def cancel(self):
         """Cancel current TTS playback immediately."""

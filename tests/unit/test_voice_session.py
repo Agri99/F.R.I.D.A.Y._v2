@@ -30,20 +30,22 @@ class FakeWake:
 
 @dataclass
 class SpeechResult:
+    success: bool = True
     interrupted: bool = False
 
 
 class FakeTTS:
-    def __init__(self, interrupt: bool = False):
+    def __init__(self, interrupt: bool = False, error: bool = False):
         self.spoken: list[str] = []
         self.interrupt = interrupt
+        self.error = error
         self.cancelled = False
 
     def speak_interruptible(self, text, wakeword, on_interrupt=None):
         self.spoken.append(text)
         if self.interrupt and on_interrupt:
             on_interrupt()
-        return SpeechResult(self.interrupt)
+        return SpeechResult(success=not self.error, interrupted=self.interrupt)
 
     def cancel(self):
         self.cancelled = True
