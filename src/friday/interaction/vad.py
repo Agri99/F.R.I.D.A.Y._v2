@@ -140,10 +140,96 @@ class CompositeVad:
         return VadEvent(VadEventKind.NO_SPEECH, confidence=avg_conf, timestamp=timestamp)
 
 
+class SileroVoiceActivityDetector:
+    """Neural VAD using Silero (ONNX).
+    
+    Extremely robust against background noise, typing, and fans. Only triggers
+    on actual human speech.
+    """
+
+    def __init__(
+        self,
+        model_path: str = "data/silero_vad.onnx",
+        speech_threshold: float = 0.5,
+        silence_chunks_to_end: int = 15,   # ~480ms at 512 frames/chunk
+        speech_chunks_to_start: int = 2,   # ~64ms
+    ) -> None:
+        import onnxruntime as ort
+        import os
+        
+        self.speech_threshold = speech_threshold
+        self.silence_chunks_to_end = silence_chunks_to_end
+        self.speech_chunks_to_start = speech_chunks_to_start
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Silero VAD model not found at {model_path}. Please download it.")
+            
+        self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        self.reset()
+        
+    def reset(self) -> None:
+        self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._buffer = np.array([], dtype=np.float32)
+        self._speech_streak = 0
+        self._silence_streak = 0
+        self._speaking = False
+        self._last_event = VadEvent(VadEventKind.NO_SPEECH, 0.0, 0.0)
+        
+    def process(self, audio_chunk: np.ndarray, timestamp: float) -> VadEvent:
+        if audio_chunk.size == 0:
+            return self._last_event
+            
+        # Convert to float32 [-1.0, 1.0]
+        chunk_f32 = audio_chunk.astype(np.float32) / 32768.0
+        self._buffer = np.concatenate((self._buffer, chunk_f32))
+        
+        # We need 512 frames for Silero at 16kHz
+        while self._buffer.size >= 512:
+            frame = self._buffer[:512]
+            self._buffer = self._buffer[512:]
+            
+            # Run inference
+            inputs = {
+                'input': frame.reshape(1, 512),
+                'sr': np.array(16000, dtype=np.int64),
+                'state': self._state
+            }
+            out, self._state = self.session.run(None, inputs)
+            prob = float(out[0][0])
+            
+            is_speech = prob >= self.speech_threshold
+            
+            if is_speech:
+                self._speech_streak += 1
+                self._silence_streak = 0
+            else:
+                self._silence_streak += 1
+                self._speech_streak = 0
+                
+            if not self._speaking and self._speech_streak >= self.speech_chunks_to_start:
+                self._speaking = True
+                self._silence_streak = 0
+                self._last_event = VadEvent(VadEventKind.SPEECH_STARTED, prob, timestamp)
+            elif self._speaking and self._silence_streak >= self.silence_chunks_to_end:
+                self._speaking = False
+                self._speech_streak = 0
+                self._last_event = VadEvent(VadEventKind.SPEECH_ENDED, 1.0 - prob, timestamp)
+            elif self._speaking:
+                self._last_event = VadEvent(VadEventKind.SPEECH_CONTINUED, prob, timestamp)
+            else:
+                self._last_event = VadEvent(VadEventKind.NO_SPEECH, 1.0 - prob, timestamp)
+                
+            # Optional debug print (uncomment to trace probabilities)
+            # print(f"Silero prob: {prob:.3f} | speaking={self._speaking}")
+            
+        return self._last_event
+
+
 __all__ = [
     "VadEvent",
     "VadEventKind",
     "VoiceActivityDetector",
     "RmsVoiceActivityDetector",
+    "SileroVoiceActivityDetector",
     "CompositeVad",
 ]

@@ -50,75 +50,13 @@ class AudioSink(Protocol):
     def drain(self) -> list: ...
 
 
-class StreamingAudioConsumer:
-    """Consumes audio chunks from a QueuedAudioSink and plays them via sounddevice."""
-
-    def __init__(self, sink: "QueuedAudioSink"):
-        self._sink = sink
-        self._thread = None
-        self._stop_event = threading.Event()
-
-    def start(self) -> None:
-        self._stop_event.clear()
-        self._thread = threading.Thread(target=self._consume_loop, daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=1.0)
-
-    def _consume_loop(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                chunk = self._sink._q.get(timeout=0.1)
-                import sounddevice as sd
-                sd.play(chunk.audio, samplerate=chunk.sample_rate)
-                sd.wait()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning("Audio playback error: %s", e)
-    def drain(self) -> list: ...
-
-
-class StreamingAudioConsumer:
-    """Consumes audio chunks from a QueuedAudioSink and plays them via sounddevice."""
-
-    def __init__(self, sink: "QueuedAudioSink"):
-        self._sink = sink
-        self._thread = None
-        self._stop_event = threading.Event()
-
-    def start(self) -> None:
-        self._stop_event.clear()
-        self._thread = threading.Thread(target=self._consume_loop, daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=1.0)
-
-    def _consume_loop(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                chunk = self._sink._q.get(timeout=0.1)
-                import sounddevice as sd
-                sd.play(chunk.audio, samplerate=chunk.sample_rate)
-                sd.wait()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning("Audio playback error: %s", e)
-
-
 class QueuedAudioSink:
     """Default sink: queues chunks for a consumer thread (or test consumer).
 
     ``drain()`` is non-blocking and returns whatever is currently queued.
+    ``reset()`` clears the stopped flag so the sink can be reused after
+    cancellation — required by the persistent-mic pipeline where the same
+    sink survives across multiple turns.
     """
 
     def __init__(self) -> None:
@@ -147,6 +85,19 @@ class QueuedAudioSink:
         except queue.Empty:
             pass
 
+    def reset(self) -> None:
+        """Make the sink reusable after a cancellation.
+
+        Clears the stopped flag and drains any residual chunks so the next
+        turn starts with a clean queue.
+        """
+        self._stopped = False
+        try:
+            while not self._q.empty():
+                self._q.get_nowait()
+        except queue.Empty:
+            pass
+
     def drain(self) -> list[TtsAudioChunk]:
         out: list[TtsAudioChunk] = []
         try:
@@ -158,6 +109,40 @@ class QueuedAudioSink:
 
     def qsize(self) -> int:
         return self._q.qsize()
+
+
+class StreamingAudioConsumer:
+    """Consumes audio chunks from a QueuedAudioSink and plays them via sounddevice."""
+
+    def __init__(self, sink: QueuedAudioSink):
+        self._sink = sink
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+
+    def start(self) -> None:
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._consume_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    def _consume_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                chunk = self._sink._q.get(timeout=0.1)
+                import sounddevice as sd
+                import numpy as np
+                audio_int16 = np.frombuffer(chunk.audio, dtype=np.int16)
+                sd.play(audio_int16, samplerate=chunk.sample_rate)
+                sd.wait()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Audio playback error: %s", e)
 
 
 class StreamingTts:
@@ -195,6 +180,9 @@ class StreamingTts:
             self._first_audio_at = None
             self._started_at = time.time()
             self._turn_id = turn_id or f"tts-{int(time.time() * 1000)}"
+            # Reset the sink so it accepts new chunks after a prior cancellation.
+            if hasattr(self._sink, "reset"):
+                self._sink.reset()
             return self._generation
 
     def feed(self, text_delta: str) -> int:
@@ -244,6 +232,14 @@ class StreamingTts:
             return self._generation
 
     def time_to_first_audio(self) -> float | None:
+        with self._lock:
+            if self._first_audio_at is None or self._started_at is None:
+                return None
+            return self._first_audio_at - self._started_at
+
+    @property
+    def first_audio_timestamp(self) -> float | None:
+        """Absolute wall-clock time when the first audio chunk was emitted."""
         with self._lock:
             return self._first_audio_at
 
@@ -299,5 +295,6 @@ __all__ = [
     "TtsAudioChunk",
     "AudioSink",
     "QueuedAudioSink",
+    "StreamingAudioConsumer",
     "iter_llm_deltas_to_text",
 ]

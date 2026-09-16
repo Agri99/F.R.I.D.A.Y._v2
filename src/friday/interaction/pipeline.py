@@ -26,7 +26,7 @@ from friday.interaction.conversation import ConversationManager
 from friday.interaction.interruption import InterruptionManager
 from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts, StreamingAudioConsumer
 from friday.interaction.turn_detector import TurnDetector
-from friday.interaction.vad import RmsVoiceActivityDetector, VoiceActivityDetector
+from friday.interaction.vad import RmsVoiceActivityDetector, SileroVoiceActivityDetector, VoiceActivityDetector
 
 
 @dataclass
@@ -87,7 +87,7 @@ class VoicePipeline:
 
         return cls(
             audio_input=AudioInputStream(sample_rate=16000, channels=1, block_ms=20),
-            vad=RmsVoiceActivityDetector(rms_threshold=rms_threshold),
+            vad=SileroVoiceActivityDetector(),
             transcriber=transcriber,
             turn_detector=TurnDetector(),
             streaming_tts=StreamingTts(synth=synth, sink=sink),

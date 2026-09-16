@@ -1,0 +1,18 @@
+Live Conversation v1 — True Duplex Conversation
+
+Fix these in order:
+
+One persistent microphone stream
+Ring-buffered audio across turns
+True streaming STT
+Actual ModelProvider.stream() integration
+Sentence-level streaming TTS while LLM is still generating
+Continuous barge-in detection
+Immediate playback cancellation
+Reusable audio sink after cancellation
+No speech loss between follow-up turns
+Latency metrics:
+speech-end → first transcript
+speech-end → first LLM token
+speech-end → first audio
+interruption → audio stop
