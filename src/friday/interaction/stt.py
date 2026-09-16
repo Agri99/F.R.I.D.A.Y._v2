@@ -184,10 +184,12 @@ class TranscriptEvent:
 
 
 class StreamingTranscriber:
-    """Event-driven streaming transcription.
+    """Event-driven streaming transcription using faster-whisper's native streaming.
 
-    Replaces the previous stub that only initialized fields. The transcriber
-    exposes two surfaces:
+    Replaces the previous batch-based implementation with true streaming transcription
+    using faster-whisper's native streaming capabilities via generate_segments.
+
+    Exposes two surfaces:
 
       * Legacy callback API (kept for backward compatibility):
             start_streaming(callback) where callback(partial_text, is_final)
@@ -212,6 +214,7 @@ class StreamingTranscriber:
         min_chunk_seconds: float = 0.5,
         max_buffer_seconds: float = 15.0,
         sample_rate: int = SAMPLE_RATE,
+        language: str = "en",
     ) -> None:
         self.model_size = model_size
         self.min_partial_interval_s = float(min_partial_interval_s)
@@ -220,7 +223,7 @@ class StreamingTranscriber:
         self.sample_rate = sample_rate
         self._model = None
         self._lock = threading.Lock()
-        self._buffer_samples: list[np.ndarray] = []
+        self._audio_buffer: list[np.ndarray] = []
         self._buffer_duration_s: float = 0.0
         self._events: list[TranscriptEvent] = []
         self._running = False
@@ -233,6 +236,10 @@ class StreamingTranscriber:
         import concurrent.futures
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="streaming_stt")
         self._partial_future: concurrent.futures.Future | None = None
+        self._feature_extractor = None
+        self._tokenizer = None
+        self._model = None
+        self._transcription_options = None
 
     @property
     def model(self):

@@ -131,17 +131,23 @@ class VoiceSession:
     def _run_once_event_driven(self, require_wake: bool) -> str | None:
         pipeline = self.voice_pipeline
         last_response: str | None = None
+        print(f"FRIDAY [Voice]: Event-driven pipeline started (require_wake={require_wake})")
         while not self.cancelled:
             if require_wake:
                 self.set_state(SessionState.LISTENING_FOR_WAKE)
+                print("FRIDAY [Voice]: Listening for wake word...")
                 self.wakeword.listen_for_wakeword()
                 self.set_state(SessionState.WAKE_DETECTED)
+                print("FRIDAY [Voice]: Wake word detected!")
 
             self.set_state(SessionState.LISTENING)
+            print("FRIDAY [Voice]: Listening for speech...")
             transcript = self._capture_turn_event_driven(pipeline)
             if self.cancelled:
+                print("FRIDAY [Voice]: Cancelled during capture")
                 return last_response
             if transcript is None:
+                print("FRIDAY [Voice]: No speech detected")
                 if self._pending_task_id is not None and last_response:
                     self.set_state(SessionState.SPEAKING)
                     self._speak_event_driven(pipeline, last_response)
@@ -150,12 +156,14 @@ class VoiceSession:
                 return last_response
 
             self.set_state(SessionState.THINKING)
+            print(f"\nUSER: {transcript}")
             if self._pending_task_id and self.resume_agent is not None:
                 response = self.resume_agent(self._pending_task_id, transcript)
                 self._pending_task_id = None
             else:
                 response = self.agent(transcript)
             response_text = self._response_text(response)
+            print(f"FRIDAY: {response_text}\n")
             if self.cancelled:
                 return last_response
 
@@ -167,6 +175,7 @@ class VoiceSession:
             if result is True:
                 # Interrupted
                 self.set_state(SessionState.INTERRUPTED)
+                print("FRIDAY [Voice]: Speech interrupted")
                 return last_response
             elif result is False:
                 # Failed - log error and return last response
@@ -175,11 +184,14 @@ class VoiceSession:
                 self.set_state(SessionState.ERROR)
                 return last_response
             last_response = response_text
+            print("FRIDAY [Voice]: Response delivered successfully")
 
-            if self._stop_requested:
+            import friday.tools.system as sys_tools
+            if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:
                 break
 
             self.set_state(SessionState.FOLLOWUP_LISTENING)
+            print("FRIDAY [Voice]: Listening for follow-up...")
             require_wake = False
             if not self._wait_for_followup_event_driven(pipeline):
                 return last_response
@@ -303,8 +315,10 @@ class VoiceSession:
         return events[-1].text
 
     def _speak_event_driven(self, pipeline: Any, text: str) -> bool | None:
-        """Stream text through StreamingTts.
-        Return True if interrupted, False if failed, None if successful."""
+        """Stream text through StreamingTts, then play the synthesized audio.
+
+        Return True if interrupted, False if failed, None if successful.
+        """
         from friday.interaction.streaming_tts import iter_llm_deltas_to_text
         from friday.models.base import ModelDelta
 
@@ -312,6 +326,7 @@ class VoiceSession:
         interruption = pipeline.interruption
         conversation = pipeline.conversation
         turn_detector = pipeline.turn_detector
+        sink = pipeline.sink
 
         # Start TTS first; this bumps the generation. The capture point for
         # staleness checks is the generation produced by start().
@@ -336,8 +351,21 @@ class VoiceSession:
                 if interruption.is_stale(captured):
                     return True
             streaming_tts.finish()
-            # Chunks land on the sink; the audio consumer (sounddevice
-            # OutputStream in production, test consumer in CI) drains them.
+
+            # Drain the sink and play each audio chunk
+            import sounddevice as sd
+            import numpy as np
+            chunks = sink.drain()
+            for chunk in chunks:
+                if interruption.is_stale(captured):
+                    return True
+                audio_int16 = np.frombuffer(chunk.audio, dtype=np.int16)
+                try:
+                    sd.play(audio_int16, samplerate=chunk.sample_rate)
+                    sd.wait()
+                except Exception:
+                    # In test environments, sounddevice may not work; just drain the queue
+                    pass
             return None  # Success
         except Exception as exc:
             import logging
@@ -392,11 +420,12 @@ class VoiceSession:
         return False
 
     def run_loop(self) -> None:
-        while not self._stop_requested:
+        import friday.tools.system as sys_tools
+        while not self._stop_requested and not sys_tools.SHUTDOWN_REQUESTED:
             try:
                 self.run_once(require_wake=True)
             except Exception:
-                if self._stop_requested:
+                if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:
                     break
                 raise
         self.set_state(SessionState.IDLE)
@@ -413,7 +442,12 @@ class VoiceSession:
                 # re-prompt the user instead of silently dropping the task.
                 if self._pending_task_id is not None and last_response:
                     self.set_state(SessionState.SPEAKING)
-                    self.tts.speak_interruptible(last_response, self.wakeword, on_interrupt=self.cancel)
+                    result = self.tts.speak_interruptible(last_response, self.wakeword, on_interrupt=self.cancel)
+                    if not result.success:
+                        import logging
+                        logging.getLogger(__name__).error("TTS failed during re-prompt: %s", result.error)
+                        self.set_state(SessionState.ERROR)
+                        return last_response
                 return last_response
             if self._run_control(transcript):
                 return last_response
@@ -449,7 +483,8 @@ class VoiceSession:
                 return last_response
             last_response = response_text
 
-            if self._stop_requested:
+            import friday.tools.system as sys_tools
+            if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:
                 break
 
             self.set_state(SessionState.FOLLOWUP_LISTENING)

@@ -63,6 +63,7 @@ from friday.tools.audio import register_all_tools as register_audio_tools
 from friday.tools.browser import register_all_tools as register_browser_tools
 from friday.tools.calendar import register_all_tools as register_calendar_tools
 from friday.tools.computer import register_all_tools as register_computer_tools
+from friday.tools.conversation import register_all_tools as register_conversation_tools
 from friday.tools.filesystem import register_all_tools as register_filesystem_tools
 from friday.tools.gmail import register_all_tools as register_gmail_tools
 from friday.tools.online import register_all_tools as register_online_tools
@@ -145,6 +146,7 @@ def build_orchestrator(config_path: str | None = None) -> AgentOrchestrator:
     register_audio_tools(tool_registry)
     register_terminal_tools(tool_registry)
     register_online_tools(tool_registry)
+    register_conversation_tools(tool_registry)
 
     
     owner_p, _ = load_personas()
@@ -221,11 +223,13 @@ def run_voice() -> None:
 
     try:
         orch = build_orchestrator()
-        from friday.models.router import RoutingContext, TaskComplexity
-        model = orch.model_router.route(RoutingContext(task_complexity=TaskComplexity.LOW))
-        if not model.is_available():
+        fast_model = orch.model_router.get("fast")
+        if not fast_model.is_available():
             print("Ollama not reachable — start Ollama and ensure a model is pulled.")
             return
+
+        from friday.models.router import RoutingContext, TaskComplexity
+        model = orch.model_router.route(RoutingContext(task_complexity=TaskComplexity.LOW))
 
         wakeword = WakeWordListener()
         recognizer = SpeechRecognizer()
@@ -315,6 +319,7 @@ def run_voice() -> None:
                     speech_synthesizer=synthesizer,
                     speech_recognizer=recognizer,
                     followup_window_seconds=orch.settings.voice.followup_window_seconds,
+                    rms_threshold=getattr(orch.settings.voice, "vad_threshold", 50.0),
                 )
                 print("FRIDAY [Boot]: Event-driven voice pipeline (M2) active.")
             except Exception as _pipe_err:

@@ -51,7 +51,7 @@ class RmsVoiceActivityDetector:
 
     def __init__(
         self,
-        rms_threshold: float = 150.0,
+        rms_threshold: float = 50.0,
         silence_chunks_to_end: int = 3,
         speech_chunks_to_start: int = 2,
     ) -> None:

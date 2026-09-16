@@ -357,6 +357,7 @@ class WindowsComputerController:
             from friday.tools.audio import register_all_tools as reg_audio
             from friday.tools.terminal import register_all_tools as reg_term
             from friday.tools.online import register_all_tools as reg_online
+            from friday.tools.conversation import register_all_tools as reg_conv
 
             registry = ToolRegistry()
             reg_sys(registry)
@@ -370,6 +371,7 @@ class WindowsComputerController:
             reg_audio(registry)
             reg_term(registry)
             reg_online(registry)
+            reg_conv(registry)
 
             return registry.get(tool_name)
         except Exception:

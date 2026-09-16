@@ -35,6 +35,7 @@ voice:
   barge_in: true
   followup_window_seconds: 5.0
   event_driven: true
+  vad_threshold: 50.0
 
 security:
   default_risk_tier: "RED"
@@ -91,5 +92,6 @@ terminal:
     - "git log"
     - "git diff"
     - "pip list"
+    - "python"
     - "python --version"
     - "ollama list"

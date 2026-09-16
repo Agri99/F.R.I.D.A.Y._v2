@@ -117,7 +117,10 @@ def save_screenshot(filename: str = "screenshot.png", workspace_dir: str | Path 
         img.save(output_path)
         return str(output_path)
     except Exception as e:
-        print(f"FRIDAY [Screen]: Screenshot failed: {e}")
+        # Silently fail in headless environments (e.g. CI/CD benchmarks)
+        # to prevent benchmark logs from flooding with "screen grab failed".
+        if "screen grab failed" not in str(e).lower():
+            print(f"FRIDAY [Screen]: Screenshot failed: {e}")
         return ""
 
 

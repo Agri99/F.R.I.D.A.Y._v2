@@ -47,6 +47,72 @@ class AudioSink(Protocol):
 
     def play(self, audio: bytes, sample_rate: int) -> None: ...
     def stop(self) -> None: ...
+    def drain(self) -> list: ...
+
+
+class StreamingAudioConsumer:
+    """Consumes audio chunks from a QueuedAudioSink and plays them via sounddevice."""
+
+    def __init__(self, sink: "QueuedAudioSink"):
+        self._sink = sink
+        self._thread = None
+        self._stop_event = threading.Event()
+
+    def start(self) -> None:
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._consume_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    def _consume_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                chunk = self._sink._q.get(timeout=0.1)
+                import sounddevice as sd
+                sd.play(chunk.audio, samplerate=chunk.sample_rate)
+                sd.wait()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Audio playback error: %s", e)
+    def drain(self) -> list: ...
+
+
+class StreamingAudioConsumer:
+    """Consumes audio chunks from a QueuedAudioSink and plays them via sounddevice."""
+
+    def __init__(self, sink: "QueuedAudioSink"):
+        self._sink = sink
+        self._thread = None
+        self._stop_event = threading.Event()
+
+    def start(self) -> None:
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._consume_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    def _consume_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                chunk = self._sink._q.get(timeout=0.1)
+                import sounddevice as sd
+                sd.play(chunk.audio, samplerate=chunk.sample_rate)
+                sd.wait()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Audio playback error: %s", e)
 
 
 class QueuedAudioSink:

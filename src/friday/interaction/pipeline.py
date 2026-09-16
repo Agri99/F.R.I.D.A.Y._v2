@@ -24,7 +24,7 @@ from typing import Any, Callable
 from friday.interaction.audio_input import AudioInputStream
 from friday.interaction.conversation import ConversationManager
 from friday.interaction.interruption import InterruptionManager
-from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts
+from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts, StreamingAudioConsumer
 from friday.interaction.turn_detector import TurnDetector
 from friday.interaction.vad import RmsVoiceActivityDetector, VoiceActivityDetector
 
@@ -41,6 +41,7 @@ class VoicePipeline:
     interruption: InterruptionManager
     conversation: ConversationManager
     sink: QueuedAudioSink
+    audio_consumer: StreamingAudioConsumer | None = None
 
     @classmethod
     def from_speech_synthesizer(
@@ -49,7 +50,7 @@ class VoicePipeline:
         speech_recognizer: Any,
         model_size: str = "small",
         sample_rate: int = 16000,
-        rms_threshold: float = 400.0,
+        rms_threshold: float = 50.0,
         followup_window_seconds: float = 5.0,
         sink: QueuedAudioSink | None = None,
         transcriber: Any = None,
