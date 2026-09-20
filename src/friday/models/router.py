@@ -88,6 +88,7 @@ class ModelRouter:
         self._reasoning_preference: str | None = None
         self._fallback_chain = {
             ModelRole.REASONING.value: ModelRole.FAST.value,
+            ModelRole.FAST.value: ModelRole.REASONING.value,
             ModelRole.CODE.value: ModelRole.REASONING.value,
             ModelRole.REVIEWER.value: ModelRole.REASONING.value,
             ModelRole.VISION.value: ModelRole.REASONING.value,

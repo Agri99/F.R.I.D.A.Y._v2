@@ -243,11 +243,42 @@ class VoiceSession:
                 if self._pending_task_id and self.resume_agent is not None:
                     response = self.resume_agent(self._pending_task_id, transcript)
                     self._pending_task_id = None
+                    latency.first_llm_token_at = time.time()
+                    response_text = self._response_text(response)
                 else:
-                    response = self.agent(transcript)
-                latency.first_llm_token_at = time.time()
+                    ack_event = threading.Event()
+                    ack_speaking = threading.Event()
 
-                response_text = self._response_text(response)
+                    def _maybe_speculative_ack():
+                        # Delay before acknowledging (1.2s). If task completes quickly (FastPath/simple query), abort.
+                        if ack_event.wait(timeout=1.2):
+                            return
+                        if self.cancelled or self._stop_requested:
+                            return
+                        ack_speaking.set()
+                        try:
+                            print("FRIDAY [Voice]: Long task detected, providing acknowledgment...")
+                            self.tts.speak_interruptible("On it, working on that now.", self.wakeword)
+                        except Exception as e:
+                            print(f"FRIDAY [Voice]: speculative ack failed: {e}")
+                        finally:
+                            ack_speaking.clear()
+
+                    ack_thread = threading.Thread(target=_maybe_speculative_ack, daemon=True)
+                    ack_thread.start()
+
+                    try:
+                        response = self.agent(transcript)
+                    finally:
+                        ack_event.set()
+
+                    # If ack is currently speaking, wait for it to finish before main response playback
+                    if ack_speaking.is_set():
+                        ack_thread.join(timeout=2.0)
+
+                    latency.first_llm_token_at = time.time()
+                    response_text = self._response_text(response)
+
                 print(f"FRIDAY: {response_text}\n")
                 if self.cancelled:
                     return last_response
@@ -461,13 +492,20 @@ class VoiceSession:
         interrupted = False
 
         try:
-            # Feed the full text through StreamingTts for sentence segmentation
-            deltas = [ModelDelta(text=text)]
-            for delta in iter_llm_deltas_to_text(deltas):
-                streaming_tts.feed(delta)
-                if interruption.is_stale(captured):
-                    interrupted = True
-                    return True
+            # Feed the text (or iterator) through StreamingTts via the bridge
+            # If we have a raw string, wrap it in an accumulating adapter to simulate streaming
+            from friday.interaction.llm_streaming import LlmStreamToTts, AccumulatingAdapter
+            bridge = LlmStreamToTts(streaming_tts, interruption)
+            if isinstance(text, str):
+                stream = AccumulatingAdapter(text)
+            else:
+                # Assume an iterator of ModelDelta already
+                stream = text
+            # Run the bridge – it will feed StreamingTts and handle cancellation
+            bridge.stream(stream, generation_id=captured)
+            if interruption.is_stale(captured):
+                interrupted = True
+                return True
             streaming_tts.finish()
 
             # Record first-audio time
@@ -491,11 +529,11 @@ class VoiceSession:
                     interrupted = True
                     return True
 
-            return False  # Completed successfully
+            return None  # Completed successfully (falsy, not interrupted)
 
         except Exception as exc:
             logger.error("TTS failed during streaming: %s", exc)
-            return False
+            return None
         finally:
             conversation.set_speaking(False)
             turn_detector.set_system_speaking(False)

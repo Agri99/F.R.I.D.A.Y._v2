@@ -4,7 +4,7 @@
 models:
   fast:
     provider: "ollama"
-    model: "qwen3:4b"
+    model: "qwen2.5:1.5b"
   reasoning:
     provider: "ollama"
     model: "qwen3:8b"

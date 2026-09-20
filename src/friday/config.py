@@ -57,7 +57,7 @@ class VoiceConfig(BaseModel):
 
 class SecurityConfig(BaseModel):
     default_risk_tier: str = "RED"
-    auto_approve_tiers: List[str] = Field(default_factory=lambda: ["GREEN"])
+    auto_approve_tiers: List[str] = Field(default_factory=lambda: ["GREEN", "YELLOW"])
     confirm_required_tiers: List[str] = Field(default_factory=lambda: ["YELLOW", "ORANGE"])
     hard_block_without_second_factor: List[str] = Field(default_factory=lambda: ["RED"])
     default_filesystem_root: str = "./workspace"

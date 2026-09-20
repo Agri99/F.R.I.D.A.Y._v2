@@ -17,7 +17,7 @@ profile. Authenticated access is an explicit configuration decision.
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 

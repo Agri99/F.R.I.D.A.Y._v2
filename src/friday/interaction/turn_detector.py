@@ -68,6 +68,7 @@ _INTERRUPT_TOKENS = (
     "hold on",
     "nevermind",
     "never mind",
+    "actually",
 )
 
 
@@ -161,7 +162,7 @@ class TurnDetector:
 
         # Interrupt handling: system is speaking and user said a stop word.
         if self._system_speaking and text_lower:
-            elapsed = now - self._last_speech_at if self._last_speech_at is not None else float("inf")
+            elapsed = now - self._last_speech_at if self._last_speech_at is not None else 0.0
             if any(tok in text_lower for tok in _INTERRUPT_TOKENS) and elapsed < self.config.interrupt_window_s + 0.5:
                 return TurnDecision(TurnAction.INTERRUPT, "interrupt_token_during_tts", transcript=text)
 

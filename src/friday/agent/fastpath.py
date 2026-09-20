@@ -90,6 +90,25 @@ class FastPathRouter:
         "google ",
     )
 
+    APP_ALIASES = {
+        "notepad": "notepad",
+        "text editor": "notepad",
+        "calculator": "calculator",
+        "calc": "calculator",
+        "vscode": "vscode",
+        "vs code": "vscode",
+        "visual studio code": "vscode",
+        "code": "vscode",
+        "explorer": "explorer",
+        "file explorer": "explorer",
+        "files": "explorer",
+        "terminal": "terminal",
+        "windows terminal": "terminal",
+        "cmd": "cmd",
+        "command prompt": "cmd",
+        "powershell": "powershell",
+    }
+
     def _normalize(self, text: str) -> str:
         return _SPACES.sub(" ", _NON_ALNUM.sub(" ", (text or "").lower())).strip()
 
@@ -172,6 +191,103 @@ class FastPathRouter:
                 success_reply="",
                 risk_tier="GREEN",
             )
+
+        # 6. Window controls (minimize, maximize, restore, close active, show desktop)
+        if text in (
+            "minimize all",
+            "minimize all windows",
+            "minimize everything",
+            "show desktop",
+            "show the desktop",
+        ):
+            return FastPathResult(
+                tool_name="computer.minimize_all_windows",
+                arguments={},
+                success_reply="Minimizing all windows.",
+                risk_tier="GREEN",
+            )
+
+        if text in (
+            "minimize window",
+            "minimize the window",
+            "minimize this window",
+            "minimize it",
+            "minimize this",
+        ):
+            return FastPathResult(
+                tool_name="computer.control_window",
+                arguments={"action": "minimize"},
+                success_reply="Minimized window.",
+                risk_tier="GREEN",
+            )
+
+        if text in (
+            "maximize window",
+            "maximize the window",
+            "maximize this window",
+            "maximize it",
+            "maximize this",
+        ):
+            return FastPathResult(
+                tool_name="computer.control_window",
+                arguments={"action": "maximize"},
+                success_reply="Maximized window.",
+                risk_tier="GREEN",
+            )
+
+        if text in (
+            "restore window",
+            "restore the window",
+            "restore this window",
+            "restore it",
+            "unmaximize",
+            "unminimize",
+        ):
+            return FastPathResult(
+                tool_name="computer.control_window",
+                arguments={"action": "restore"},
+                success_reply="Restored window.",
+                risk_tier="GREEN",
+            )
+
+        if text in (
+            "close window",
+            "close the window",
+            "close this window",
+            "close it",
+            "close this",
+        ):
+            return FastPathResult(
+                tool_name="computer.control_window",
+                arguments={"action": "close"},
+                success_reply="Closed window.",
+                risk_tier="YELLOW",
+            )
+
+        # 7. Application launch & close
+        app_open_match = re.match(r"^(?:open|launch|start)\s+(?:the\s+)?(.+)$", text)
+        if app_open_match:
+            app_target = app_open_match.group(1).strip()
+            if app_target in self.APP_ALIASES:
+                app_id = self.APP_ALIASES[app_target]
+                return FastPathResult(
+                    tool_name="applications.open",
+                    arguments={"app_id": app_id},
+                    success_reply=f"Opening {app_target}.",
+                    risk_tier="GREEN",
+                )
+
+        app_close_match = re.match(r"^(?:close|quit|exit)\s+(?:the\s+)?(.+)$", text)
+        if app_close_match:
+            app_target = app_close_match.group(1).strip()
+            if app_target in self.APP_ALIASES:
+                app_id = self.APP_ALIASES[app_target]
+                return FastPathResult(
+                    tool_name="applications.close",
+                    arguments={"app_id": app_id},
+                    success_reply=f"Closing {app_target}.",
+                    risk_tier="YELLOW",
+                )
 
         return None
 

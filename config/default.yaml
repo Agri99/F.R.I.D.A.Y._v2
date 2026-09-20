@@ -11,7 +11,8 @@ network:
 models:
   fast:
     provider: "ollama"
-    model: "qwen3:8b"
+    model: "qwen2.5:1.5b"
+    supports_tools: true
   reasoning:
     provider: "ollama"
     model: "qwen3:8b"
@@ -39,7 +40,7 @@ voice:
 
 security:
   default_risk_tier: "RED"
-  auto_approve_tiers: ["GREEN"]
+  auto_approve_tiers: ["GREEN", "YELLOW"]
   confirm_required_tiers: ["YELLOW", "ORANGE"]
   hard_block_without_second_factor: ["RED"]
   default_filesystem_root: "./workspace"
