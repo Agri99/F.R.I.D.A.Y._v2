@@ -18,8 +18,7 @@ models:
     engine: "faster-whisper"
     model: "large-v3"
   tts:
-    engine: "piper"
-    voice: "en_GB-jenny_dioco-medium"
+    engine: "chatterbox_turbo"
 
 runtime:
   max_task_steps: 40

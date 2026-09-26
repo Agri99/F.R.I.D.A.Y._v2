@@ -229,12 +229,24 @@ def _shutdown_friday() -> dict:
     return {"status": "shutting down", "message": "Shutting down FRIDAY. Goodbye!"}
 
 
+def _verify_get_time(args: dict, result: dict) -> VerificationResult:
+    if isinstance(result, dict) and "time" in result:
+        return VerificationResult(True, f"Current time is {result.get('time')}")
+    return VerificationResult(False, "Failed to retrieve current time")
+
+
 def _toggle_orb(visible: bool = True, **kwargs) -> dict:
     from friday.ui.orb_server import set_orb_visibility
     vis = bool(visible)
     res = set_orb_visibility(vis)
     action_str = "shown" if vis else "hidden"
     return {"status": "ok", "visible": vis, "message": f"Orb has been {action_str}."}
+
+
+def _verify_toggle_orb(args: dict, result: dict) -> VerificationResult:
+    if isinstance(result, dict) and result.get("status") == "ok":
+        return VerificationResult(True, result.get("message", "Orb toggled successfully"))
+    return VerificationResult(False, "Failed to toggle orb")
 
 
 def register_all_tools(registry) -> None:
@@ -258,10 +270,16 @@ def register_all_tools(registry) -> None:
         tier="GREEN",
         capability_scope="system.read",
         input_schema=build_schema(
-            {"timezone": {"type": "string", "description": "Optional IANA name or offset."}},
-            ["timezone"],
+            {
+                "timezone": {
+                    "type": "string",
+                    "description": "Optional specific timezone or city (e.g. 'Tokyo', 'London'). Omit or leave empty for the user's local time.",
+                }
+            },
+            required=[],
         ),
         handler=_get_time,
+        verify=_verify_get_time,
     ))
     registry.register(Tool(
         name="system.lock",
@@ -298,6 +316,7 @@ def register_all_tools(registry) -> None:
         capability_scope="system.control",
         input_schema=build_schema({"visible": {"type": "boolean"}}, ["visible"]),
         handler=_toggle_orb,
+        verify=_verify_toggle_orb,
     ))
     registry.register(Tool(
         name="toggle_orb",
@@ -306,6 +325,7 @@ def register_all_tools(registry) -> None:
         capability_scope="system.control",
         input_schema=build_schema({"visible": {"type": "boolean"}}, ["visible"]),
         handler=_toggle_orb,
+        verify=_verify_toggle_orb,
     ))
 
     def _remember(fact: str) -> dict:

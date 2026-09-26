@@ -50,10 +50,16 @@ class RuntimeConfig(BaseModel):
 class VoiceConfig(BaseModel):
     wake_word: str = "FRIDAY"
     stt_model: str = "small"
-    tts_voice: str = "en_GB-jenny_dioco-medium"
+    tts_engine: str = "chatterbox_turbo"
+    tts_voice: str = "chatterbox"
+    device: str = "cuda"
+    audio_prompt_path: Optional[str] = None
+    model_path: Optional[str] = None
+    exaggeration: float = 0.5
     barge_in: bool = True
-    followup_window_seconds: float = 5.0
+    followup_window_seconds: float = 10.0
     event_driven: bool = True
+    vad_threshold: float = 50.0
 
 class SecurityConfig(BaseModel):
     default_risk_tier: str = "RED"
@@ -106,6 +112,7 @@ class FridayConfig(BaseModel):
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     google: GoogleConfig = Field(default_factory=GoogleConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    gemini_api_key: Optional[str] = None
 
     def ensure_dirs(self) -> None:
         """Create all necessary directories."""

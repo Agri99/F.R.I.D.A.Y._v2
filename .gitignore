@@ -29,9 +29,11 @@ secrets/
 *.key
 token.json
 
-# ── Audio recordings (transient) ────────────────────────────────
+# ── Audio recordings & references ───────────────────────────────
 audio.wav
 *.wav
+!models/voice_reference.wav
+!models/voice_reference_*.wav
 !models/**/*.wav
 
 # ── Runtime data ────────────────────────────────────────────────
@@ -52,10 +54,20 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# ── Model weights (too large for git) ───────────────────────────
+# ── Model weights & checkpoints (exceed GitHub 100MB limit) ─────
 models/*.onnx
 models/*.ckpt
+models/*.safetensors
+models/**/*.safetensors
+models/*.pt
+models/**/*.pt
+models/*.bin
+models/*.pth
+models/chatterbox-turbo/
 models/spkrec-ecapa-voxceleb/
+models/piper/
+*.safetensors
+*.pt
 
 # ── Developing related files ────────────────────────────────────
 FRIDAY_v2_System_Architecture_Blueprint.md

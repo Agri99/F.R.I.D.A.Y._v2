@@ -1,0 +1,35 @@
+# F.R.I.D.A.Y. Gemini Cloud Configuration Overlay
+# Use with FRIDAY_ENV=gemini or via CLI `--brain gemini`
+
+models:
+  fast:
+    provider: "gemini"
+    model: "gemini-3.5-flash-lite"
+    supports_tools: true
+    supports_vision: true
+  reasoning:
+    provider: "gemini"
+    model: "gemini-3.8-flash"
+    supports_tools: true
+    supports_vision: true
+  vision:
+    provider: "gemini"
+    model: "gemini-3.8-flash"
+    supports_tools: true
+    supports_vision: true
+
+live:
+  model: "gemini-3.1-flash-live-preview"
+  voice:
+  audio_prompt_path: "models/voice_reference.wav"
+  exaggeration: 0.5  # Expressiveness level
+
+voice:
+  tts_engine: "chatterbox_turbo"
+  device: "cuda"
+  model_path: "models/chatterbox-turbo"
+  audio_prompt_path: "models/voice_reference.wav"
+  exaggeration: 0.5
+  followup_window_seconds: 10.0
+
+

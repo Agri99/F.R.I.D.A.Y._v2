@@ -190,7 +190,8 @@ class SkillSandbox:
         errors = []
         warnings = []
 
-        if not hasattr(skill, "procedure_steps") or not skill.procedure_steps:
+        steps = self._get_procedure_steps(skill)
+        if not steps and not getattr(skill, "procedure", None):
             errors.append("Skill missing procedure.")
 
         required_caps = getattr(skill, "required_capabilities", [])

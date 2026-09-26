@@ -21,12 +21,10 @@ MODELS_DIR = PROJECT_ROOT / "models"
 
 MODELS = {
     "tts": {
-        "description": "Piper TTS voice (en_GB jenny_dioco medium)",
-        "files": {
-            "en_GB-jenny_dioco-medium.onnx": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx",
-            "en_GB-jenny_dioco-medium.onnx.json": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx.json",
-        },
+        "description": "Chatterbox Turbo neural TTS (ResembleAI/chatterbox-turbo)",
+        "files": {},
         "dest": MODELS_DIR,
+        "note": "Chatterbox Turbo weights are automatically downloaded and cached by Hugging Face on first use.",
     },
     "wakeword": {
         "description": "OpenWakeWord custom FRIDAY model",
@@ -80,19 +78,29 @@ def download_group(group_name: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Download FRIDAY model weights")
     parser.add_argument("--all", action="store_true", help="Download all model groups")
-    parser.add_argument("--tts", action="store_true", help="Download Piper TTS voice")
+    parser.add_argument("--tts", action="store_true", help="Pre-cache Chatterbox Turbo TTS weights")
     parser.add_argument("--wakeword", action="store_true", help="Info about wake word model")
     parser.add_argument("--voiceauth", action="store_true", help="Info about voice auth model")
     args = parser.parse_args()
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
+    if args.tts:
+        print("\n── Pre-caching Chatterbox Turbo model weights ──")
+        try:
+            import torch
+            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            dev = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"  ↓ Loading/caching ChatterboxTurboTTS on {dev.upper()}...")
+            ChatterboxTurboTTS.from_pretrained(device=dev)
+            print("  ✓ Chatterbox Turbo cached successfully.")
+        except Exception as e:
+            print(f"  ✗ Failed to pre-cache Chatterbox Turbo: {e}")
+
     if args.all or not any([args.tts, args.wakeword, args.voiceauth]):
         for name in MODELS:
             download_group(name)
     else:
-        if args.tts:
-            download_group("tts")
         if args.wakeword:
             download_group("wakeword")
         if args.voiceauth:

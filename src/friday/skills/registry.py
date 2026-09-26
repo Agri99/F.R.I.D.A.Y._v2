@@ -49,8 +49,11 @@ class SkillRegistry:
             if trigger:
                 triggers.append(trigger)
             purpose = str(getattr(skill, "purpose", ""))
-            if not any(term and term.lower() in query for term in triggers) and not (
-                purpose and purpose.lower() in query
+            if not any(
+                term and (term.lower() in query or query in term.lower())
+                for term in triggers
+            ) and not (
+                purpose and (purpose.lower() in query or query in purpose.lower())
             ):
                 continue
             matches.append({
@@ -66,9 +69,8 @@ class SkillRegistry:
 
     def list_by_trigger(self, context: str) -> list[Any]:
         """Find skills relevant to the context."""
-        # Simple string matching for now
         context = context.lower()
         return [
             s for s in self._skills.values() 
-            if s.trigger and s.trigger.lower() in context
+            if s.trigger and (s.trigger.lower() in context or context in s.trigger.lower())
         ]

@@ -63,6 +63,7 @@ class ProviderHealth:
     available: bool
     model_loaded: bool
     latency_ms: float | None = None
+    error: str | None = None
 
 
 @dataclass

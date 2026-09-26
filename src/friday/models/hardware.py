@@ -261,7 +261,7 @@ def recommend_models_for_tier(tier: str) -> dict[str, str]:
             "vision": "llava:7b",
             "embedding": "nomic-embed-text",
             "stt": "whisper-tiny",
-            "tts": "piper",
+            "tts": "chatterbox_turbo",
             "reranker": "bge-small",
         }
     elif tier == "BALANCED":
@@ -271,7 +271,7 @@ def recommend_models_for_tier(tier: str) -> dict[str, str]:
             "vision": "llava:13b",
             "embedding": "nomic-embed-text",
             "stt": "whisper-base",
-            "tts": "piper",
+            "tts": "chatterbox_turbo",
             "reranker": "bge-base",
         }
     elif tier == "HIGH":
@@ -281,7 +281,7 @@ def recommend_models_for_tier(tier: str) -> dict[str, str]:
             "vision": "llava:34b",
             "embedding": "nomic-embed-text",
             "stt": "whisper-small",
-            "tts": "piper",
+            "tts": "chatterbox_turbo",
             "reranker": "bge-large",
         }
     else:  # MAXIMUM
@@ -291,7 +291,7 @@ def recommend_models_for_tier(tier: str) -> dict[str, str]:
             "vision": "llama3.2-vision:90b",
             "embedding": "nomic-embed-text",
             "stt": "whisper-medium",
-            "tts": "piper",
+            "tts": "chatterbox_turbo",
             "reranker": "bge-large",
         }
 

@@ -83,7 +83,7 @@ class SystemDiagnostics:
             "ollama", "sounddevice", "soundfile", "numpy",
             "pywin32", "pywinauto", "pycaw", "comtypes",
             "PySide6", "websockets", "faster_whisper", "openwakeword",
-            "piper_tts", "onnxruntime", "speechbrain", "torch", "torchaudio",
+            "chatterbox", "onnxruntime", "speechbrain", "torch", "torchaudio",
             "playwright", "google-auth", "pytesseract",
         ]
 

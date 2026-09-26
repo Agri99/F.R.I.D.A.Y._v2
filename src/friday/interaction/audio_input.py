@@ -179,6 +179,9 @@ class AudioInputStream:
             self._lost_device = True
             raise RuntimeError(f"sounddevice not available: {e}")
 
+        # Brief settling delay on Windows WASAPI so any previously closed stream releases cleanly
+        time.sleep(0.1)
+
         last_error: Exception | None = None
         for attempt in range(max(1, retries)):
             self._running = True

@@ -71,6 +71,10 @@ KNOWN_TOOLS = {
     "system.toggle_orb": RiskTier.GREEN,
     "system.remember": RiskTier.GREEN,
     "computer.click": RiskTier.YELLOW,
+    "computer.mouse_move": RiskTier.YELLOW,
+    "computer.mouse_click": RiskTier.YELLOW,
+    "computer.mouse_scroll": RiskTier.YELLOW,
+    "computer.mouse_drag": RiskTier.YELLOW,
     "computer.type": RiskTier.YELLOW,
     "computer.press": RiskTier.YELLOW,
     "computer.control_window": RiskTier.YELLOW,
@@ -80,7 +84,8 @@ KNOWN_TOOLS = {
     "computer.scroll": RiskTier.YELLOW,
     "computer.wait": RiskTier.GREEN,
     "computer.active_window": RiskTier.GREEN,
-    "computer.control_window": RiskTier.YELLOW,
+    "applications.list_installed_apps": RiskTier.GREEN,
+    "applications.list_installed": RiskTier.GREEN,
     "terminal.run_sandbox": RiskTier.GREEN,
     "terminal.run_host": RiskTier.ORANGE,
 }
@@ -135,4 +140,19 @@ class PolicyEngine:
             except ValueError as e:
                 return PolicyResult(PolicyDecision.DENY, tier, f"Path validation failed: {e}", required_scopes)
 
-        return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)
+        if tier == RiskTier.RED:
+            return PolicyResult(PolicyDecision.REQUIRE_SECOND_FACTOR, tier, reason, required_scopes)
+        if hasattr(self._settings, 'confirm_required_tiers') and tier.value in self._settings.confirm_required_tiers:
+            return PolicyResult(PolicyDecision.REQUIRE_CONFIRMATION, tier, reason, required_scopes)
+        if hasattr(self._settings, 'auto_approve_tiers') and tier.value in self._settings.auto_approve_tiers:
+            return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)
+
+        # Fallback to defaults if settings are not configured
+        if tier == RiskTier.ORANGE:
+            return PolicyResult(PolicyDecision.REQUIRE_CONFIRMATION, tier, reason, required_scopes)
+        if tier == RiskTier.YELLOW:
+            return PolicyResult(PolicyDecision.REQUIRE_CONFIRMATION, tier, reason, required_scopes)
+        if tier == RiskTier.GREEN:
+            return PolicyResult(PolicyDecision.ALLOW, tier, reason, required_scopes)
+
+        return PolicyResult(PolicyDecision.DENY, tier, f"'{tool_name}' tier {tier.value} not classified in policy config", required_scopes)

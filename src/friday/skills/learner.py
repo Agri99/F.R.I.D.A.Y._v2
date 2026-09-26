@@ -36,6 +36,18 @@ class SkillCandidate:
     context_requirements: list[str] = field(default_factory=list)
     permissions: list[str] = field(default_factory=list)
     examples: list[dict] = field(default_factory=list)
+    inputs: list = field(default_factory=list)
+    failure_modes: list[str] = field(default_factory=list)
+    recovery: list[dict] = field(default_factory=list)
+    source_trajectory_ids: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if isinstance(self.procedure, list) and not self.procedure_steps:
+            self.procedure_steps = self.procedure
+        if self.recovery and not self.failure_recovery:
+            self.failure_recovery = self.recovery
+        if isinstance(self.verification, list) and not self.verification_rules:
+            self.verification_rules = self.verification
 
     # Performance metrics for measured self-improvement (Phase 4)
     version: str = "1.0"

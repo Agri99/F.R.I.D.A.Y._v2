@@ -150,9 +150,10 @@ class SileroVoiceActivityDetector:
     def __init__(
         self,
         model_path: str = "data/silero_vad.onnx",
-        speech_threshold: float = 0.5,
+        speech_threshold: float = 0.35,
         silence_chunks_to_end: int = 15,   # ~480ms at 512 frames/chunk
         speech_chunks_to_start: int = 2,   # ~64ms
+        rms_fallback_threshold: float = 60.0,
     ) -> None:
         import onnxruntime as ort
         import os
@@ -160,6 +161,7 @@ class SileroVoiceActivityDetector:
         self.speech_threshold = speech_threshold
         self.silence_chunks_to_end = silence_chunks_to_end
         self.speech_chunks_to_start = speech_chunks_to_start
+        self.rms_fallback_threshold = rms_fallback_threshold
         
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Silero VAD model not found at {model_path}. Please download it.")
@@ -196,8 +198,10 @@ class SileroVoiceActivityDetector:
             }
             out, self._state = self.session.run(None, inputs)
             prob = float(out[0][0])
+            frame_rms = float(np.sqrt(np.mean(frame ** 2)) * 32768.0)
             
-            is_speech = prob >= self.speech_threshold
+            # Speech detected if model probability is confident OR borderline with sufficient RMS energy
+            is_speech = (prob >= self.speech_threshold) or (prob >= 0.20 and frame_rms >= self.rms_fallback_threshold)
             
             if is_speech:
                 self._speech_streak += 1

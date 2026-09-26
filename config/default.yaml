@@ -32,11 +32,16 @@ runtime:
 voice:
   wake_word: "FRIDAY"
   stt_model: "small"
-  tts_voice: "en_GB-jenny_dioco-medium"
+  tts_engine: "chatterbox_turbo"
+  device: "cuda"
+  model_path: "models/chatterbox-turbo"
+  audio_prompt_path: "models/voice_reference.wav"
+  exaggeration: 0.5
   barge_in: true
-  followup_window_seconds: 5.0
+  followup_window_seconds: 10.0
   event_driven: true
   vad_threshold: 50.0
+
 
 security:
   default_risk_tier: "RED"

@@ -11,11 +11,14 @@ from friday.agent.task import TaskStatus
 
 def test_shutdown_intent_and_confirmation():
     sys_tools.SHUTDOWN_REQUESTED = False
-    orch = build_orchestrator()
+    try:
+        orch = build_orchestrator()
 
-    # User says goodbye Friday (confirmation bypassed per user dev policy)
-    task = orch.run("goodbye friday")
-    assert task.status == TaskStatus.COMPLETED
-    assert sys_tools.SHUTDOWN_REQUESTED is True
-    assert "Shutting down" in task.last_message
+        # User says goodbye Friday (confirmation bypassed per user dev policy)
+        task = orch.run("goodbye friday")
+        assert task.status == TaskStatus.COMPLETED
+        assert sys_tools.SHUTDOWN_REQUESTED is True
+        assert "Shutting down" in task.last_message
+    finally:
+        sys_tools.SHUTDOWN_REQUESTED = False
 

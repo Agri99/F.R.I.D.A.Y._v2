@@ -97,7 +97,7 @@ class VoiceSession:
         tts: Any,
         wakeword: Any,
         agent: Callable[[str], Any],
-        followup_window_seconds: float = 5.0,
+        followup_window_seconds: float = 10.0,
         controls: dict[str, Callable[[], Any]] | None = None,
         on_state_change: Callable[[SessionState], None] | None = None,
         resume_agent: Callable[[str, str], Any] | None = None,
@@ -121,6 +121,8 @@ class VoiceSession:
         self._stop_requested = False
         # Playback cancellation
         self._playback_stop = threading.Event()
+        from friday.agent.fastpath import FastPathRouter
+        self._fastpath = FastPathRouter()
 
     def set_state(self, state: SessionState) -> None:
         self.state = state
@@ -217,12 +219,18 @@ class VoiceSession:
                         print(f"FRIDAY [Voice]: audio input unavailable after wake: {exc}")
                         self.set_state(SessionState.ERROR)
                         return None
-
-                self.set_state(SessionState.LISTENING)
-                print("FRIDAY [Voice]: Listening for speech...")
+                    require_wake = False
+                    self.set_state(SessionState.LISTENING)
+                    print("FRIDAY [Voice]: Listening for speech...")
+                    max_wait = 10.0
+                else:
+                    self.set_state(SessionState.FOLLOWUP_LISTENING)
+                    self.set_state(SessionState.LISTENING)
+                    max_wait = self.followup_window_seconds
+                    print(f"FRIDAY [Voice]: Listening for follow-up ({max_wait:.0f}s)...")
 
                 latency = TurnLatency()
-                transcript = self._capture_turn_event_driven(pipeline, latency=latency)
+                transcript = self._capture_turn_event_driven(pipeline, latency=latency, max_wait_for_speech=max_wait)
 
                 if self.cancelled:
                     print("FRIDAY [Voice]: Cancelled during capture")
@@ -240,7 +248,14 @@ class VoiceSession:
                 print(f"\nUSER: {transcript}")
 
                 llm_start = time.time()
-                if self._pending_task_id and self.resume_agent is not None:
+                fastpath_match = getattr(self, "_fastpath", None).match(transcript) if getattr(self, "_fastpath", None) else None
+                if fastpath_match:
+                    # FastPath intent (time, apps, window control, volume, orb, shutdown).
+                    # These execute locally in milliseconds — NEVER start speculative ack!
+                    response = self.agent(transcript)
+                    latency.first_llm_token_at = time.time()
+                    response_text = self._response_text(response)
+                elif self._pending_task_id and self.resume_agent is not None:
                     response = self.resume_agent(self._pending_task_id, transcript)
                     self._pending_task_id = None
                     latency.first_llm_token_at = time.time()
@@ -250,8 +265,8 @@ class VoiceSession:
                     ack_speaking = threading.Event()
 
                     def _maybe_speculative_ack():
-                        # Delay before acknowledging (1.2s). If task completes quickly (FastPath/simple query), abort.
-                        if ack_event.wait(timeout=1.2):
+                        # Delay before acknowledging (1.8s). If task completes quickly (FastPath/simple query), abort.
+                        if ack_event.wait(timeout=1.8):
                             return
                         if self.cancelled or self._stop_requested:
                             return
@@ -307,13 +322,9 @@ class VoiceSession:
                 if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:
                     break
 
-                # --- Follow-up listening (mic stays open) ---
-                self.set_state(SessionState.FOLLOWUP_LISTENING)
-                print("FRIDAY [Voice]: Listening for follow-up...")
-                if self._wait_for_followup_event_driven(pipeline):
-                    require_wake = False
-                else:
-                    return last_response
+                # Prepare for follow-up turn (mic stays open, wake word not required)
+                require_wake = False
+                continue
         finally:
             try:
                 audio_in.stop()
@@ -327,6 +338,7 @@ class VoiceSession:
         pipeline: Any,
         _pre_speech_exit: bool = False,
         latency: TurnLatency | None = None,
+        max_wait_for_speech: float = 8.0,
     ) -> str | None:
         """Capture audio via the event-driven pipeline until TurnDetector says END_TURN.
 
@@ -353,18 +365,12 @@ class VoiceSession:
         if hasattr(vad, "reset"):
             vad.reset()
 
-        max_idle_seconds = 5.0
+        max_idle_seconds = 0.5
         max_capture_seconds = 30.0
-        max_wait_for_speech = 8.0
+        max_wait_for_speech = float(max_wait_for_speech)
         last_chunk_at = time.time()
         capture_started_at = time.time()
 
-        # Drain any stale chunks from previous turn
-        try:
-            while True:
-                audio_in.queue.get(timeout=0.0)
-        except Exception:
-            pass
 
         final_text: str | None = None
         current_partial: str = ""
@@ -432,6 +438,13 @@ class VoiceSession:
                 if latency and latency.speech_end_at is None:
                     latency.speech_end_at = time.time()
                 break
+
+        if turn_detector._turn_started_at is None:
+            try:
+                transcriber.finalize()
+            except Exception:
+                pass
+            return None
 
         events = transcriber.finalize()
         if events:
@@ -669,7 +682,7 @@ class VoiceSession:
             except Exception:
                 continue
             vad_event = vad.process(chunk.data, chunk.timestamp)
-            if vad_event.kind == VadEventKind.SPEECH_STARTED:
+            if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
                 return True
         return False
 
@@ -753,7 +766,22 @@ class VoiceSession:
         if control is None:
             return False
         if control == "stop":
-            self.request_shutdown()
+            callback = self.controls.get("stop")
+            if callback:
+                try:
+                    callback()
+                except Exception:
+                    pass
+            else:
+                farewell = "Shutting down. Goodbye, Boss."
+                if self.announce:
+                    self.announce(farewell)
+                elif self.tts:
+                    try:
+                        self.tts.speak(farewell)
+                    except Exception:
+                        pass
+                self.request_shutdown()
             return True
         callback = self.controls.get(control)
         if callback:

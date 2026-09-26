@@ -19,12 +19,17 @@ between legacy and event-driven behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any, Callable
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from friday.interaction.audio_input import AudioInputStream
 from friday.interaction.conversation import ConversationManager
 from friday.interaction.interruption import InterruptionManager
-from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts, StreamingAudioConsumer
+from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts
 from friday.interaction.turn_detector import TurnDetector
 from friday.interaction.vad import RmsVoiceActivityDetector, SileroVoiceActivityDetector, VoiceActivityDetector
 
@@ -69,16 +74,27 @@ class VoicePipeline:
         from friday.interaction.stt import StreamingTranscriber
 
         sink = sink or QueuedAudioSink()
-        sample_rate = int(getattr(speech_synthesizer.voice.config, "sample_rate", sample_rate))
+        sr = getattr(speech_synthesizer, "sample_rate", None)
+        if sr is None:
+            voice = getattr(speech_synthesizer, "voice", None)
+            config = getattr(voice, "config", None) if voice else None
+            sr = getattr(config, "sample_rate", sample_rate) if config else sample_rate
+        sample_rate = int(sr)
 
         def synth(text: str) -> tuple[bytes, int] | None:
             try:
                 audio = speech_synthesizer._build_audio(text)
-            except Exception:
+            except Exception as synth_exc:
+                logger.warning("Pipeline TTS synthesis failed for '%s': %s", text, synth_exc)
                 return None
             if audio is None or len(audio) == 0:
                 return None
-            return audio.astype("<i2").tobytes(), sample_rate
+            if np.issubdtype(audio.dtype, np.floating):
+                audio = np.clip(audio, -1.0, 1.0)
+                audio_i16 = (audio * 32767).astype(np.int16)
+            else:
+                audio_i16 = audio.astype(np.int16)
+            return audio_i16.tobytes(), sample_rate
 
         if transcriber is None:
             transcriber = StreamingTranscriber(model_size=model_size)

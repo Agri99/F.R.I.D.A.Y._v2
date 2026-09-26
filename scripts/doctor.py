@@ -123,15 +123,15 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
     # 7. TTS
     def c_tts():
         try:
-            from friday.config import Settings
-            cfg = Settings.load()
-            voice_path = Path("models/piper") / f"{cfg.voice.tts_voice}.onnx"
-            if voice_path.exists():
-                return True, f"TTS voice model found: {cfg.voice.tts_voice}"
-            return False, f"TTS model not downloaded at {voice_path} (will download on demand)"
+            import chatterbox
+            import torch
+            dev = "CUDA" if torch.cuda.is_available() else "CPU"
+            return True, f"Chatterbox Turbo available (device: {dev})"
+        except ImportError:
+            return False, "chatterbox-tts package missing (pip install chatterbox-tts)"
         except Exception as e:
             return False, f"TTS check failed: {e}"
-    checks.append(("TTS Engine", c_tts))
+    checks.append(("TTS Engine (Chatterbox Turbo)", c_tts))
 
     # 8. LLM Provider
     def c_llm():

@@ -38,6 +38,16 @@ def _get_volume() -> dict:
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
+def _verify_set_volume(args: dict, result: dict) -> VerificationResult:
+    if isinstance(result, dict) and result.get("status") == "ok":
+        return VerificationResult(True, f"Volume set to {result.get('volume')}%")
+    return VerificationResult(False, result.get("message", "Failed to set volume"))
+
+def _verify_mute(args: dict, result: dict) -> VerificationResult:
+    if isinstance(result, dict) and result.get("status") == "ok":
+        return VerificationResult(True, "Mute state changed")
+    return VerificationResult(False, result.get("message", "Failed to change mute state"))
+
 def register_all_tools(registry) -> None:
     registry.register(Tool(
         name="audio.set_volume",
@@ -45,7 +55,8 @@ def register_all_tools(registry) -> None:
         tier="GREEN",
         capability_scope="system.control",
         input_schema=build_schema({"level": {"type": "integer"}}, ["level"]),
-        handler=_set_volume
+        handler=_set_volume,
+        verify=_verify_set_volume
     ))
     registry.register(Tool(
         name="audio.mute",
@@ -53,7 +64,8 @@ def register_all_tools(registry) -> None:
         tier="GREEN",
         capability_scope="system.control",
         input_schema=build_schema({"mute": {"type": "boolean"}}),
-        handler=_mute
+        handler=_mute,
+        verify=_verify_mute
     ))
     registry.register(Tool(
         name="audio.get_volume",

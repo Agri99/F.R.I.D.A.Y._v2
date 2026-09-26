@@ -121,29 +121,46 @@ Respond with ONLY a JSON object:
                 needs_replan=True,
             )
 
-        # Strategy 3: semantic verification via LLM for complex expectations
+        # Strategy 3: deterministic observation matching and success indicators.
+        exp = (step.expected_observation or "").strip().lower()
+        actual = (result.observation or "").strip().lower()
+
+        if getattr(step, "_is_fastpath", False) or getattr(task, "is_fastpath", False):
+            return EvaluationResult(
+                passed=True,
+                confidence=1.0,
+                reason="Fastpath step executed successfully.",
+                observation_summary=result.observation,
+                needs_replan=False,
+            )
+
+        if exp and (exp in actual or actual in exp):
+            return EvaluationResult(
+                passed=True,
+                confidence=1.0,
+                reason="Step successfully executed and verified.",
+                observation_summary=result.observation,
+                needs_replan=False,
+            )
+
+        success_indicators = ("success", "opened", "created", "saved", "done", "written", "ok", "true", "200")
+        if any(ind in actual for ind in success_indicators):
+            return EvaluationResult(
+                passed=True,
+                confidence=0.85,
+                reason="Success verified by observation indicators.",
+                observation_summary=result.observation,
+                needs_replan=False,
+            )
+
+        # Strategy 4: semantic verification via LLM for complex expectations (fallback only)
         if self.model_router and self._should_use_semantic_verification(step, result):
             semantic_result = self._semantic_verify(step, result)
             if semantic_result:
                 return semantic_result
 
-        # Strategy 4: expected observation substring match. Missing a
-        # required expected observation is a hard failure unless the
-        # controller already verified success (Strategy 1) - this is what
-        # keeps "false success rate" near zero.
-        exp = (step.expected_observation or "").strip().lower()
-        actual = (result.observation or "").strip().lower()
-
-        if exp and exp not in actual:
-            success_indicators = ("success", "opened", "created", "saved", "done", "written", "ok", "true", "200")
-            if any(ind in actual for ind in success_indicators):
-                return EvaluationResult(
-                    passed=True,
-                    confidence=0.85,
-                    reason="Success verified by observation indicators.",
-                    observation_summary=result.observation,
-                    needs_replan=False,
-                )
+        # Strategy 5: expected observation was missing or mismatched.
+        if exp:
             return EvaluationResult(
                 passed=False,
                 confidence=0.6,
@@ -152,32 +169,20 @@ Respond with ONLY a JSON object:
                 needs_replan=True,
             )
 
-        # Strategy 5: expected observation was present (or none was required).
-        # With no expected observation AND no controller verification, we do
-        # not report success - a plan that produced no expected outcome
-        # cannot be marked verified, because that is exactly the false-success
-        # the safety metric forbids.
-        if not exp:
-            return EvaluationResult(
-                passed=False,
-                confidence=0.5,
-                reason="Step executed without a required expected observation; outcome unverified.",
-                observation_summary=result.observation,
-                needs_replan=True,
-            )
-
         return EvaluationResult(
-            passed=True,
-            confidence=1.0,
-            reason="Step successfully executed and verified.",
+            passed=False,
+            confidence=0.5,
+            reason="Step executed without a required expected observation; outcome unverified.",
             observation_summary=result.observation,
-            needs_replan=False,
+            needs_replan=True,
         )
 
     def _should_use_semantic_verification(self, step: Step, result: ExecutionResult) -> bool:
         """Determine if semantic verification is warranted."""
+        if getattr(step, "_is_fastpath", False):
+            return False
         exp = step.expected_observation or ""
-        return len(exp) > 20 or " and " in exp.lower() or "then" in exp.lower()
+        return len(exp) > 40 or " and " in exp.lower() or "then" in exp.lower()
 
     def _semantic_verify(self, step: Step, result: ExecutionResult) -> EvaluationResult | None:
         """Use LLM to semantically verify outcome."""

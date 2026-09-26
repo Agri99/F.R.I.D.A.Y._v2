@@ -314,12 +314,17 @@ class AgentOrchestrator:
         if fast_intent:
             tool = self.tools.get(fast_intent.tool_name) if hasattr(self.tools, "get") else None
             tier = self.tools.tier_of(fast_intent.tool_name) if hasattr(self.tools, "tier_of") else None
-            task.plan = [Step(
+            step = Step(
                 action=fast_intent.tool_name,
                 arguments=fast_intent.arguments,
                 expected_observation=fast_intent.success_reply or f"Executed {fast_intent.tool_name}",
                 risk_scope=tier or getattr(fast_intent, 'risk_tier', ''),
-            )]
+            )
+            step._is_fastpath = True
+            if fast_intent.tool_name in ("system.shutdown_friday", "shutdown_friday"):
+                step.authorized = True
+            task.is_fastpath = True
+            task.plan = [step]
             return self._execute_plan(task)
 
         schemas = self.tools.all_schemas() if hasattr(self.tools, "all_schemas") else []

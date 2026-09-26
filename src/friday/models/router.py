@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from friday.hardware.probe import HardwareProfile
 
 from friday.models.cloud_backend import CloudProvider
+from friday.models.gemini_backend import GeminiProvider
 from friday.models.llamacpp_backend import LlamaCppProvider
 from friday.models.ollama_backend import OllamaProvider
 
@@ -22,6 +23,7 @@ PROVIDER_CLASSES: dict[str, type[ModelProvider]] = {
     "llama.cpp": LlamaCppProvider,
     "llamacpp": LlamaCppProvider,
     "cloud": CloudProvider,
+    "gemini": GeminiProvider,
 }
 
 
@@ -141,6 +143,8 @@ class ModelRouter:
                 kwargs["supports_tools"] = config.supports_tools
             if config.supports_vision is not None:
                 kwargs["supports_vision"] = config.supports_vision
+        elif config.provider.lower() == "gemini":
+            kwargs["api_key"] = getattr(self._settings, "gemini_api_key", None)
         elif config.base_url:
             kwargs["host"] = config.base_url
         return provider_cls(**kwargs)

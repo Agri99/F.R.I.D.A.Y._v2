@@ -76,6 +76,7 @@ class DockerSandbox:
                 "docker",
                 "run",
                 "--rm",
+                "-i",
                 f"--memory={self.config.memory_limit_mb}m",
                 f"--cpus={self.config.cpus}",
                 f"--network={self.config.network_mode}",
@@ -176,10 +177,14 @@ except Exception as e:
             except json.JSONDecodeError:
                 return {"success": False, "error": "Invalid JSON output"}
         else:
-            return {
-                "success": False,
-                "error": result.get("error", "Execution failed"),
-            }
+            try:
+                output = json.loads(result["output"])
+                return output
+            except Exception:
+                return {
+                    "success": False,
+                    "error": result.get("error") or result.get("output") or "Execution failed",
+                }
 
 
 __all__ = [

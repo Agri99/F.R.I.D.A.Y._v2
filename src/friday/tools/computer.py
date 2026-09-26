@@ -14,12 +14,81 @@ from typing import Any
 
 from .registry import Tool, VerificationResult
 from .metadata import build_schema
+from friday.computer import mouse
 from friday.computer.controller import WindowsComputerController, Target
 from friday.computer.screen import describe_screen, ocr, save_screenshot
 from friday.computer.windows import WindowManager
 
 _controller = WindowsComputerController()
 _window_mgr = WindowManager()
+
+
+def _mouse_move(x: int, y: int) -> dict[str, Any]:
+    """Move cursor to screen coordinates (x, y)."""
+    try:
+        mouse.move(int(x), int(y))
+        return {"status": "ok", "message": f"Moved mouse to ({x}, {y}).", "x": int(x), "y": int(y)}
+    except Exception as exc:
+        return {"status": "error", "message": f"Mouse move failed: {exc}"}
+
+
+def _mouse_click(
+    button: str = "left",
+    x: int | None = None,
+    y: int | None = None,
+    **kwargs,
+) -> dict[str, Any]:
+    """Click mouse button ('left', 'right', 'double') at coordinates (x, y) or current cursor position."""
+    btn = (button or "left").lower().strip()
+    cx = int(x) if x is not None else None
+    cy = int(y) if y is not None else None
+    try:
+        if btn in ("right", "secondary", "rclick"):
+            mouse.right_click(cx, cy)
+            action = "Right-clicked"
+        elif btn in ("double", "double_click", "dbl"):
+            mouse.double_click(cx, cy)
+            action = "Double-clicked"
+        else:
+            mouse.click(cx, cy)
+            action = "Left-clicked"
+        pos_str = f" at ({cx}, {cy})" if cx is not None and cy is not None else " at current position"
+        return {"status": "ok", "message": f"{action}{pos_str}."}
+    except Exception as exc:
+        return {"status": "error", "message": f"Mouse click failed: {exc}"}
+
+
+def _mouse_scroll(
+    direction: str = "down",
+    amount: int = 3,
+    clicks: int | None = None,
+    **kwargs,
+) -> dict[str, Any]:
+    """Scroll mouse wheel up or down by amount (or direct clicks)."""
+    try:
+        if clicks is not None:
+            n_clicks = int(clicks)
+        else:
+            dir_clean = (direction or "down").lower().strip()
+            amt = abs(int(amount)) if amount else 3
+            n_clicks = amt if "up" in dir_clean else -amt
+        mouse.scroll(n_clicks)
+        dir_desc = "up" if n_clicks > 0 else "down"
+        return {"status": "ok", "message": f"Scrolled mouse wheel {dir_desc} by {abs(n_clicks)} clicks.", "clicks": n_clicks}
+    except Exception as exc:
+        return {"status": "error", "message": f"Mouse scroll failed: {exc}"}
+
+
+def _mouse_drag(from_x: int, from_y: int, to_x: int, to_y: int) -> dict[str, Any]:
+    """Drag mouse cursor from (from_x, from_y) to (to_x, to_y)."""
+    try:
+        mouse.drag(int(from_x), int(from_y), int(to_x), int(to_y))
+        return {
+            "status": "ok",
+            "message": f"Dragged mouse from ({from_x}, {from_y}) to ({to_x}, {to_y}).",
+        }
+    except Exception as exc:
+        return {"status": "error", "message": f"Mouse drag failed: {exc}"}
 
 
 def _capture_screen(filename: str = "screenshot.png") -> dict[str, Any]:
@@ -198,6 +267,12 @@ def _verify_minimize_all(args: dict, result: dict) -> VerificationResult:
     return VerificationResult(True, f"Minimized {result.get('minimized')} window(s).")
 
 
+def _verify_control_window(args: dict, result: dict) -> VerificationResult:
+    if isinstance(result, dict) and result.get("status") == "ok":
+        return VerificationResult(True, f"Window {result.get('action', 'controlled')} successfully")
+    return VerificationResult(False, result.get("message", "Failed to control window"))
+
+
 def register_all_tools(registry) -> None:
     registry.register(Tool(
         name="computer.capture",
@@ -263,6 +338,51 @@ def register_all_tools(registry) -> None:
         handler=_scroll,
     ))
     registry.register(Tool(
+        name="computer.mouse_move",
+        description="Move mouse cursor to screen coordinates (x, y).",
+        tier="YELLOW",
+        capability_scope="windows.interact",
+        input_schema=build_schema({"x": {"type": "integer"}, "y": {"type": "integer"}}, ["x", "y"]),
+        handler=_mouse_move,
+    ))
+    registry.register(Tool(
+        name="computer.mouse_click",
+        description="Click mouse button ('left', 'right', 'double') at coordinates (x, y) or current cursor position.",
+        tier="YELLOW",
+        capability_scope="windows.interact",
+        input_schema=build_schema({
+            "button": {"type": "string", "enum": ["left", "right", "double"]},
+            "x": {"type": "integer"},
+            "y": {"type": "integer"},
+        }, []),
+        handler=_mouse_click,
+    ))
+    registry.register(Tool(
+        name="computer.mouse_scroll",
+        description="Scroll mouse wheel up or down by amount (or direct clicks, positive = up, negative = down).",
+        tier="YELLOW",
+        capability_scope="windows.interact",
+        input_schema=build_schema({
+            "direction": {"type": "string", "enum": ["up", "down"]},
+            "amount": {"type": "integer"},
+            "clicks": {"type": "integer"},
+        }, []),
+        handler=_mouse_scroll,
+    ))
+    registry.register(Tool(
+        name="computer.mouse_drag",
+        description="Drag mouse from (from_x, from_y) to (to_x, to_y).",
+        tier="YELLOW",
+        capability_scope="windows.interact",
+        input_schema=build_schema({
+            "from_x": {"type": "integer"},
+            "from_y": {"type": "integer"},
+            "to_x": {"type": "integer"},
+            "to_y": {"type": "integer"},
+        }, ["from_x", "from_y", "to_x", "to_y"]),
+        handler=_mouse_drag,
+    ))
+    registry.register(Tool(
         name="computer.wait",
         description="Pause execution for a given number of seconds.",
         tier="GREEN",
@@ -285,6 +405,7 @@ def register_all_tools(registry) -> None:
         capability_scope="system.control",
         input_schema=build_schema({"action": {"type": "string"}}, ["action"]),
         handler=_control_window,
+        verify=_verify_control_window,
     ))
     registry.register(Tool(
         name="computer.minimize_all_windows",
