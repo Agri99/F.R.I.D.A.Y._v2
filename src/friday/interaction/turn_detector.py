@@ -19,9 +19,8 @@ Outputs a TurnDecision that the ConversationManager consumes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 from friday.interaction.stt import TranscriptEvent
 from friday.interaction.vad import VadEvent, VadEventKind

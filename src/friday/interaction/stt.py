@@ -24,7 +24,7 @@ import threading
 import time
 from enum import Enum
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable
 
 SAMPLE_RATE = 16000
 CHUNK_DURATION = 0.1  # 100ms
@@ -483,7 +483,7 @@ class SpeechRecognizer:
                 beam_size=5,
                 temperature=0.0,
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=400),
+                vad_parameters={"min_silence_duration_ms": 400},
             )
             return self._filter_segments(segments)
         except Exception:

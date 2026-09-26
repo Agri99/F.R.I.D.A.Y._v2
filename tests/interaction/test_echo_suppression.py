@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from friday.interaction.echo_suppression import (
-    EchoSuppressionConfig,
     SimpleSpectrumMatcher,
     EchoSuppressingBargeInDetector,
 )

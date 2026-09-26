@@ -4,7 +4,7 @@ Online capability gating (§8.3, §22) for failsafe network transitions.
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+from typing import Protocol
 
 from friday.online.network import NetworkMonitor
 

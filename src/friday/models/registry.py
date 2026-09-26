@@ -14,7 +14,6 @@ import json
 import threading
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
 
 
 @dataclass

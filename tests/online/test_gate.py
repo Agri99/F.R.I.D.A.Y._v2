@@ -7,8 +7,7 @@ Unit tests for the OnlineCapabilityGate (blueprint §43).
 
 from __future__ import annotations
 
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -58,7 +57,10 @@ class TestOnlineCapabilityGate:
     def test_subscribe_unsubscribe(self):
         gate = OnlineCapabilityGate(CapabilityGateConfig(auto_start_monitoring=False))
         calls = []
-        cb = lambda s: calls.append(s)
+
+        def cb(s):
+            calls.append(s)
+
         gate.subscribe(cb)
         gate.unsubscribe(cb)
         gate._state = ConnectivityState.ONLINE

@@ -7,7 +7,6 @@ Unit tests for ConversationManager (Runbook §21).
 
 from __future__ import annotations
 
-import pytest
 
 from friday.interaction.conversation import (
     ConnectivityState,

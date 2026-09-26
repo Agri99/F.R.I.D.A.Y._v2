@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from friday.tools.computer import (
     _mouse_move,
@@ -13,9 +13,7 @@ from friday.tools.computer import (
 from friday.tools.applications import (
     _open_app,
     _list_installed_apps,
-    _scan_installed_apps,
     _resolve_app,
-    register_all_tools as register_app_tools,
 )
 from friday.tools.registry import ToolRegistry
 from friday.security.policy import PolicyEngine, RiskTier, PolicyDecision

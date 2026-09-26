@@ -9,13 +9,12 @@ fallback to requests-based controller for simple fetches.
 
 from __future__ import annotations
 
-import asyncio
 import re
 import urllib.parse
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
-from friday.browser.policies import BrowserScope, evaluate_action
+from friday.browser.policies import evaluate_action
 
 
 @dataclass
@@ -111,7 +110,7 @@ class PlaywrightController:
     async def get_history(self) -> list[str]:
         return self._history
 
-    async def back(self) -> Optional[str]:
+    async def back(self) -> str | None:
         if self._history_index > 0:
             self._history_index -= 1
             self._current_url = self._history[self._history_index]
@@ -119,7 +118,7 @@ class PlaywrightController:
             return self._current_url
         return None
 
-    async def forward(self) -> Optional[str]:
+    async def forward(self) -> str | None:
         if self._history_index < len(self._history) - 1:
             self._history_index += 1
             self._current_url = self._history[self._history_index]

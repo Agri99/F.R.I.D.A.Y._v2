@@ -4,7 +4,6 @@ Observation classification.
 from __future__ import annotations
 
 import enum
-from typing import Any
 from friday.learning.trajectory import Trajectory
 
 class ObservationType(enum.Enum):

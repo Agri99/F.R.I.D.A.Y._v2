@@ -14,7 +14,6 @@ Cases:
 
 from __future__ import annotations
 
-import pytest
 
 from friday.interaction.turn_detector import (
     TurnAction,

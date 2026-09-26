@@ -7,7 +7,6 @@ import tempfile
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from friday.security.sandbox import PathValidator
 

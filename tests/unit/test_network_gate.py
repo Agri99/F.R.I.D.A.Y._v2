@@ -7,10 +7,7 @@ Unit tests for network monitor and online capability gate.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-import urllib.request
 
-import pytest
 
 from friday.online.network import NetworkMonitor
 from friday.online.capability_gate import OnlineCapabilityGate
@@ -44,5 +41,3 @@ class TestOnlineCapabilityGate:
         assert "unavailable" in reason.lower() or "offline" in reason.lower()
 
 
-from unittest.mock import MagicMock, patch
-import urllib.request

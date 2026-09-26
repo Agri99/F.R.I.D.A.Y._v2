@@ -7,7 +7,6 @@ Unit tests for the TargetResolver with all priority tiers.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 
 import pytest
 

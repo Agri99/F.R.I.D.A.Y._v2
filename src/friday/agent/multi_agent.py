@@ -16,7 +16,7 @@ No specialist receives an unrestricted permission bypass.
 from __future__ import annotations
 
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 

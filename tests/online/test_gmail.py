@@ -8,16 +8,13 @@ Platform-independent: mocks the Google API.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from friday.online.gmail import (
     GmailClient,
     GmailMessage,
-    GmailOAuthConfig,
-    GmailAuthManager,
-    GmailCredentials,
     GMAIL_SCOPES,
     SCOPE_RISK_TIER,
 )

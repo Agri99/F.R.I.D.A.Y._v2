@@ -8,9 +8,8 @@ Unit tests for the SkillSandbox isolation and validation logic.
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
 
-from friday.skills.sandbox import SkillSandbox, ValidationResult, SkillExecutionResult
+from friday.skills.sandbox import SkillSandbox
 
 
 class MockTool:

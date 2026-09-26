@@ -5,10 +5,9 @@ import time
 import threading
 import psutil
 from datetime import datetime
-from typing import Callable, Optional
 from dataclasses import dataclass
 
-from friday.jobs.scheduler import Job, TriggerType, JobScheduler
+from friday.jobs.scheduler import TriggerType, JobScheduler
 from friday.online.network import NetworkMonitor
 
 
@@ -26,10 +25,10 @@ class TriggerMonitor:
     def __init__(self, scheduler: JobScheduler):
         self.scheduler = scheduler
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
-        self._network_monitor: Optional[NetworkMonitor] = None
-        self._last_network_state: Optional[bool] = None
+        self._network_monitor: NetworkMonitor | None = None
+        self._last_network_state: bool | None = None
         self._last_idle_check: float = 0
         self._idle_threshold_seconds = 60  # seconds of inactivity before considered idle
         self._last_resource_check: float = 0

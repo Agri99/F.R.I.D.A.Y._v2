@@ -18,19 +18,17 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any
 
 import numpy as np
-import pytest
 
-from friday.interaction.audio_input import AudioChunk, AudioInputStream, BoundedAudioQueue
+from friday.interaction.audio_input import AudioChunk, AudioInputStream
 from friday.interaction.conversation import ConversationManager
 from friday.interaction.interruption import InterruptionManager
 from friday.interaction.pipeline import VoicePipeline
 from friday.interaction.session import SessionState, VoiceSession
 from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts
-from friday.interaction.stt import StreamingTranscriber, TranscriptEvent
-from friday.interaction.turn_detector import TurnAction, TurnDetector, TurnDetectorConfig
+from friday.interaction.stt import TranscriptEvent
+from friday.interaction.turn_detector import TurnDetector, TurnDetectorConfig
 from friday.interaction.vad import RmsVoiceActivityDetector
 
 

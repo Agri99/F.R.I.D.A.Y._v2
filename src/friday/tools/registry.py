@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Dict, List
+from typing import Any, Callable, Dict, List
 
 @dataclass
 class VerificationResult:
@@ -17,8 +17,8 @@ class Tool:
     capability_scope: str
     input_schema: Dict[str, Any]
     handler: Callable[..., Any]
-    preview: Optional[Callable[..., dict]] = None
-    verify: Optional[Callable[[Dict[str, Any], Any], VerificationResult]] = None
+    preview: Callable[..., dict] | None = None
+    verify: Callable[[Dict[str, Any], Any], VerificationResult] | None = None
     critical: bool = False
     preconditions: List[str] = field(default_factory=list)
     online_required: bool = False

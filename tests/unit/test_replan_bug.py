@@ -15,9 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from friday.agent.task import Task, Step, TaskStatus
+from friday.agent.task import Task, TaskStatus
 from friday.agent.planner import Planner
-from friday.models.base import ModelProvider, ModelResponse, ModelMessage, ProviderHealth
+from friday.models.base import ModelProvider, ModelResponse, ProviderHealth
 
 
 class _RecordingProvider(ModelProvider):

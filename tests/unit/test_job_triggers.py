@@ -1,13 +1,11 @@
 """Job trigger tests."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from friday.jobs.scheduler import (
-    Job, JobScheduler, JobBudget, ExecutionWindow,
-    TriggerType, FailurePolicy, VerificationType
+    TriggerType
 )
 from friday.jobs.triggers import TriggerMonitor
 

@@ -7,7 +7,6 @@ E2E evaluation test for skill sandbox validation before promotion.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
@@ -270,7 +270,7 @@ class AudioOutputService:
         try:
             sd.play(chunk.audio, samplerate=chunk.sample_rate, device=self.config.device)
             sd.wait()
-        except Exception as e:
+        except Exception:
             self._device_lost = True
 
     def _close_stream(self) -> None:

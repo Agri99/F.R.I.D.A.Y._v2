@@ -119,7 +119,7 @@ class ControlVerifier:
                 text = elem.window_text() or elem.element_info.name or ""
                 if control_hint.lower() in text.lower():
                     return VerificationResult(True, f"Control '{control_hint}' text matches in window '{window_hint}' (UIA).")
-        except Exception as e:
+        except Exception:
             pass
             
         return VerificationResult(False, f"Control '{control_hint}' not found in window '{window_hint}'.")

@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import time
 import typing
-import numpy as np
 import sounddevice as sd
 
 if typing.TYPE_CHECKING:

@@ -2,14 +2,10 @@
 from __future__ import annotations
 
 import time
-import statistics
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
-from pathlib import Path
+from typing import Any, Callable
 
-from friday.learning.promotion import PromotionManager, PromotionDecision
-from friday.learning.optimizer import SkillOptimizer
-from friday.learning.trajectory import Trajectory
+from friday.learning.promotion import PromotionDecision
 from friday.skills.loader import SkillLoader
 from friday.skills.registry import SkillRegistry
 
@@ -188,7 +184,6 @@ class AutoPromotionManager:
             return PromotionDecision.REJECTED, f"Skill '{skill_name}' not found"
 
         # Create candidate from skill
-        from friday.skills.learner import SkillCandidate
         candidate = self._skill_to_candidate(skill)
 
         decision = self.promotion_manager.check_promotion_criteria(candidate)

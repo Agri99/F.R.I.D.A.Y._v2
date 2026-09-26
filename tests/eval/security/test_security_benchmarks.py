@@ -9,21 +9,12 @@ unauthorized action, dangerous tool request, sandbox escape attempts.
 import pytest
 import time
 from dataclasses import dataclass
-from typing import Any
-from unittest.mock import MagicMock, patch
 
 from friday.browser.safety import BrowserSafety
-from friday.browser.controller import BrowserController, BrowserConfig
 from friday.security.policy import PolicyEngine
 from friday.security.voice_auth import VoiceAuthProvider
-from friday.security.passphrase import verify_passphrase
-from friday.skills.sandbox import SkillSandbox
 from friday.tools.terminal_sandbox import TerminalSandbox, SandboxMode
-from friday.agent.orchestrator import AgentOrchestrator
 from friday.config import Settings
-from friday.models.router import ModelRouter
-from friday.security.policy import PolicyEngine
-from friday.tools.registry import ToolRegistry
 
 
 @dataclass
@@ -175,7 +166,7 @@ class SecurityBenchmarks:
     def test_unauthorized_file_delete(self) -> SecurityBenchmarkResult:
         """Test unauthorized file deletion attempt."""
         # This would test policy engine blocking filesystem.delete
-        from friday.security.policy import PolicyEngine, PolicyDecision
+        from friday.security.policy import PolicyEngine
         from friday.config import Settings
 
         policy = PolicyEngine(Settings())

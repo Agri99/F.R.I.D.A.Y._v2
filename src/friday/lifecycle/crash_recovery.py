@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from enum import Enum
 import logging
 
@@ -45,7 +45,7 @@ class IncompleteTask:
     arguments: dict[str, Any]
     step: int
     total_steps: int
-    observation: Optional[str] = None
+    observation: str | None = None
 
 
 class CrashRecoveryManager:

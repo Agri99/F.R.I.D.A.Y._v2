@@ -1,5 +1,4 @@
 from __future__ import annotations
-import shutil
 from datetime import datetime
 from pathlib import Path
 from .registry import Tool, VerificationResult

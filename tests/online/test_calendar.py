@@ -14,10 +14,7 @@ import pytest
 from friday.online.calendar import (
     CalendarClient,
     CalendarEvent,
-    CalendarListEntry,
     CalendarOAuthConfig,
-    CalendarAuthManager,
-    CalendarCredentials,
     CALENDAR_SCOPES,
     SCOPE_RISK_TIER,
 )

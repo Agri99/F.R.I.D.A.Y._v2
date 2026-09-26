@@ -148,4 +148,5 @@ __all__ = [
     "OnlineOfflineGate",
     "NetworkRequirement",
     "NetworkStatus",
+    "get_online_offline_gate",
 ]

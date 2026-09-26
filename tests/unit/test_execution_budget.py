@@ -7,9 +7,8 @@ Unit tests for task execution budget tracking (max_steps, max_time_seconds).
 
 from datetime import datetime, timedelta
 
-import pytest
 
-from friday.agent.task import Task, TaskStatus
+from friday.agent.task import Task
 
 
 class TestExecutionBudget:

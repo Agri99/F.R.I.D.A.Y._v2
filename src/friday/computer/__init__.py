@@ -44,6 +44,7 @@ __all__ = [
     "WindowsComputerController",
     "AccessibilityProvider",
     "UIElement",
+    "WindowInfo",
     "WindowManager",
     "ResolutionMethod",
     "ResolvedTarget",

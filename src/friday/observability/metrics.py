@@ -6,7 +6,6 @@ Metrics aggregation and instrumentation (Runbook §79).
 Tracks Voice, Models, Computer use, and Learning metrics.
 """
 from dataclasses import dataclass
-from typing import Dict
 from .events import EventBus, ObservabilityEvent
 
 

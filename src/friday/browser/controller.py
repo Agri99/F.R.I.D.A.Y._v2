@@ -11,14 +11,15 @@ Integrated with BrowserSafety, BrowserNavigator for security hardening.
 from __future__ import annotations
 
 import re
-import urllib.parse
 import webbrowser
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from friday.browser.playwright_controller import PlaywrightController
 
 import requests
 
-from friday.browser.policies import BrowserScope, evaluate_action
 from friday.browser.safety import BrowserSafety, SanitizationResult
 from friday.browser.navigation import BrowserNavigator, NavigationResult
 from friday.browser.verification import BrowserVerifier
@@ -61,7 +62,7 @@ class BrowserController:
         self.extractor = PageExtractor()
         self.network_monitor = NetworkMonitor()
 
-    async def _ensure_playwright(self) -> Optional["PlaywrightController"]:
+    async def _ensure_playwright(self) -> "PlaywrightController" | None:
         """Lazily initialize Playwright controller if engine is configured."""
         if self.config.engine != "playwright":
             return None

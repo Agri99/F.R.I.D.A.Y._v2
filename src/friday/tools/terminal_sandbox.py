@@ -16,11 +16,9 @@ import os
 import shlex
 import subprocess
 import sys
-import tempfile
 import venv
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 from enum import Enum
 
 
@@ -37,7 +35,7 @@ class TerminalResult:
     success: bool
     output: str
     exit_code: int
-    error: Optional[str] = None
+    error: str | None = None
     mode: SandboxMode = SandboxMode.AUTONOMOUS
 
 
@@ -91,7 +89,7 @@ class TerminalSandbox:
         self,
         sandbox_dir: Path | str = "workspace/sandbox",
         mode: SandboxMode = SandboxMode.AUTONOMOUS,
-        allowed_commands: Optional[list[str]] = None,
+        allowed_commands: list[str] | None = None,
         timeout_seconds: int = 30,
         max_output_chars: int = 10000,
     ):
@@ -116,7 +114,7 @@ class TerminalSandbox:
         self.allowed_commands = list(set(base_allowlist + (allowed_commands or [])))
 
         # Create virtual environment for build mode
-        self._venv_path: Optional[Path] = None
+        self._venv_path: Path | None = None
         if mode in (SandboxMode.BUILD, SandboxMode.DEVELOPMENT):
             self._venv_path = self.sandbox_dir / ".venv"
             if not self._venv_path.exists():
@@ -129,7 +127,7 @@ class TerminalSandbox:
         except Exception:
             self._venv_path = None
 
-    def _get_venv_python(self) -> Optional[Path]:
+    def _get_venv_python(self) -> Path | None:
         """Get the Python executable from the virtual environment."""
         if not self._venv_path or not self._venv_path.exists():
             return None
@@ -170,7 +168,7 @@ class TerminalSandbox:
 
         return False, f"Command '{cmd}' is not in the allowed list for {self.mode.value} mode"
 
-    def execute(self, command: str, cwd: Optional[Path] = None) -> TerminalResult:
+    def execute(self, command: str, cwd: Path | None = None) -> TerminalResult:
         """Execute a command in the sandbox directory."""
         allowed, reason = self._check_allowed(command)
         if not allowed:
@@ -233,7 +231,7 @@ class TerminalSandbox:
         except Exception as exc:
             return TerminalResult(success=False, output="", exit_code=1, error=str(exc), mode=self.mode)
 
-    def clone_repository(self, repo_url: str, target_dir: Optional[str] = None) -> TerminalResult:
+    def clone_repository(self, repo_url: str, target_dir: str | None = None) -> TerminalResult:
         """Clone a git repository into the sandbox."""
         if self.mode not in (SandboxMode.CLONE, SandboxMode.DEVELOPMENT):
             return TerminalResult(
@@ -252,7 +250,7 @@ class TerminalSandbox:
 
         return self.execute(f"git clone {shlex.quote(repo_url)} {shlex.quote(str(target))}")
 
-    def install_dependencies(self, req_file: Optional[str] = None, packages: Optional[list[str]] = None) -> TerminalResult:
+    def install_dependencies(self, req_file: str | None = None, packages: list[str] | None = None) -> TerminalResult:
         """Install Python dependencies in the sandbox venv."""
         if self.mode not in (SandboxMode.BUILD, SandboxMode.DEVELOPMENT):
             return TerminalResult(

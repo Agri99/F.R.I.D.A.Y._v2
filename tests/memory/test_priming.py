@@ -8,7 +8,6 @@ Unit tests for the Context Priming Engine.
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock
 
 from friday.memory.priming import ContextPrimingEngine, PrimedContext
 

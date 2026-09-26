@@ -16,7 +16,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -81,8 +81,8 @@ class DockerSandbox:
                 f"--cpus={self.config.cpus}",
                 f"--network={self.config.network_mode}",
                 f"--user={self.config.user}",
-                f"--read-only" if self.config.readonly_root else "",
-                f"--tmpfs=/tmp:size=100m",  # Small tmpdir
+                "--read-only" if self.config.readonly_root else "",
+                "--tmpfs=/tmp:size=100m",  # Small tmpdir
                 f"-v={code_path}:/app/run.py:ro",
                 self.config.image,
                 "python",

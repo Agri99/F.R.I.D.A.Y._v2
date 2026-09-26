@@ -7,11 +7,10 @@ Unit tests for terminal sandbox isolation and allowlist enforcement.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 
-from friday.tools.terminal_sandbox import TerminalSandbox, TerminalResult
+from friday.tools.terminal_sandbox import TerminalSandbox
 
 
 class TestTerminalSandbox:

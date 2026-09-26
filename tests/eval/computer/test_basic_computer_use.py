@@ -9,16 +9,9 @@ Run with: pytest tests/eval/computer/test_basic_computer_use.py -v --benchmark-o
 import pytest
 import time
 from dataclasses import dataclass
-from typing import Any
-from unittest.mock import MagicMock
 
-from friday.computer.controller import WindowsComputerController, Target, ControllerObservation
-from friday.computer.accessibility import AccessibilityProvider, UIElement
-from friday.computer.screen import ScreenObserver, capture_screen
-from friday.agent.orchestrator import AgentOrchestrator
-from friday.config import Settings
-from friday.models.router import ModelRouter
-from friday.security.policy import PolicyEngine
+from friday.computer.controller import WindowsComputerController
+from friday.computer.screen import ScreenObserver
 from friday.tools.registry import ToolRegistry
 from friday.tools.system import register_all_tools
 

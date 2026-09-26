@@ -21,8 +21,6 @@ import os
 import pickle
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Optional
 
 try:
     from google.auth.transport.requests import Request
@@ -410,15 +408,15 @@ class CalendarClient:
                 if key == "summary" and parsed.summary != expected_value:
                     return False, f"Summary mismatch: got '{parsed.summary}', expected '{expected_value}'"
                 if key == "description" and parsed.description != expected_value:
-                    return False, f"Description mismatch"
+                    return False, "Description mismatch"
                 if key == "location" and parsed.location != expected_value:
-                    return False, f"Location mismatch"
+                    return False, "Location mismatch"
                 if key == "start_time" and parsed.start_time != expected_value:
-                    return False, f"Start time mismatch"
+                    return False, "Start time mismatch"
                 if key == "end_time" and parsed.end_time != expected_value:
-                    return False, f"End time mismatch"
+                    return False, "End time mismatch"
                 if key == "timezone" and parsed.timezone != expected_value:
-                    return False, f"Timezone mismatch"
+                    return False, "Timezone mismatch"
 
             return True, "Event verified with all updates"
         except HttpError as e:

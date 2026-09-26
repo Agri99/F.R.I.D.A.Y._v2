@@ -21,7 +21,6 @@ from __future__ import annotations
 import psutil
 import threading
 from dataclasses import dataclass
-from typing import Optional
 from enum import Enum
 import logging
 
@@ -41,12 +40,12 @@ class ResourceMetrics:
     """Current resource usage metrics."""
     cpu_percent: float
     ram_percent: float
-    vram_percent: Optional[float]
-    gpu_percent: Optional[float]
+    vram_percent: float | None
+    gpu_percent: float | None
     disk_percent: float
-    stt_latency_ms: Optional[float]
-    llm_latency_ms: Optional[float]
-    tts_latency_ms: Optional[float]
+    stt_latency_ms: float | None
+    llm_latency_ms: float | None
+    tts_latency_ms: float | None
     queue_depth: int
     pressure: ResourcePressure
 
@@ -75,10 +74,10 @@ class ResourceBudget:
 class ResourceMonitor:
     """Monitors system resources and enforces budgets."""
 
-    def __init__(self, budget: Optional[ResourceBudget] = None):
+    def __init__(self, budget: ResourceBudget | None = None):
         self.budget = budget or ResourceBudget()
         self._lock = threading.Lock()
-        self._metrics: Optional[ResourceMetrics] = None
+        self._metrics: ResourceMetrics | None = None
         self._running = False
 
     def get_metrics(self) -> ResourceMetrics:
@@ -144,7 +143,7 @@ class ResourceMonitor:
         self,
         cpu_percent: float,
         ram_percent: float,
-        vram_percent: Optional[float],
+        vram_percent: float | None,
     ) -> ResourcePressure:
         """Calculate overall resource pressure."""
         # Check critical first

@@ -238,7 +238,7 @@ def _verify_get_time(args: dict, result: dict) -> VerificationResult:
 def _toggle_orb(visible: bool = True, **kwargs) -> dict:
     from friday.ui.orb_server import set_orb_visibility
     vis = bool(visible)
-    res = set_orb_visibility(vis)
+    set_orb_visibility(vis)
     action_str = "shown" if vis else "hidden"
     return {"status": "ok", "visible": vis, "message": f"Orb has been {action_str}."}
 

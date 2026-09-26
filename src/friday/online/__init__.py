@@ -11,7 +11,7 @@ from friday.online.gmail import (
     GmailOAuthConfig,
     GmailCredentials,
     GMAIL_SCOPES,
-    SCOPE_RISK_TIER,
+    SCOPE_RISK_TIER as GMAIL_SCOPE_RISK_TIER,
 )
 
 from friday.online.calendar import (
@@ -22,7 +22,7 @@ from friday.online.calendar import (
     CalendarOAuthConfig,
     CalendarCredentials,
     CALENDAR_SCOPES,
-    SCOPE_RISK_TIER,
+    SCOPE_RISK_TIER as CALENDAR_SCOPE_RISK_TIER,
 )
 
 from friday.online.gate import (
@@ -40,7 +40,7 @@ __all__ = [
     "GmailOAuthConfig",
     "GmailCredentials",
     "GMAIL_SCOPES",
-    "SCOPE_RISK_TIER",
+    "GMAIL_SCOPE_RISK_TIER",
     # Calendar
     "CalendarClient",
     "CalendarEvent",
@@ -49,7 +49,7 @@ __all__ = [
     "CalendarOAuthConfig",
     "CalendarCredentials",
     "CALENDAR_SCOPES",
-    "SCOPE_RISK_TIER",
+    "CALENDAR_SCOPE_RISK_TIER",
     # Gate
     "ConnectivityState",
     "CapabilityGateConfig",

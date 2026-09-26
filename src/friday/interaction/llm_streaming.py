@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Iterator
 
 from friday.models.base import ModelDelta, ModelMessage
-from friday.interaction.streaming_tts import StreamingTts, iter_llm_deltas_to_text
+from friday.interaction.streaming_tts import StreamingTts
 from friday.interaction.segmenter import segment
 
 

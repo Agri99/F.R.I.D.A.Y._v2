@@ -1,7 +1,7 @@
 """Skill benchmark and auto-promotion tests."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from friday.learning.benchmark import (
     BenchmarkConfig,
@@ -9,7 +9,7 @@ from friday.learning.benchmark import (
     SkillBenchmarkRunner,
     AutoPromotionManager,
 )
-from friday.learning.promotion import PromotionManager, PromotionDecision
+from friday.learning.promotion import PromotionDecision
 
 
 class FakeOrchestrator:
@@ -128,8 +128,6 @@ def test_auto_promotion_manager_approves():
                 passed=True,
             )
 
-    from friday.learning.benchmark import AutoPromotionManager
-    from friday.learning.promotion import PromotionDecision
 
     class FakeSkill:
         name = "test_skill"
@@ -168,8 +166,6 @@ def test_auto_promotion_manager_rejects_failed_benchmark():
                 passed=False,
             )
 
-    from friday.learning.benchmark import AutoPromotionManager
-    from friday.learning.promotion import PromotionDecision
 
     class FakeSkill:
         name = "test_skill"

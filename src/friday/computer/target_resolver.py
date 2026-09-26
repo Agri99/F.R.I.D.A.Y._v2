@@ -203,7 +203,7 @@ class TargetResolver:
                         self._last_resolution = _stamp(target)
                         return target
 
-        except Exception as e:
+        except Exception:
             pass
 
         # Visual match fallback (OCR or Vision bounding box in context)
@@ -248,7 +248,6 @@ class TargetResolver:
 
         # When no bbox is provided in context, attempt OCR + VLM inference
         try:
-            import pytesseract
             from friday.computer.screen import ocr, describe_screen, capture_screen
 
             # Try OCR first — cheap and deterministic for text labels

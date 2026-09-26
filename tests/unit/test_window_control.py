@@ -1,7 +1,6 @@
 """WindowManager result contracts and verified typing."""
 from __future__ import annotations
 
-import pytest
 
 
 def _fake_wm(success: bool = True):

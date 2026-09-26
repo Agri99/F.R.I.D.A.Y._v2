@@ -164,8 +164,7 @@ def compare_screens(before_hash: str, after_hash: str, threshold: float = 0.05) 
 
 
 from datetime import datetime
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 @dataclass
 class Observation:

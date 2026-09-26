@@ -7,7 +7,7 @@ Tests for online/offline capability gate (Runbook §35).
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from friday.interaction.online_offline_gate import (
     NetworkRequirement,

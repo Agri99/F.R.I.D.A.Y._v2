@@ -7,7 +7,7 @@ Integration test for the full skill lifecycle: detect -> validate -> evaluate ->
 
 from __future__ import annotations
 
-from friday.skills.learner import SkillLearner, SkillCandidate
+from friday.skills.learner import SkillLearner
 from friday.skills.validator import SkillValidator
 from friday.skills.evaluator import SkillEvaluator
 from friday.skills.versioning import SkillVersionManager

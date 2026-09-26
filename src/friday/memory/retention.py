@@ -4,7 +4,7 @@ Memory retention manager with confidence scoring, source tracking, and decay pol
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from friday.memory.database import MemoryDatabase
 

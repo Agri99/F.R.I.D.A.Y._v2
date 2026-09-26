@@ -6,7 +6,6 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 try:
     import psutil
@@ -30,7 +29,7 @@ class TelemetryMonitor:
 
     def __init__(self, interval_seconds: float = 2.0) -> None:
         self._interval = interval_seconds
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._running = False
         self._stop_event = threading.Event()
         self._lock = threading.Lock()

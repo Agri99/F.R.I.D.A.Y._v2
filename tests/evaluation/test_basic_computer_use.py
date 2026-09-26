@@ -11,12 +11,12 @@ E2E evaluation tests for basic computer operations:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from friday.computer.target_resolver import TargetResolver, ResolutionMethod
-from friday.computer.verification import ProcessVerifier, WindowVerifier, FileContentVerifier
+from friday.computer.verification import ProcessVerifier, FileContentVerifier
 
 
 class TestBasicComputerUse:

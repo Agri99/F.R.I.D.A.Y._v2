@@ -319,7 +319,6 @@ def run_voice(brain: str = "qwen") -> None:
             """Open the current task's trajectory report in the configured editor."""
             from friday.learning.upgrade_logging import open_report_in_editor
             from pathlib import Path
-            import json
             audit_dir = Path("data/audit")
             latest = max(audit_dir.glob("audit_*.jsonl"), key=lambda p: p.stat().st_mtime, default=None)
             if latest:

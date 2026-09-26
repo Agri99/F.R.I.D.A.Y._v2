@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 from friday.interaction.audio_input import AudioInputStream
 from friday.interaction.conversation import ConversationManager
 from friday.interaction.interruption import InterruptionManager
-from friday.interaction.streaming_tts import QueuedAudioSink, StreamingTts
+from friday.interaction.streaming_tts import QueuedAudioSink, StreamingAudioConsumer, StreamingTts
 from friday.interaction.turn_detector import TurnDetector
-from friday.interaction.vad import RmsVoiceActivityDetector, SileroVoiceActivityDetector, VoiceActivityDetector
+from friday.interaction.vad import SileroVoiceActivityDetector, VoiceActivityDetector
 
 
 @dataclass

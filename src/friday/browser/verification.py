@@ -9,7 +9,6 @@ Verifies page status, URL matches, expected content presence, and detects error 
 from __future__ import annotations
 
 import re
-from typing import Any
 
 
 class BrowserVerifier:

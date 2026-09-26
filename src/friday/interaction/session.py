@@ -14,7 +14,7 @@ import logging
 import time
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -345,7 +345,7 @@ class VoiceSession:
         The persistent mic is already open; this method just reads from
         the queue without opening/closing the stream.
         """
-        from friday.interaction.audio_input import AudioInputStream, RingAudioBuffer
+        from friday.interaction.audio_input import AudioInputStream
         from friday.interaction.vad import VadEventKind
         from friday.interaction.stt import TranscriptEvent
 
@@ -471,9 +471,6 @@ class VoiceSession:
         Plays audio via sd.OutputStream while monitoring the persistent
         mic for barge-in. Returns True if interrupted, False if completed.
         """
-        from friday.interaction.streaming_tts import iter_llm_deltas_to_text
-        from friday.interaction.vad import VadEventKind
-        from friday.models.base import ModelDelta
 
         streaming_tts = pipeline.streaming_tts
         interruption = pipeline.interruption

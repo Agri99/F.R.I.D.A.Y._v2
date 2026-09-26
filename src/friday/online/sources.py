@@ -8,7 +8,6 @@ Source registry mapping online capability names to public API providers and offl
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass

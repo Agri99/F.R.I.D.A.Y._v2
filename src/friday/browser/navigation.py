@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import urllib.parse
 from dataclasses import dataclass
-from typing import Any
 
 import requests
 
-from friday.browser.safety import BrowserSafety, HIGH_IMPACT_ACTIONS
+from friday.browser.safety import BrowserSafety
 from friday.online.network import NetworkMonitor
 from friday.security.policy import PolicyEngine
 
@@ -87,7 +86,6 @@ class BrowserNavigator:
         # Policy check for high-impact actions
         policy_approved = False
         if requires_approval and self.policy_engine:
-            from friday.security.policy import PolicyDecision
             decision = self.policy_engine.evaluate(f"browser.{action_type}", risk)
             dec_val = decision.decision.value if hasattr(decision.decision, "value") else str(decision.decision)
             policy_approved = dec_val == "ALLOW"
@@ -151,7 +149,6 @@ class BrowserNavigator:
         requires_approval = self.safety.requires_policy_approval("submit", url)
 
         if requires_approval and self.policy_engine:
-            from friday.security.policy import PolicyDecision
             decision = self.policy_engine.evaluate("browser.submit", "ORANGE")
             dec_val = decision.decision.value if hasattr(decision.decision, "value") else str(decision.decision)
             if dec_val != "ALLOW":

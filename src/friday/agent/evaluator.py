@@ -92,7 +92,7 @@ Respond with ONLY a JSON object:
                     observation_summary=result.observation,
                     needs_replan=not verification.passed,
                 )
-            except Exception as e:
+            except Exception:
                 # A faulty verifier must not silently pass. Fall through to
                 # the next strategy but flag it.
                 step._tool_verified = True

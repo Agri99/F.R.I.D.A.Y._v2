@@ -8,19 +8,11 @@ Intermediate computer use benchmarks - create project, edit file, run program, f
 import pytest
 import time
 from dataclasses import dataclass
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from friday.computer.controller import WindowsComputerController
-from friday.agent.orchestrator import AgentOrchestrator
-from friday.config import Settings
-from friday.models.router import ModelRouter
-from friday.security.policy import PolicyEngine
 from friday.tools.registry import ToolRegistry
 from friday.tools.system import register_all_tools
-from friday.tools.filesystem import register_all_tools as register_filesystem_tools
-from friday.tools.browser import register_all_tools as register_browser_tools
-from friday.tools.terminal import register_all_tools as register_terminal_tools
 
 
 @dataclass

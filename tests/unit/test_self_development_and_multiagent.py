@@ -8,38 +8,24 @@ Unit tests for:
   - M11: Multi-Agent subsystem (coordinator, researcher, computer, coder, reviewer)
 """
 import pytest
-from pathlib import Path
 
 from friday.development import (
-    BenchmarkComparison,
     CanaryState,
     CodeReviewer,
-    IsolatedTester,
     PatcherError,
-    ProposalGenerator,
     SafePatcher,
     ScenarioSimulator,
-    SelfDevelopmentManager,
     UpgradeBenchmarker,
-    UpgradeCandidate,
-    UpgradeRollback,
     UpgradeStage,
-    WorktreeManager,
 )
 from friday.models import (
-    IntegrityResult,
     ModelEntry,
-    ModelProvisioner,
     ModelRegistry,
     compute_sha256,
     verify_file,
 )
 from friday.agent import (
-    CoderSpecialist,
-    ComputerSpecialist,
     MultiAgentCoordinator,
-    ResearcherSpecialist,
-    ReviewerSpecialist,
     SpecialistRole,
 )
 

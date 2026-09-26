@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import enum
 from pathlib import Path
+from typing import Any
 
 from friday.learning.optimizer import SkillOptimizer
 from friday.skills.learner import SkillCandidate

@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import Any
 from friday.skills.learner import SkillCandidate
 from friday.learning.trajectory import Trajectory
-from datetime import datetime
 
 
 class SkillOptimizer:

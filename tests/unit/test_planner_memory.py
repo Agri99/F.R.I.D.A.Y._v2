@@ -5,9 +5,8 @@ WHAT THIS IS FOR:
 Unit test for planner's memory-aware replanning.
 """
 
-import pytest
 from friday.agent.planner import Planner
-from friday.agent.task import Task, Step
+from friday.agent.task import Task
 
 def test_observation_aware_replanning():
     planner = Planner()
@@ -31,7 +30,6 @@ def test_planner_produces_structured_steps():
 
     class MockProvider:
         def generate(self, messages, tools):
-            from friday.models.base import ModelMessage
             class MockResponse:
                 tool_calls = []
                 text = "Done"

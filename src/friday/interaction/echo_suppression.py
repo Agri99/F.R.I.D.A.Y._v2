@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -37,7 +36,7 @@ class SimpleSpectrumMatcher:
     def __init__(self, config: EchoSuppressionConfig | None = None):
         self.config = config or EchoSuppressionConfig()
         self._reference_buffer: list[np.ndarray] = []
-        self._reference_spectrum: Optional[np.ndarray] = None
+        self._reference_spectrum: np.ndarray | None = None
 
     def add_reference_audio(self, audio: np.ndarray) -> None:
         """Add output audio as a reference.

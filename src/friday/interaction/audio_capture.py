@@ -34,7 +34,7 @@ from typing import Callable, Iterator
 
 import numpy as np
 
-from friday.interaction.audio_input import AudioChunk, BoundedAudioQueue, RingAudioBuffer
+from friday.interaction.audio_input import AudioChunk, RingAudioBuffer
 
 try:
     import sounddevice as sd

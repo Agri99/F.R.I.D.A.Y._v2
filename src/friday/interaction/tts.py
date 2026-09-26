@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import numpy as np
 import sounddevice as sd

@@ -11,7 +11,6 @@ from unittest.mock import patch
 from friday.online.network import NetworkMonitor
 from friday.online.capability_gate import OnlineCapabilityGate
 from friday.online.search import WebSearchProvider
-from friday.online.live_data import LiveDataProvider
 
 
 def test_online_gate_transitions():

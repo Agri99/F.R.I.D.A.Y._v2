@@ -10,8 +10,6 @@ from friday.interaction.tts import (
     ChatterboxTurboSynthesizer,
     TTSResult,
     clean_tts_text,
-    CHATTERBOX_TAGS,
-    PARALINGUISTIC_TAGS,
 )
 from friday.interaction.stt import VoiceState
 

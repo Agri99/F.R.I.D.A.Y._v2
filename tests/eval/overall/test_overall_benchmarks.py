@@ -8,11 +8,10 @@ false approval rates, latency, steps, and resource usage.
 """
 
 import pytest
+import sys
 import time
 import json
-from dataclasses import dataclass, asdict
-from typing import Any
-from pathlib import Path
+from dataclasses import dataclass
 
 # Import all benchmark runners
 from tests.eval.computer.test_basic_computer_use import run_benchmarks as run_basic_computer
@@ -175,7 +174,7 @@ def print_report(report: OverallBenchmarkReport) -> None:
             print(f"{cat.name:<25} {cat.tests:>6} {cat.passed:>7} {cat.verified:>9} {cat.recovered:>10} {cat.replans:>8} {'-':>8} {cat.avg_latency_ms:>10.1f}ms")
 
     print("-" * 90)
-    print(f"\nOVERALL METRICS:")
+    print("\nOVERALL METRICS:")
     print(f"  Total Tests:        {report.total_tests}")
     print(f"  Passed:             {report.total_passed}/{report.total_tests} ({report.overall_success_rate*100:.1f}%)")
     print(f"  Verified:           {report.total_verified}/{report.total_tests} ({report.overall_verification_rate*100:.1f}%)")
@@ -281,4 +280,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

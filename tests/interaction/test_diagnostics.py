@@ -8,14 +8,11 @@ Platform-independent: mocks the microphone and audio devices.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 from friday.interaction.diagnostics import (
     VoiceDiagnostics,
     VoiceDiagnosticState,
-    run_diagnostics,
 )
 
 

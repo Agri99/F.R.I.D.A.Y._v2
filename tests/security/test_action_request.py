@@ -1,12 +1,10 @@
 """
 Tests for ActionRequest.
 """
-import pytest
 from dataclasses import dataclass
-from datetime import datetime
 
 from friday.security.action_request import ActionRequest
-from friday.security.policy import RiskTier, PolicyEngine, PolicyResult, PolicyDecision
+from friday.security.policy import RiskTier
 from friday.security.secrets import SecretsManager
 
 @dataclass

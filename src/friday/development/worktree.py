@@ -8,7 +8,6 @@ Runbook §63, §64, §65.
 """
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -67,7 +66,7 @@ class WorktreeManager:
                     # Final fallback: shallow directory copy
                     shutil.copytree(self.repo_root, worktree_path, ignore=shutil.ignore_patterns(".git", ".venv", "workspace"))
             return worktree_path
-        except Exception as e:
+        except Exception:
             # Copytree fallback
             try:
                 shutil.copytree(self.repo_root, worktree_path, ignore=shutil.ignore_patterns(".git", ".venv", "workspace"))

@@ -18,10 +18,10 @@ from friday.development.benchmarker import UpgradeBenchmarker
 from friday.development.canary import CanaryState, UpgradeStage
 from friday.development.generator import ProposalGenerator, UpgradeCandidate
 from friday.development.patcher import SafePatcher
-from friday.development.reviewer import CodeReviewer, ReviewReport
+from friday.development.reviewer import CodeReviewer
 from friday.development.rollback import UpgradeRollback
 from friday.development.simulator import ScenarioSimulator
-from friday.development.tester import IsolatedTester, TestSuiteReport
+from friday.development.tester import IsolatedTester
 from friday.development.worktree import WorktreeManager
 
 

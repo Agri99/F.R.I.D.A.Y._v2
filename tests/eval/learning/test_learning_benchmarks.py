@@ -10,14 +10,12 @@ import pytest
 import time
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import MagicMock
 
 from friday.learning.distiller import PatternDistiller
 from friday.learning.optimizer import SkillOptimizer
 from friday.skills.learner import SkillCandidate
 from friday.learning.promotion import PromotionManager, PromotionDecision
-from friday.learning.trajectory import Trajectory, TrajectoryRecorder
-from friday.skills.learner import SkillLearner
+from friday.learning.trajectory import TrajectoryRecorder
 from friday.skills.versioning import SkillVersionManager, SkillVersion
 from friday.skills.sandbox import SkillSandbox
 from friday.skills.loader import Skill, SkillLoader

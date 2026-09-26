@@ -10,6 +10,7 @@ from friday.plugins.api import Plugin, PluginContext
 from friday.plugins.lifecycle import PluginLifecycle, PluginRecord, PluginState
 from friday.plugins.manifest import PluginManifest
 from friday.plugins.registry import PluginRegistry
+from friday.plugins.sandbox import SandboxResult
 from friday.plugins.trust import PluginTrustValidator
 
 

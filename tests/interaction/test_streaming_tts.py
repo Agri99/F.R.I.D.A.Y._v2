@@ -7,7 +7,6 @@ Unit tests for StreamingTts (Runbook §23).
 
 from __future__ import annotations
 
-import threading
 
 from friday.interaction.streaming_tts import (
     QueuedAudioSink,

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import yaml
 from pydantic import BaseModel, Field
 
@@ -53,8 +53,8 @@ class VoiceConfig(BaseModel):
     tts_engine: str = "chatterbox_turbo"
     tts_voice: str = "chatterbox"
     device: str = "cuda"
-    audio_prompt_path: Optional[str] = None
-    model_path: Optional[str] = None
+    audio_prompt_path: str | None = None
+    model_path: str | None = None
     exaggeration: float = 0.5
     barge_in: bool = True
     followup_window_seconds: float = 10.0
@@ -112,7 +112,7 @@ class FridayConfig(BaseModel):
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     google: GoogleConfig = Field(default_factory=GoogleConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: str | None = None
 
     def ensure_dirs(self) -> None:
         """Create all necessary directories."""
@@ -140,7 +140,7 @@ class FridayConfig(BaseModel):
         return merged
 
     @classmethod
-    def load(cls, config_path: Optional[str] = None) -> "FridayConfig":
+    def load(cls, config_path: str | None = None) -> "FridayConfig":
         """Load configuration, applying environment overrides if present."""
         if not config_path:
             # Default to the default.yaml next to this file, or similar

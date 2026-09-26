@@ -1,6 +1,5 @@
-import pytest
 from friday.agent.planner import Planner
-from friday.agent.task import Task, Step
+from friday.agent.task import Task
 
 def test_observation_aware_replanning():
     planner = Planner()

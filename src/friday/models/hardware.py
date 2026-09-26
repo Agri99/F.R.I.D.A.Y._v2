@@ -8,12 +8,10 @@ Enhanced with AMD/Intel GPU detection, CPU benchmarking, and performance estimat
 
 from __future__ import annotations
 
-import os
 import platform
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
 
 @dataclass
 class HardwareProfile:
@@ -38,7 +36,7 @@ class HardwareProfile:
     estimated_tts_speed: float = 0.0
 
 
-def _detect_nvidia() -> tuple[Optional[str], Optional[str], Optional[float], bool]:
+def _detect_nvidia() -> tuple[str | None, str | None, float | None, bool]:
     """Detect NVIDIA GPU and VRAM."""
     try:
         res = subprocess.run(
@@ -55,7 +53,7 @@ def _detect_nvidia() -> tuple[Optional[str], Optional[str], Optional[float], boo
     return None, None, None, False
 
 
-def _detect_amd() -> tuple[Optional[str], Optional[str], Optional[float], bool]:
+def _detect_amd() -> tuple[str | None, str | None, float | None, bool]:
     """Detect AMD GPU via rocm-smi."""
     try:
         res = subprocess.run(
@@ -72,7 +70,7 @@ def _detect_amd() -> tuple[Optional[str], Optional[str], Optional[float], bool]:
                 elif "VRAM" in line or "vram" in line:
                     try:
                         vram = float(line.split(":")[-1].strip().split()[0]) / 1024.0  # MB to GB
-                    except:
+                    except Exception:
                         pass
             return "amd", name, vram, True
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -120,7 +118,7 @@ def _estimate_cpu_inference_speed(cpu_cores: int, cpu_model: str) -> dict[str, f
     }
 
 
-def _estimate_vision_speed(vram_gb: Optional[float], cuda: bool, rocm: bool) -> float:
+def _estimate_vision_speed(vram_gb: float | None, cuda: bool, rocm: bool) -> float:
     """Estimate vision model speed (images/sec)."""
     if vram_gb is None:
         return 0.1  # CPU only - very slow
@@ -133,14 +131,14 @@ def _estimate_vision_speed(vram_gb: Optional[float], cuda: bool, rocm: bool) -> 
     return 0.5
 
 
-def _estimate_stt_speed(cpu_cores: int, vram_gb: Optional[float]) -> float:
+def _estimate_stt_speed(cpu_cores: int, vram_gb: float | None) -> float:
     """Estimate STT speed (realtime factor)."""
     if vram_gb and vram_gb >= 4:
         return 4.0  # GPU accelerated
     return cpu_cores * 0.3  # CPU only
 
 
-def _estimate_tts_speed(cpu_cores: int, vram_gb: Optional[float]) -> float:
+def _estimate_tts_speed(cpu_cores: int, vram_gb: float | None) -> float:
     """Estimate TTS speed (realtime factor)."""
     if vram_gb and vram_gb >= 4:
         return 3.0  # GPU accelerated
@@ -298,14 +296,14 @@ def recommend_models_for_tier(tier: str) -> dict[str, str]:
 
 def print_hardware_summary(hw: HardwareProfile) -> None:
     """Print a human-readable hardware summary."""
-    print(f"\n=== Hardware Profile ===")
+    print("\n=== Hardware Profile ===")
     print(f"CPU: {hw.cpu_model} ({hw.cpu_cores}C/{hw.cpu_logical_cores}T)")
     print(f"RAM: {hw.ram_gb:.1f} GB")
     print(f"GPU: {hw.gpu_vendor or 'None'} - {hw.gpu_name or 'None'} (VRAM: {hw.vram_gb:.1f} GB)" if hw.vram_gb else f"GPU: {hw.gpu_vendor or 'None'}")
     print(f"CUDA: {hw.cuda_available}, ROCm: {hw.rocm_available}, Intel GPU: {hw.intel_gpu}")
     print(f"Storage: {hw.storage_free_gb:.1f} GB free")
     print(f"Tier: {hw.capability_tier}")
-    print(f"\nEstimated Inference Speed (tok/s):")
+    print("\nEstimated Inference Speed (tok/s):")
     for model, speed in hw.estimated_inference_speed.items():
         print(f"  {model}: {speed:.1f} tok/s")
     print(f"Vision: {hw.estimated_vision_speed:.1f} img/s")

@@ -6,9 +6,8 @@ Tests for true LLM-to-TTS streaming (Runbook §10 — Phase V6).
 
 from __future__ import annotations
 
-import time
 from typing import Iterator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -16,8 +15,6 @@ import pytest
 from friday.models.base import ModelDelta
 from friday.interaction.llm_streaming import (
     LlmStreamToTts,
-    StreamingConfig,
-    StreamingMetrics,
     stream_llm_to_tts,
     AccumulatingAdapter,
 )

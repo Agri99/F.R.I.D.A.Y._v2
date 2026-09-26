@@ -13,13 +13,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from .accessibility import AccessibilityProvider, UIElement
-from .screen import (grab_screen_bytes, save_screenshot, ScreenObserver, Observation,
-                     compute_screen_hash, compare_screens)
+from .screen import (grab_screen_bytes, save_screenshot, ScreenObserver, compute_screen_hash, compare_screens)
 from .windows import WindowInfo, WindowManager
-from .target_resolver import TargetResolver, ResolvedTarget, ResolutionMethod
+from .target_resolver import TargetResolver, ResolvedTarget
 from . import mouse
 from . import keyboard
 
@@ -37,6 +36,9 @@ class ControllerObservation:
     dialog_detected: bool = False
     popup_detected: bool = False
     error_state_detected: bool = False
+
+
+Observation = ControllerObservation
 
 
 @dataclass

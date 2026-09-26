@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 from unittest.mock import MagicMock, patch
-import pytest
 
 from friday.models.base import ModelMessage, ModelResponse
 from friday.models.gemini_backend import GeminiProvider

@@ -62,15 +62,6 @@ class SkillCandidate:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    @property
-    def success_rate(self) -> float:
-        if self.attempts == 0:
-            return 0.0
-        return self.successes / self.attempts
-
-    def record_regression(self, regression_data: dict) -> None:
-        self.regression_history.append(regression_data)
-
     def to_markdown(self) -> str:
         """Render skill candidate into valid SKILL.md format."""
         triggers_str = "\n".join(f"- \"{t}\"" for t in self.triggers)

@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import re
 import urllib.parse
-import webbrowser
 from dataclasses import dataclass
 
 import requests

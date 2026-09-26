@@ -23,11 +23,9 @@ from friday.computer.verification import (
     ApplicationStateVerifier,
     ControlVerifier,
     FileContentVerifier,
-    ProcessVerifier,
     TextEntryExpected,
     TextEntryVerifier,
     URLVerifier,
-    VerificationResult,
     WindowVerifier,
 )
 

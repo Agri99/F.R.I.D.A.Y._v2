@@ -22,7 +22,7 @@ from friday.agent.executor import ExecutionResult
 
 
 def _result(**kwargs):
-    defaults = dict(observation="", error=None, verification_passed=True, result=None)
+    defaults = {"observation": "", "error": None, "verification_passed": True, "result": None}
     defaults.update(kwargs)
     return ExecutionResult(**defaults)
 

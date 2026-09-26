@@ -16,10 +16,8 @@ These tests verify the integrated behavior works, not just that classes exist.
 
 from __future__ import annotations
 
-import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Callable
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -225,7 +223,6 @@ class TestBargeIn:
 
     def test_stop_interrupts_speech(self, mock_voice_pipeline):
         """Test that 'stop' interrupts TTS."""
-        from friday.interaction.interruption import InterruptionManager
 
         im = mock_voice_pipeline.interruption
 
@@ -244,7 +241,7 @@ class TestBargeIn:
 
     def test_wait_interrupts_speech(self, mock_voice_pipeline):
         """Test that 'wait' interrupts TTS."""
-        from friday.interaction.turn_detector import TurnDetector, TurnAction
+        from friday.interaction.turn_detector import TurnAction
 
         detector = mock_voice_pipeline.turn_detector
         detector.set_system_speaking(True)
@@ -260,7 +257,7 @@ class TestBargeIn:
 
     def test_change_request_interrupts(self, mock_voice_pipeline):
         """Test that 'actually...' triggers interruption."""
-        from friday.interaction.turn_detector import TurnDetector, TurnAction
+        from friday.interaction.turn_detector import TurnAction
 
         detector = mock_voice_pipeline.turn_detector
         detector.set_system_speaking(True)
@@ -352,7 +349,6 @@ class TestIntegration:
 
     def test_voice_to_computer_action(self, mock_voice_pipeline, mock_agent):
         """Test voice command triggers computer action."""
-        from friday.interaction.session import VoiceSession, SessionState
 
         # Mock computer controller
         computer_controller = MagicMock()
@@ -426,7 +422,6 @@ class TestGenerationSafety:
 
     def test_stale_transcript_rejected(self, mock_voice_pipeline):
         """Test that stale transcripts are rejected after barge-in."""
-        from friday.interaction.interruption import InterruptionManager
 
         im = mock_voice_pipeline.interruption
         captured_gen = im.generation()

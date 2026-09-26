@@ -7,10 +7,8 @@ E2E evaluation test for multi-step plan with replan on observation change.
 
 from __future__ import annotations
 
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from friday.agent.task import Task, Step
 from friday.agent.planner import Planner
@@ -33,7 +31,7 @@ class TestE2EMultistepReplan:
 
     def test_observation_triggers_replan(self):
         """When observation doesn't match expected, replan should be invoked."""
-        from friday.agent.evaluator import Evaluator, EvaluationResult
+        from friday.agent.evaluator import Evaluator
         from friday.agent.executor import ExecutionResult
 
         evaluator = Evaluator()

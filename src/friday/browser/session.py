@@ -19,10 +19,10 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
-    from playwright.async_api import BrowserContext, Browser, async_playwright
+    from playwright.async_api import BrowserContext, Browser
 except ImportError:
     BrowserContext = Any  # type: ignore
     Browser = Any  # type: ignore
@@ -61,7 +61,6 @@ class BrowserSession:
 
     async def launch(self) -> None:
         """Launch the isolated browser context."""
-        import asyncio
         from playwright.async_api import async_playwright
 
         if self._context is not None:

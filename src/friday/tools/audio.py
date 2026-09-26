@@ -2,7 +2,7 @@ from __future__ import annotations
 import comtypes
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-from .registry import Tool
+from .registry import Tool, VerificationResult
 from .metadata import build_schema
 
 def _get_volume_interface():

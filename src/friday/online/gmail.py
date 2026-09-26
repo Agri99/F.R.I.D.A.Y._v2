@@ -28,15 +28,11 @@ The confirmation hash must bind to those exact values.
 from __future__ import annotations
 
 import base64
-import json
 import os
 import pickle
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Optional
 
-import requests
 
 try:
     from google.auth.transport.requests import Request

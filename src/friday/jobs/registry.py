@@ -15,7 +15,7 @@ from datetime import time as dt_time
 
 from friday.jobs.scheduler import (
     Job, JobBudget, ExecutionWindow,
-    TriggerType, FailurePolicy, NotificationPolicy, VerificationType
+    FailurePolicy, NotificationPolicy, VerificationType
 )
 
 logger = logging.getLogger(__name__)

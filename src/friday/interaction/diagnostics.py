@@ -29,8 +29,7 @@ from __future__ import annotations
 import os
 import time
 import numpy as np
-from typing import Any, Callable, Optional
-from pathlib import Path
+from typing import Any, Callable
 
 # Voice state tracking
 class VoiceDiagnosticState:
@@ -122,7 +121,7 @@ class VoiceDiagnostics:
             peak = np.max(np.abs(audio))
             duration_actual = len(audio) / sample_rate
 
-            self.state.add_result("microphone", True, f"Microphone test passed", {
+            self.state.add_result("microphone", True, "Microphone test passed", {
                 "duration": duration_actual,
                 "rms": float(rms),
                 "peak": int(peak),
@@ -184,7 +183,7 @@ class VoiceDiagnostics:
 
     def test_full_voice(self, stt: Any, tts: Any, agent: Callable, test_file: str = "data/test_voice.wav") -> bool:
         """Test 5: Full voice - microphone --> record --> STT --> agent --> TTS --> speaker."""
-        print(f"[DIAGNOSTICS] Test 5: Full voice E2E test")
+        print("[DIAGNOSTICS] Test 5: Full voice E2E test")
         try:
             # Test 5a: Record audio
             print("  [5a] Recording audio...")
