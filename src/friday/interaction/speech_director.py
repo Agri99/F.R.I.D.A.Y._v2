@@ -79,27 +79,27 @@ class SpeechDirector:
 
         # Rule order matters - more specific rules first
 
-        # Empathy after frustration/failure
-        if ctx.task_status == "FAILED" or any(kw in text_lower for kw in ["sorry", "apologize", "unfortunately"]):
+        # 1. Empathy after frustration, failure, or apology
+        if ctx.task_status == "FAILED" or any(kw in text_lower for kw in ["sorry", "apologize", "apologies", "unfortunately", "afraid not", "pardon"]):
             tags = ()
             if self.allow_vocal_effects and "sigh" in self._allowed_tags:
                 tags = ("sigh",)
             return SpeechDecision(emotion="empathetic", intensity=0.4, delivery="soft", tags=tags)
 
-        # Critical/error/blocked action -> serious/restrained, no playful tags
+        # 2. Critical/error/blocked action -> serious/restrained, no playful tags
         if ctx.task_status in ("ERROR", "BLOCKED") or any(kw in text_lower for kw in ["error", "failed", "cannot", "unable", "blocked", "critical", "denied"]):
             return SpeechDecision(emotion="serious", intensity=0.6, delivery="restrained", tags=())
 
-        # Confirmation prompt -> calm/clear, no effects
+        # 3. Confirmation prompt -> calm/clear, no effects
         if ctx.awaiting_confirmation or any(kw in text_lower for kw in ["confirm", "are you sure", "proceed?"]):
             return SpeechDecision(emotion="calm", intensity=0.5, delivery="clear", tags=())
 
-        # Goodbye/shutdown -> calm/warm
-        if any(kw in text_lower for kw in ["goodbye", "shutting down", "bye", "farewell"]):
+        # 4. Goodbye/shutdown -> calm/warm
+        if any(kw in text_lower for kw in ["goodbye", "shutting down", "bye", "farewell", "powering down"]):
             return SpeechDecision(emotion="calm", intensity=0.4, delivery="warm", tags=())
 
-        # Surprise/sudden discovery
-        if any(kw in text_lower for kw in ["wow", "amazing", "incredible", "unexpected", "surprise"]):
+        # 5. Surprise/sudden discovery / interesting findings
+        if any(kw in text_lower for kw in ["wow", "amazing", "incredible", "unexpected", "surprise", "look at that", "interestingly"]):
             tags = ()
             if self.allow_vocal_effects and "gasp" in self._allowed_tags:
                 tags = ("gasp",)
@@ -107,18 +107,54 @@ class SpeechDirector:
                 tags = ("surprised",)
             return SpeechDecision(emotion="surprised", intensity=0.7, delivery="expressive", tags=tags)
 
-        # User reports success / FRIDAY confirms success
-        if ctx.task_status == "COMPLETED" or any(kw in text_lower for kw in ["completed", "finished", "done", "success", "works"]):
+        # 6. Friendly greetings & boot readiness
+        if any(kw in text_lower for kw in ["good morning", "good afternoon", "good evening", "online and ready", "at your service", "systems online", "welcome back", "hello boss", "hi boss"]):
             tags = ()
             if self.allow_experimental_emotion_tags and "happy" in self._allowed_tags:
                 tags = ("happy",)
-            return SpeechDecision(emotion="positive", intensity=0.6, delivery="confident", tags=tags)
+            elif self.allow_vocal_effects and "chuckle" in self._allowed_tags:
+                tags = ("chuckle",)
+            return SpeechDecision(emotion="warm", intensity=0.6, delivery="cheerful", tags=tags)
 
-        # Lightly amusing / playful (never in failure or error states)
-        if ctx.task_status not in ("FAILED", "ERROR", "BLOCKED") and any(kw in text_lower for kw in ["haha", "hehe", "lol", "funny", "amusing"]):
+        # 7. Willing / enthusiastic agreement & affirmation
+        if any(kw in text_lower for kw in ["sure thing", "certainly", "absolutely", "happy to", "right away", "of course", "on it", "you got it", "no problem"]):
             tags = ()
             if self.allow_vocal_effects and "chuckle" in self._allowed_tags:
                 tags = ("chuckle",)
+            elif self.allow_experimental_emotion_tags and "happy" in self._allowed_tags:
+                tags = ("happy",)
+            return SpeechDecision(emotion="positive", intensity=0.6, delivery="upbeat", tags=tags)
+
+        # 8. Operational success / good status / completion
+        if ctx.task_status == "COMPLETED" or any(kw in text_lower for kw in ["completed", "finished", "all set", "done", "success", "running nicely", "up and running", "fully accessible", "fully operational"]):
+            tags = ()
+            if self.allow_experimental_emotion_tags and "happy" in self._allowed_tags:
+                tags = ("happy",)
+            elif self.allow_vocal_effects and "sigh" in self._allowed_tags:
+                tags = ("sigh",)
+            return SpeechDecision(emotion="satisfied", intensity=0.6, delivery="confident", tags=tags)
+
+        # 9. Inquisitive / checking in
+        if any(kw in text_lower for kw in ["what's on your mind", "what did you have in mind", "anything you need", "how can i help", "what are we working on"]):
+            tags = ()
+            if self.allow_vocal_effects and "chuckle" in self._allowed_tags:
+                tags = ("chuckle",)
+            return SpeechDecision(emotion="inquisitive", intensity=0.5, delivery="engaging", tags=tags)
+
+        # 10. Thinking / pondering / checking
+        if any(kw in text_lower for kw in ["let's see", "let me check", "looking into", "checking now", "hmm", "hmmm"]):
+            tags = ()
+            if self.allow_vocal_effects and "clear throat" in self._allowed_tags:
+                tags = ("clear throat",)
+            return SpeechDecision(emotion="thoughtful", intensity=0.4, delivery="measured", tags=tags)
+
+        # 11. Lightly amusing / playful (never in failure or error states)
+        if ctx.task_status not in ("FAILED", "ERROR", "BLOCKED") and any(kw in text_lower for kw in ["haha", "hehe", "lol", "funny", "amusing", "joke"]):
+            tags = ()
+            if self.allow_vocal_effects and "chuckle" in self._allowed_tags:
+                tags = ("chuckle",)
+            elif self.allow_vocal_effects and "laugh" in self._allowed_tags:
+                tags = ("laugh",)
             return SpeechDecision(emotion="amused", intensity=0.5, delivery="playful", tags=tags)
 
         # Default: ordinary factual response
@@ -153,7 +189,10 @@ class SpeechDirector:
 
         # Inject tags at the beginning of the text (Chatterbox expects prefix tags)
         tag_prefix = " ".join(f"[{t}]" for t in tags_to_inject)
-        return f"{tag_prefix} {clean_text}"
+        rendered = f"{tag_prefix} {clean_text}"
+        if self.log_decisions:
+            print(f"FRIDAY [Speech Director]: {decision.emotion.upper()} {list(tags_to_inject)} -> \"{rendered[:50]}...\"")
+        return rendered
 
     def __call__(self, text: str, context: SpeechContext | None = None) -> str:
         """Convenience: render text directly."""

@@ -38,6 +38,7 @@ voice:
   audio_prompt_path: "models/voice_reference.wav"
   exaggeration: 0.5
   barge_in: true
+  bargein_min_frames: 3      # consecutive speech frames needed before interrupting (~64ms each)
   followup_window_seconds: 10.0
   event_driven: true
   vad_threshold: 50.0
@@ -46,8 +47,8 @@ voice:
     mode: "rules"
     max_tags_per_sentence: 1
     allow_vocal_effects: true
-    allow_experimental_emotion_tags: false
-    log_decisions: false
+    allow_experimental_emotion_tags: true
+    log_decisions: true
 
 search:
   enabled: true

@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+# Disable all tqdm progress bars across chatterbox and dependencies
+os.environ["TQDM_DISABLE"] = "1"
 
 import numpy as np
 import sounddevice as sd
@@ -186,9 +190,26 @@ class ChatterboxTurboSynthesizer:
                         ChatterboxTurboTTS._friday_orig_prepare_conditionals = ChatterboxTurboTTS.prepare_conditionals
 
                         def safe_prepare_conditionals(model_self, wav_fpath, exaggeration=0.5, norm_loudness=True):
+                            import hashlib
+                            from chatterbox.tts_turbo import Conditionals
+
+                            # Check for cached conditionals on disk to avoid 3-5s librosa resample/embed on boot
+                            cache_dir = Path("data/cache")
+                            cache_dir.mkdir(parents=True, exist_ok=True)
+                            p = Path(wav_fpath)
+                            h = hashlib.md5(p.read_bytes()).hexdigest()[:10] if p.exists() else "default"
+                            cache_file = cache_dir / f"voice_conds_{h}_{exaggeration:.2f}.pt"
+
+                            if cache_file.exists():
+                                try:
+                                    model_self.conds = Conditionals.load(str(cache_file), map_location=model_self.device)
+                                    return
+                                except Exception:  # noqa: BLE001
+                                    pass
+
                             import librosa
                             import math
-                            from chatterbox.tts_turbo import S3GEN_SR, S3_SR, T3Cond, Conditionals
+                            from chatterbox.tts_turbo import S3GEN_SR, S3_SR, T3Cond
                             s3gen_ref_wav, _sr = librosa.load(wav_fpath, sr=S3GEN_SR)
                             s3gen_ref_wav = s3gen_ref_wav.astype(np.float32)
                             duration = len(s3gen_ref_wav) / _sr
@@ -213,8 +234,32 @@ class ChatterboxTurboSynthesizer:
                             ).to(device=model_self.device)
                             model_self.conds = Conditionals(t3_cond, s3gen_ref_dict)
 
+                            # Save to disk cache for instantaneous loading on future boots
+                            try:
+                                model_self.conds.save(cache_file)
+                            except Exception:  # noqa: BLE001
+                                pass
+
                         ChatterboxTurboTTS.prepare_conditionals = safe_prepare_conditionals
 
+                    # Silence flow_matching print if present
+                    try:
+                        import chatterbox.models.s3gen.flow_matching as fm
+                        orig_basic = getattr(fm.CFM, "basic_euler", None)
+                        if orig_basic is not None and getattr(fm.CFM, "_friday_silent", False) is False:
+                            def silent_basic_euler(cfm_self, x, t_span, mu, mask, spks, cond):
+                                in_dtype = x.dtype
+                                x, t_span, mu, mask, spks, cond = fm.cast_all(x, t_span, mu, mask, spks, cond, dtype=cfm_self.estimator.dtype)
+                                for t, r in zip(t_span[..., :-1], t_span[..., 1:], strict=False):
+                                    t, r = t[None], r[None]
+                                    dxdt = cfm_self.estimator.forward(x, mask=mask, mu=mu, t=t, spks=spks, cond=cond, r=r)
+                                    dt = r - t
+                                    x = x + dt * dxdt
+                                return x.to(in_dtype)
+                            fm.CFM.basic_euler = silent_basic_euler
+                            fm.CFM._friday_silent = True
+                    except Exception:  # noqa: BLE001
+                        pass
 
                     # 1. Custom model path if specified or detected
                     chosen_local = None
@@ -245,11 +290,15 @@ class ChatterboxTurboSynthesizer:
         prompt_path = str(self.audio_prompt_path) if (self.audio_prompt_path and Path(self.audio_prompt_path).exists()) else None
         # If conditionals have already been prepared/cached in the model, pass None to avoid recomputing every turn
         prompt_to_pass = None if getattr(self.model, "conds", None) is not None else prompt_path
-        wav_tensor = self.model.generate(
-            cleaned,
-            audio_prompt_path=prompt_to_pass,
-            exaggeration=self.exaggeration,
-        )
+
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            wav_tensor = self.model.generate(
+                cleaned,
+                audio_prompt_path=prompt_to_pass,
+                exaggeration=self.exaggeration,
+            )
         wav = wav_tensor.squeeze().detach().cpu().numpy().astype(np.float32)
         # Gentle padding for natural cadence
         padding_start = np.zeros(int(0.06 * self.sample_rate), dtype=np.float32)

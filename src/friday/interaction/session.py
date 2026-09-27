@@ -105,6 +105,7 @@ class VoiceSession:
         announce: Callable[[str], Any] | None = None,
         voice_pipeline: Any | None = None,
         speech_director: Any | None = None,
+        bargein_min_frames: int = 3,
     ) -> None:
         self.stt = stt
         self.tts = tts
@@ -117,6 +118,9 @@ class VoiceSession:
         self.on_state_change = on_state_change
         self.voice_pipeline = voice_pipeline
         self.speech_director = speech_director
+        # Minimum consecutive speech frames before barge-in triggers (noise gate)
+        # Each frame ≈ 64ms at 16kHz/1024-sample blocksize; default 3 ≈ 192ms
+        self.bargein_min_frames = max(1, int(bargein_min_frames))
         self.state = SessionState.IDLE
         self.cancelled = False
         self._turn_generation = 0
@@ -624,6 +628,12 @@ class VoiceSession:
             return False
 
         try:
+            # Minimum sustained speech frames required before treating as barge-in.
+            # Each mic chunk at 16kHz/1024 blocksize ≈ 64ms, so default 3 frames ≈ 192ms.
+            # This suppresses transient noise (clicks, taps, environmental) that
+            # would previously interrupt on the very first energy spike.
+            _speech_frame_count = 0
+
             # Monitor mic for barge-in while playing
             while not playback_done.is_set() and not self._playback_stop.is_set():
                 if interruption.is_stale(captured_generation):
@@ -633,19 +643,25 @@ class VoiceSession:
                         latency.audio_stop_at = time.time()
                     return True
 
-                # Check mic for speech (barge-in)
+                # Check mic for speech (barge-in) with duration gate
                 try:
                     mic_chunk = audio_in.queue.get(timeout=0.02)
                     vad_event = vad.process(mic_chunk.data, mic_chunk.timestamp)
-                    if vad_event.kind == VadEventKind.SPEECH_STARTED:
-                        # Barge-in detected!
-                        stream.stop()
-                        if latency:
-                            latency.interruption_at = time.time()
-                            latency.audio_stop_at = time.time()
-                        interruption.interrupt(reason="user_barge_in")
-                        print("FRIDAY [Voice]: Barge-in detected — stopping playback")
-                        return True
+
+                    if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
+                        _speech_frame_count += 1
+                        if _speech_frame_count >= self.bargein_min_frames:
+                            # Sustained human speech confirmed — interrupt!
+                            stream.stop()
+                            if latency:
+                                latency.interruption_at = time.time()
+                                latency.audio_stop_at = time.time()
+                            interruption.interrupt(reason="user_barge_in")
+                            print("FRIDAY [Voice]: Barge-in detected — stopping playback")
+                            return True
+                    else:
+                        # Non-speech frame resets the streak (transient noise rejected)
+                        _speech_frame_count = 0
                 except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     # No mic data ready — keep playing
                     pass

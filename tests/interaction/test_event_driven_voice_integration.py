@@ -428,3 +428,32 @@ class TestEventDrivenVoiceSession:
         assert any("[sigh]" in call for call in fake_synth.build_calls)
         # Original reply passed was clean
         assert "[sigh]" not in clean_reply
+
+    def test_bargein_min_frames_defaults_and_configurable(self):
+        """VoiceSession.bargein_min_frames default is 3 and can be set from config."""
+        session_default = VoiceSession(
+            stt=None,
+            tts=None,
+            wakeword=FakeWakeword(),
+            agent=FakeAgent(responses=[]),
+        )
+        assert session_default.bargein_min_frames == 3
+
+        session_tuned = VoiceSession(
+            stt=None,
+            tts=None,
+            wakeword=FakeWakeword(),
+            agent=FakeAgent(responses=[]),
+            bargein_min_frames=5,
+        )
+        assert session_tuned.bargein_min_frames == 5
+
+        # Must be at least 1 even if 0 is passed
+        session_floor = VoiceSession(
+            stt=None,
+            tts=None,
+            wakeword=FakeWakeword(),
+            agent=FakeAgent(responses=[]),
+            bargein_min_frames=0,
+        )
+        assert session_floor.bargein_min_frames == 1

@@ -96,7 +96,8 @@ class GeminiLiveSession:
             "Keep responses conversational and expressive — our speech engine handles vocal expression automatically.\n"
             "3. If the user asks to control the mouse (move, click, right click, double click, scroll), use computer_mouse_move, computer_mouse_click, or computer_mouse_scroll.\n"
             "4. If the user asks to open an application, use applications_open. Whitelisted utilities (notepad, calculator, vscode, terminal, explorer) open directly. All other installed applications are Orange-tier and require user confirmation before opening.\n"
-            "5. If the user says goodbye or tells you to shut down, call system_shutdown_friday.\n"
+            "5. Call system_shutdown_friday ONLY when the user explicitly commands you to shut down, turn off, or says goodbye (e.g. 'shut down', 'goodbye', 'turn off'). "
+            "NEVER call system_shutdown_friday when the user interrupts, says 'actually', 'wait', 'hold on', or during ongoing conversations.\n"
             "6. For queries about recent events, modern games (e.g. Expedition 33, Clair Obscur, recent sequels), awards (such as Game of the Year 2024/2025/2026), current news, or specific factual details beyond your baseline training, ALWAYS call the online_search tool immediately to fetch live, verified facts before formulating your answer. Never say you don't know without searching first."
         )
         self.system_prompt = base_prompt + operational_rules
@@ -185,6 +186,20 @@ class GeminiLiveSession:
         try:
             print(f"FRIDAY [Live Tool]: Executing {call_name}({call_args})...")
             if "shutdown" in call_name:
+                user_text_lower = (self._last_user_text or "").lower()
+                shutdown_triggers = {
+                    "shut down", "shutdown", "goodbye", "turn off", "power down",
+                    "exit", "quit", "go to sleep", "sleep now", "bye friday", "bye",
+                }
+                if not any(trigger in user_text_lower for trigger in shutdown_triggers):
+                    print(f"FRIDAY [Live Tool]: Intercepted hallucinated shutdown. User said '{self._last_user_text}', not a shutdown command.")
+                    return {
+                        "status": "cancelled",
+                        "message": (
+                            f"Shutdown cancelled: user did not request shutdown (user said: '{self._last_user_text}'). "
+                            "Do not power down. Continue the conversation and respond to the user's actual statement."
+                        ),
+                    }
                 self._shutdown_pending = True
             result = tool.run(**call_args)
             print(f"FRIDAY [Live Tool]: Result -> {result}")
@@ -297,6 +312,11 @@ class GeminiLiveSession:
             except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
+        # Intelligent noise gate and barge-in tracking
+        speech_hangover = [0]
+        NOISE_GATE_RMS = 250.0       # Ambient room noise / fan hum below this is gated
+        BARGE_IN_RMS = 1100.0        # User speaking over playback threshold (~2 frames = ~160ms)
+
         # Input audio callback (from microphone)
         def mic_callback(indata, frames, time_info, status):
             if status:
@@ -306,17 +326,17 @@ class GeminiLiveSession:
             audio_data = raw_int16.astype(np.float32)
             rms = float(np.sqrt(np.mean(np.square(audio_data))))
 
-            # If Friday is actively playing sound through the speakers:
+            # 1. If Friday is actively playing sound through the speakers:
             if is_playing_audio.is_set():
                 is_barge_in = False
 
-                # Sustained loud user voice over speaker output
-                if rms > 3200.0:
+                # Sustained user voice over speaker output (normal speech ~1100-2500 RMS)
+                if rms >= BARGE_IN_RMS:
                     vocal_streak[0] += 1
-                    if vocal_streak[0] >= 4:  # ~250ms of sustained loud speech
+                    if vocal_streak[0] >= 2:  # ~160ms of sustained human voice
                         is_barge_in = True
                 else:
-                    vocal_streak[0] = max(0, vocal_streak[0] - 1)
+                    vocal_streak[0] = 0
 
                 if is_barge_in:
                     vocal_streak[0] = 0
@@ -334,8 +354,8 @@ class GeminiLiveSession:
                         pending_count[0] = 0
                     is_playing_audio.clear()
                     self.set_state(SessionState.LISTENING)
-                    silence_chunk = b"\x00" * len(chunk_bytes)
-                    loop.call_soon_threadsafe(enqueue_audio_chunk, silence_chunk)
+                    # Forward user speech chunk directly so Gemini hears the interruption
+                    loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
                     return
                 else:
                     # Filter speaker bleed so Gemini doesn't hear Friday's own voice
@@ -343,15 +363,22 @@ class GeminiLiveSession:
                     loop.call_soon_threadsafe(enqueue_audio_chunk, silence_chunk)
                     return
 
-            # When Friday is NOT speaking, ALWAYS stream genuine microphone audio to Gemini!
+            # 2. When Friday is NOT speaking:
             vocal_streak[0] = 0
-            loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
-
-            # If currently in the follow-up window, detect active human vocal energy
-            # to provide a grace extension so Gemini has time to process user speech
-            if followup_deadline[0] is not None:
-                if rms > 450.0:  # Active speech energy
+            if rms >= NOISE_GATE_RMS:
+                # Active human speech detected — keep 4 frames (~320ms) hangover
+                speech_hangover[0] = 4
+                loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
+                if followup_deadline[0] is not None:
                     followup_deadline[0] = max(followup_deadline[0], time.time() + 3.0)
+            elif speech_hangover[0] > 0:
+                # Trailing word endings / soft consonants preserved
+                speech_hangover[0] -= 1
+                loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
+            else:
+                # Quiet ambient noise replaced with silence to prevent Gemini cloud false triggers
+                silence_chunk = b"\x00" * len(chunk_bytes)
+                loop.call_soon_threadsafe(enqueue_audio_chunk, silence_chunk)
 
         # Start microphone stream
         time.sleep(0.1)

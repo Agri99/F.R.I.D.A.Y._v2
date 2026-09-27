@@ -165,20 +165,24 @@ class FridayConfig(BaseModel):
     @classmethod
     def load(cls, config_path: str | None = None) -> "FridayConfig":
         """Load configuration, applying environment overrides if present."""
-        if not config_path:
-            # Default to the default.yaml next to this file, or similar
-            config_path = str(Path(__file__).parent.parent.parent / "config" / "default.yaml")
-        
-        base_path = Path(config_path)
+        default_path = Path(__file__).parent.parent.parent / "config" / "default.yaml"
         config_data = {}
-        if base_path.exists():
-            with open(base_path, "r", encoding="utf-8") as f:
+        if default_path.exists():
+            with open(default_path, "r", encoding="utf-8") as f:
                 config_data = yaml.safe_load(f) or {}
-                
-        # Handle overlays
+
+        # If a specific non-default config was provided, merge it over default
+        if config_path and Path(config_path).resolve() != default_path.resolve():
+            overlay_path = Path(config_path)
+            if overlay_path.exists():
+                with open(overlay_path, "r", encoding="utf-8") as f:
+                    overlay_data = yaml.safe_load(f) or {}
+                    config_data = cls._dict_merge(config_data, overlay_data)
+
+        # Handle FRIDAY_ENV overlays
         env = os.environ.get("FRIDAY_ENV")
         if env:
-            env_path = base_path.parent / f"{env}.yaml"
+            env_path = default_path.parent / f"{env}.yaml"
             if env_path.exists():
                 with open(env_path, "r", encoding="utf-8") as f:
                     env_data = yaml.safe_load(f) or {}

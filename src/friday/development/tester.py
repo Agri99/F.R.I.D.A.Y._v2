@@ -86,7 +86,7 @@ class IsolatedTester:
         try:
             client.images.get(self.docker_image)
             return None
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass  # doesn't exist yet, build it below
 
         import io
@@ -162,7 +162,7 @@ class IsolatedTester:
                 result = container.wait(timeout=self.docker_timeout_seconds)
                 returncode = result.get("StatusCode", -1)
                 timed_out = False
-            except Exception:
+            except Exception:  # noqa: BLE001
                 container.kill()
                 returncode = -1
                 timed_out = True
@@ -188,7 +188,7 @@ class IsolatedTester:
             if container is not None:
                 try:
                     container.remove(force=True)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
 
     def _run_cmd(self, cmd: list[str], cwd: Path) -> TestExecutionResult:

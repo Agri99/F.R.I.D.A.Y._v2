@@ -80,12 +80,6 @@ class RmsVoiceActivityDetector:
 
     def process(self, audio_chunk: np.ndarray, timestamp: float) -> VadEvent:
         rms = self._rms(audio_chunk)
-        # Debug: print RMS every 50 frames so user can see their mic level
-        if not hasattr(self, "_debug_counter"):
-            self._debug_counter = 0
-        self._debug_counter += 1
-        if self._debug_counter % 50 == 0:
-            print(f"FRIDAY [VAD]: rms={rms:.1f} threshold={self.rms_threshold}")
         is_speech = rms >= self.rms_threshold
 
         if is_speech:

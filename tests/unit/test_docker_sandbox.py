@@ -32,7 +32,7 @@ def test_docker_mode_actually_calls_docker_sdk_not_subprocess(tmp_path, monkeypa
     """The core bug, proven: with use_docker=True, _run_cmd must reach
     docker.from_env() and containers.run() - not silently fall through to
     subprocess.run() like it used to."""
-    import friday.development.tester as tester_mod
+    import friday.development.tester as tester_mod  # noqa: F401
 
     fake_client = MagicMock()
     fake_client.ping.return_value = True
