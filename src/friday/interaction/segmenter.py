@@ -5,7 +5,7 @@ WHAT THIS IS FOR:
 Sentence/clause segmentation for sentence-level streaming TTS.
 
 Runbook §23 — LLM stream -> text segmenter -> sentence/clause queue ->
-Piper synthesis -> audio playback queue. The segmenter is intentionally
+Chatterbox Turbo synthesis -> audio playback queue. The segmenter is intentionally
 lightweight and deterministic so the first sentence can be synthesized
 before the LLM has finished generating the response.
 """

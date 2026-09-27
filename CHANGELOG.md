@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 - **Orb idle during follow-up.** `FOLLOWUP_LISTENING` state now uses listening color/speed (5x) instead of idle.
 
 ### Added
+- **SearXNG Search Integration.** Self-hosted SearXNG container deployment (`ops/searxng`) replacing direct DuckDuckGo API/Lite scraping as primary web search, while retaining Wikipedia API and Google News RSS as specialized fallbacks.
+- **Rule-Based Speech Director.** Dedicated deterministic `SpeechDirector` (`src/friday/interaction/speech_director.py`) evaluating emotional prosody and injecting validated Chatterbox Turbo vocal tags (`[sigh]`, `[gasp]`, `[chuckle]`) at the TTS boundary across legacy voice, event-driven pipeline, and Gemini Live sessions.
+- **Chatterbox Tag Calibration Harness.** `scripts/test_chatterbox_tags.py` for empirical audio evaluation of verified event tags versus experimental emotion tags.
+- **Unit and Integration Test Suites.** Comprehensive tests in `tests/online/test_search.py`, `tests/interaction/test_speech_director.py`, and `tests/interaction/test_tts_tags.py`.
 - **`learning/benchmark.py`** — `SkillBenchmarkRunner` runs configurable benchmark suites; `AutoPromotionManager` evaluates criteria + benchmark before auto-promotion.
 - **`jobs/triggers.py`** — `TriggerMonitor` watches for idle, network change, resource conditions, startup, idle, network change, resource condition, application event, calendar lead time; triggers registered jobs.
 - **`jobs/triggers.py`** — `TriggerType` enum extended: `STARTUP`, `IDLE`, `NETWORK_CHANGE`, `RESOURCE_CONDITION`, `APPLICATION_EVENT`, `CALENDAR_LEAD_TIME`.

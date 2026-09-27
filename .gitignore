@@ -28,6 +28,8 @@ secrets/
 *.pem
 *.key
 token.json
+ops/searxng/.env
+ops/searxng/valkey/
 
 # ── Audio recordings & references ───────────────────────────────
 audio.wav

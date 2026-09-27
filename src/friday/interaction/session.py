@@ -11,6 +11,7 @@ Live Conversation v1 — True Duplex:
 from __future__ import annotations
 
 import logging
+import queue
 import time
 import threading
 from collections.abc import Callable
@@ -103,6 +104,7 @@ class VoiceSession:
         resume_agent: Callable[[str, str], Any] | None = None,
         announce: Callable[[str], Any] | None = None,
         voice_pipeline: Any | None = None,
+        speech_director: Any | None = None,
     ) -> None:
         self.stt = stt
         self.tts = tts
@@ -114,6 +116,7 @@ class VoiceSession:
         self.controls = controls or {}
         self.on_state_change = on_state_change
         self.voice_pipeline = voice_pipeline
+        self.speech_director = speech_director
         self.state = SessionState.IDLE
         self.cancelled = False
         self._turn_generation = 0
@@ -123,6 +126,8 @@ class VoiceSession:
         self._playback_stop = threading.Event()
         from friday.agent.fastpath import FastPathRouter
         self._fastpath = FastPathRouter()
+        # Store last user transcript for speech context
+        self._last_user_transcript: str = ""
 
     def set_state(self, state: SessionState) -> None:
         self.state = state
@@ -246,6 +251,9 @@ class VoiceSession:
 
                 self.set_state(SessionState.THINKING)
                 print(f"\nUSER: {transcript}")
+
+                # Store transcript for speech context
+                self._last_user_transcript = transcript
 
                 time.time()
                 fastpath_match = getattr(self, "_fastpath", None).match(transcript) if getattr(self, "_fastpath", None) else None
@@ -398,7 +406,7 @@ class VoiceSession:
             # Pull chunks with a short timeout
             try:
                 chunk = audio_in.queue.get(timeout=0.05)
-            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 idle = time.time() - last_chunk_at
                 if turn_detector._turn_started_at is not None and idle > max_idle_seconds:
                     break
@@ -471,6 +479,13 @@ class VoiceSession:
         mic for barge-in. Returns True if interrupted, False if completed.
         """
 
+        # Render text through Speech Director before TTS
+        rendered_text = text
+        if self.speech_director is not None:
+            from friday.interaction.speech_director import SpeechContext
+            context = SpeechContext(user_text=self._last_user_transcript)
+            rendered_text = self.speech_director.render(text, context)
+
         streaming_tts = pipeline.streaming_tts
         interruption = pipeline.interruption
         conversation = pipeline.conversation
@@ -504,11 +519,11 @@ class VoiceSession:
             # If we have a raw string, wrap it in an accumulating adapter to simulate streaming
             from friday.interaction.llm_streaming import LlmStreamToTts, AccumulatingAdapter
             bridge = LlmStreamToTts(streaming_tts, interruption)
-            if isinstance(text, str):
-                stream = AccumulatingAdapter(text)
+            if isinstance(rendered_text, str):
+                stream = AccumulatingAdapter(rendered_text)
             else:
                 # Assume an iterator of ModelDelta already
-                stream = text
+                stream = rendered_text
             # Run the bridge – it will feed StreamingTts and handle cancellation
             bridge.stream(stream, generation_id=captured)
             if interruption.is_stale(captured):
@@ -631,7 +646,7 @@ class VoiceSession:
                         interruption.interrupt(reason="user_barge_in")
                         print("FRIDAY [Voice]: Barge-in detected — stopping playback")
                         return True
-                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     # No mic data ready — keep playing
                     pass
 
@@ -664,14 +679,14 @@ class VoiceSession:
         try:
             while True:
                 audio_in.queue.get(timeout=0.0)
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+        except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         deadline = time.time() + self.followup_window_seconds
         while time.time() < deadline and not self.cancelled:
             try:
                 chunk = audio_in.queue.get(timeout=0.05)
-            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 continue
             vad_event = vad.process(chunk.data, chunk.timestamp)
             if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
@@ -703,7 +718,8 @@ class VoiceSession:
             if not transcript:
                 if self._pending_task_id is not None and last_response:
                     self.set_state(SessionState.SPEAKING)
-                    result = self.tts.speak_interruptible(last_response, self.wakeword, on_interrupt=self.cancel)
+                    rendered = self._render_for_tts(last_response)
+                    result = self.tts.speak_interruptible(rendered, self.wakeword, on_interrupt=self.cancel)
                     if not result.success:
                         logger.error("TTS failed during re-prompt: %s", result.error)
                         self.set_state(SessionState.ERROR)
@@ -713,6 +729,7 @@ class VoiceSession:
                 return last_response
 
             self.set_state(SessionState.THINKING)
+            self._last_user_transcript = transcript
             if self._pending_task_id and self.resume_agent is not None:
                 response = self.resume_agent(self._pending_task_id, transcript)
                 self._pending_task_id = None
@@ -726,8 +743,9 @@ class VoiceSession:
                 self._pending_task_id = getattr(response, "id", None)
 
             self.set_state(SessionState.SPEAKING)
+            rendered = self._render_for_tts(response_text)
             result = self.tts.speak_interruptible(
-                response_text,
+                rendered,
                 self.wakeword,
                 on_interrupt=self.cancel,
             )
@@ -747,6 +765,14 @@ class VoiceSession:
             self.set_state(SessionState.FOLLOWUP_LISTENING)
             current_path = self.stt.listen_for_followup(timeout_seconds=self.followup_window_seconds)
         return last_response
+
+    def _render_for_tts(self, text: str) -> str:
+        """Render text through Speech Director if available."""
+        if self.speech_director is not None:
+            from friday.interaction.speech_director import SpeechContext
+            context = SpeechContext(user_text=self._last_user_transcript)
+            return self.speech_director.render(text, context)
+        return text
 
     # ------------------------------------------------------------------
     # Shared helpers

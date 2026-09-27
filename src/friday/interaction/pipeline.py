@@ -3,7 +3,7 @@ src/friday/interaction/pipeline.py
 
 WHAT THIS IS FOR:
 Glue object that holds the event-driven voice pipeline components and the
-adapter from the legacy ``SpeechSynthesizer`` (Piper) into the streaming
+adapter from the legacy ``SpeechSynthesizer`` (Chatterbox Turbo) into the streaming
 TTS synth callback.
 
 The default usage:
@@ -60,7 +60,7 @@ class VoicePipeline:
         sink: QueuedAudioSink | None = None,
         transcriber: Any = None,
     ) -> "VoicePipeline":
-        """Build a default pipeline wired to existing Piper speech synthesis
+        """Build a default pipeline wired to existing Chatterbox Turbo speech synthesis
         and a faster-whisper ``SpeechRecognizer``:
 
             pipeline = VoicePipeline.from_speech_synthesizer(

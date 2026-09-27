@@ -36,9 +36,10 @@ Outputs PASS, WARN, or FAIL with remediation advice.
 from __future__ import annotations
 
 import argparse
-import sys
+import importlib.util
 import shutil
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -102,33 +103,28 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
 
     # 5. Wake word
     def c_wakeword():
-        try:
-            import openwakeword
+        if importlib.util.find_spec("openwakeword") is not None:
             return True, "openWakeWord library installed"
-        except ImportError:
-            return False, "openwakeword package missing"
+        return False, "openwakeword package missing"
     checks.append(("Wake Word Engine", c_wakeword))
 
     # 6. STT
     def c_stt():
-        try:
-            import faster_whisper
+        if importlib.util.find_spec("faster_whisper") is not None:
             return True, "faster-whisper available"
-        except ImportError:
-            return False, "faster-whisper package missing"
+        return False, "faster-whisper package missing"
     checks.append(("STT Engine", c_stt))
 
     # 7. TTS
     def c_tts():
-        try:
-            import chatterbox
-            import torch
-            dev = "CUDA" if torch.cuda.is_available() else "CPU"
-            return True, f"Chatterbox Turbo available (device: {dev})"
-        except ImportError:
-            return False, "chatterbox-tts package missing (pip install chatterbox-tts)"
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
-            return False, f"TTS check failed: {e}"
+        if importlib.util.find_spec("chatterbox") is not None:
+            try:
+                import torch
+                dev = "CUDA" if torch.cuda.is_available() else "CPU"
+                return True, f"Chatterbox Turbo available (device: {dev})"
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
+                return False, f"TTS check failed: {e}"
+        return False, "chatterbox-tts package missing (pip install chatterbox-tts)"
     checks.append(("TTS Engine (Chatterbox Turbo)", c_tts))
 
     # 8. LLM Provider
@@ -150,11 +146,9 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
 
     # 10. Playwright
     def c_browser():
-        try:
-            import playwright
+        if importlib.util.find_spec("playwright") is not None:
             return True, "Playwright library installed"
-        except ImportError:
-            return False, "playwright package not installed"
+        return False, "playwright package not installed"
     checks.append(("Browser Automation", c_browser))
 
     # 11. Memory DB
@@ -218,11 +212,9 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             if model_path.exists():
                 return True, f"Wake word model found at {model_path}"
             # Check for openwakeword default models
-            try:
-                import openwakeword
+            if importlib.util.find_spec("openwakeword") is not None:
                 return True, "openwakeword will download models on first use"
-            except ImportError:
-                return False, "Wake word model not found and openwakeword not installed"
+            return False, "Wake word model not found and openwakeword not installed"
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Wake word check failed: {e}"
     results.append(check_item("Wake Word Model", test_wakeword_model))
@@ -230,7 +222,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
     # 3. STT Model
     def test_stt_model():
         try:
-            from friday.interaction.stt import StreamingTranscriber
+            from friday.interaction.stt import StreamingTranscriber  # noqa: F401
             # Don't actually load the model, just verify the class works
             return True, "StreamingTranscriber available (model loads on first use)"
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:

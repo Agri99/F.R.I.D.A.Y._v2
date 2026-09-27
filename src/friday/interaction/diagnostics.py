@@ -8,7 +8,7 @@ Before touching "true live conversation", FRIDAY needs this sequence to work:
 
 Test 1 -- Speaker
     hard-coded "Hello, I am FRIDAY."
-        --> Piper
+        --> Chatterbox Turbo
         --> speaker
 
 Test 2 -- Microphone

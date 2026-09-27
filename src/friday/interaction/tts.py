@@ -16,19 +16,22 @@ from friday.interaction.stt import VoiceState
 
 logger = logging.getLogger(__name__)
 
-# Full list of emotion delivery & vocal sound effect tags supported natively by Chatterbox Turbo:
-# Emotion delivery tags (changes tone, mood, prosody):
-#   [happy], [sarcastic], [whispering], [whisper], [angry], [surprised],
-#   [dramatic], [fear], [crying], [advertisement], [narration]
-# Vocal sound effect tags (real human vocal expressions):
-#   [laugh], [chuckle], [sigh], [gasp], [cough], [groan],
-#   [sniff], [clear throat], [shush], [throat-clearing], [giggle], [pant], [grunt], [snicker]
-CHATTERBOX_TAGS = {
-    "happy", "sarcastic", "whispering", "whisper", "angry", "surprised",
-    "dramatic", "fear", "crying", "advertisement", "narration",
-    "laugh", "chuckle", "sigh", "gasp", "cough", "groan",
-    "sniff", "clear throat", "shush", "throat-clearing", "giggle", "pant", "grunt", "snicker",
+# Verified event tags (vocal sound effects) - confirmed to work on this runtime.
+# The Speech Director, not the LLM, decides which tags to inject at the TTS boundary.
+CHATTERBOX_EVENT_TAGS = {
+    "clear throat", "throat clearing", "throat-clearing", "sigh", "shush", "cough", "groan",
+    "sniff", "gasp", "chuckle", "laugh",
 }
+
+# Experimental emotion-delivery tags - may tokenize without audible effect
+# Enable only after local A/B audio calibration passes (see runbook §9)
+CHATTERBOX_EXPERIMENTAL_EMOTION_TAGS = {
+    "happy", "sarcastic", "whispering", "whisper", "angry",
+    "surprised", "dramatic", "fear", "crying", "advertisement", "narration",
+}
+
+# Combined set for backward compatibility and sanitation
+CHATTERBOX_TAGS = CHATTERBOX_EVENT_TAGS | CHATTERBOX_EXPERIMENTAL_EMOTION_TAGS
 PARALINGUISTIC_TAGS = CHATTERBOX_TAGS
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

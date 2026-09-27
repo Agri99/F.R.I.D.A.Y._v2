@@ -60,6 +60,28 @@ class VoiceConfig(BaseModel):
     followup_window_seconds: float = 10.0
     event_driven: bool = True
     vad_threshold: float = 50.0
+    speech_director: "SpeechDirectorConfig" = Field(default_factory=lambda: SpeechDirectorConfig())
+
+
+class SearchConfig(BaseModel):
+    """Configuration for the self-hosted SearXNG search tier."""
+    enabled: bool = True
+    base_url: str = "http://127.0.0.1:8088"
+    timeout_seconds: float = 6.0
+    max_results: int = 5
+    language: str = "en"
+    safe_search: int = 1
+    specialized_fallbacks: bool = True
+
+
+class SpeechDirectorConfig(BaseModel):
+    """Configuration for the deterministic speech policy layer."""
+    enabled: bool = True
+    mode: str = "rules"
+    max_tags_per_sentence: int = 1
+    allow_vocal_effects: bool = True
+    allow_experimental_emotion_tags: bool = False
+    log_decisions: bool = False
 
 class SecurityConfig(BaseModel):
     default_risk_tier: str = "RED"
@@ -113,6 +135,7 @@ class FridayConfig(BaseModel):
     google: GoogleConfig = Field(default_factory=GoogleConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     gemini_api_key: str | None = None
+    search: SearchConfig = Field(default_factory=SearchConfig)
 
     def ensure_dirs(self) -> None:
         """Create all necessary directories."""
@@ -167,4 +190,9 @@ class FridayConfig(BaseModel):
 Settings = FridayConfig
 ModelRoleConfig = ModelDef
 
-__all__ = ["FridayConfig", "Settings", "AppConfig", "NetworkConfig", "ModelsConfig", "ModelDef", "ModelRoleConfig", "RuntimeConfig", "VoiceConfig", "SecurityConfig", "LearningConfig", "BrowserConfig", "GoogleConfig", "PathsConfig"]
+__all__ = [
+    "FridayConfig", "Settings", "AppConfig", "NetworkConfig", "ModelsConfig",
+    "ModelDef", "ModelRoleConfig", "RuntimeConfig", "VoiceConfig", "SearchConfig",
+    "SpeechDirectorConfig", "SecurityConfig", "LearningConfig", "BrowserConfig",
+    "GoogleConfig", "PathsConfig",
+]

@@ -182,7 +182,7 @@ class AudioCapture:
                 )
                 self._stream.start()
                 return
-            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
+            except Exception as e:  # noqa: BLE001
                 last_error = e
                 self._running = False
                 self._lost_device = True

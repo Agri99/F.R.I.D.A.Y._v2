@@ -158,10 +158,14 @@ def _tone_chunk(samples: int = 320, amplitude: int = 8000) -> AudioChunk:
     return AudioChunk(data=data, timestamp=time.time(), sample_rate=16000)
 
 
-def _build_pipeline(sink: QueuedAudioSink | None = None, **overrides) -> VoicePipeline:
+def _build_pipeline(
+    sink: QueuedAudioSink | None = None,
+    synth: FakeSpeechSynthesizer | None = None,
+    **overrides,
+) -> VoicePipeline:
     """Build a VoicePipeline with FakeTranscriber and a real StreamingTts."""
     sink = sink or QueuedAudioSink()
-    synth = FakeSpeechSynthesizer()
+    synth = synth or FakeSpeechSynthesizer()
     sample_rate = synth.voice.config.sample_rate
 
     def synth_cb(text: str):
@@ -395,3 +399,32 @@ class TestEventDrivenVoiceSession:
             voice_pipeline=None,
         )
         assert session.voice_pipeline is None
+
+    def test_speech_director_renders_tts_while_user_response_unmodified(self):
+        """Verify Speech Director injects tags into TTS transport while response is clean."""
+        from friday.interaction.speech_director import SpeechDirector
+        fake_synth = FakeSpeechSynthesizer()
+        pipeline = _build_pipeline(synth=fake_synth)
+        pipeline.audio_input.start = lambda: None  # type: ignore[assignment]
+        pipeline.audio_input.stop = lambda: None  # type: ignore[assignment]
+
+        director = SpeechDirector(allow_vocal_effects=True)
+        agent = FakeAgent(responses=["I'm sorry, I couldn't find that."])
+        session = VoiceSession(
+            stt=None,
+            tts=None,
+            wakeword=FakeWakeword(),
+            agent=agent,
+            voice_pipeline=pipeline,
+            speech_director=director,
+        )
+
+        clean_reply = "I'm sorry, I couldn't find that."
+        session._last_user_transcript = "search for missing file"
+        session._speak_event_driven(pipeline, clean_reply)
+
+        # TTS transport received the director-rendered tag
+        assert len(fake_synth.build_calls) >= 1
+        assert any("[sigh]" in call for call in fake_synth.build_calls)
+        # Original reply passed was clean
+        assert "[sigh]" not in clean_reply

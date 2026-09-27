@@ -13,7 +13,7 @@ F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs on Wi
 - **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, and local neural voice synthesis.
 - **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) or Google Gemini Cloud (`gemini-3.8-flash`, `gemini-3.5-flash-lite`) with multi-step replanning, fast/deep reasoning preferences, and hardware-aware routing.
 - **Speech Synthesis:** Resemble AI's `Chatterbox Turbo` neural TTS with custom speaker timbre cloning (`models/voice_reference.wav`), fine-tuned LoRA checkpoint support (`models/chatterbox-turbo`), automatic short-clip tiling, and expressive prosody.
-- **Multi-Tier Online Search:** Multi-tiered real-time retrieval combining Wikipedia API (instant authoritative summaries), Google News RSS (current affairs and breaking events), DuckDuckGo Instant Answer API, and fallback search with speech query relaxation.
+- **Multi-Tier Online Search:** Privacy-respecting real-time retrieval combining self-hosted SearXNG (`http://127.0.0.1:8088`) as the primary general web search layer, with Wikipedia API (instant authoritative encyclopedic summaries) and Google News RSS (current affairs and breaking events) as specialized fallbacks.
 - **Computer-Use Subsystem:** Target resolver (UIA -> Automation ID -> DOM -> Visual match -> Coordinates), foreground window validation, verified post-action state checking, safety checks, and native Windows automation.
 - **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server with state-matched speeds and color synchronization.
 - **Self-Improvement:** Trajectory logging, pattern distillation into reusable `SKILL.md` workflows, skill benchmark auto-promotion, and isolated sandbox validation (Docker and subprocess).
@@ -97,7 +97,7 @@ For critical [RED] tier actions (such as file deletions or system changes), FRID
 FRIDAY uses Resemble AI's Chatterbox Turbo for expressive, natural voice output.
 - **Custom Timbre Reference:** Place a clean reference WAV in `models/voice_reference.wav` to clone the target speaker timbre.
 - **Custom Trained Models:** Place fine-tuned LoRA / merged model checkpoints in `models/chatterbox-turbo/`. FRIDAY automatically detects local checkpoints and initializes them on GPU.
-- **Expressive Prosody:** Speech generation is decoupled from the language model, allowing Friday to speak fluently and naturally without requiring raw bracketed tags in the LLM output.
+- **Speech Director Architecture:** Language model outputs remain clean and unpolluted by bracket tags. A dedicated, deterministic Speech Director evaluates conversational and task context (e.g. empathy, amusement, seriousness) and injects validated Chatterbox Turbo vocal tags (`[sigh]`, `[gasp]`, `[chuckle]`) strictly at the private TTS synthesis boundary.
 
 ---
 
@@ -129,6 +129,18 @@ You can say:
 - *"Remember that my default project directory is C:\Dev\MyProject"*
 - *"Remember that my favorite browser is Firefox"*
 These facts are stored in SQLite semantic memory and recalled via Context Priming.
+
+---
+
+### 6. Local SearXNG Search Service
+FRIDAY uses a local, self-hosted SearXNG container for privacy-respecting general web search:
+1. Ensure Docker Desktop is running.
+2. Start the local SearXNG service:
+   ```powershell
+   cd ops/searxng
+   docker compose up -d
+   ```
+3. The instance is accessible at `http://127.0.0.1:8088` with JSON format enabled. Wikipedia and Google News remain active as specialized fallbacks.
 
 ---
 

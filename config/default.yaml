@@ -41,6 +41,22 @@ voice:
   followup_window_seconds: 10.0
   event_driven: true
   vad_threshold: 50.0
+  speech_director:
+    enabled: true
+    mode: "rules"
+    max_tags_per_sentence: 1
+    allow_vocal_effects: true
+    allow_experimental_emotion_tags: false
+    log_decisions: false
+
+search:
+  enabled: true
+  base_url: "http://127.0.0.1:8088"
+  timeout_seconds: 6
+  max_results: 5
+  language: "en"
+  safe_search: 1
+  specialized_fallbacks: true
 
 
 security:

@@ -25,9 +25,9 @@ class OnlineSourceRegistry:
     def __init__(self) -> None:
         self._sources: dict[str, CapabilitySource] = {
             "search": CapabilitySource(
-                name="DuckDuckGo",
-                primary_url="https://html.duckduckgo.com/html/",
-                fallback_strategy="browser_open",
+                name="SearXNG",
+                primary_url="http://127.0.0.1:8088/search",
+                fallback_strategy="wikipedia_then_google_news",
                 requires_auth=False,
             ),
             "weather": CapabilitySource(
@@ -51,4 +51,3 @@ class OnlineSourceRegistry:
     def list_sources(self) -> list[CapabilitySource]:
         """List all registered online capability sources."""
         return list(self._sources.values())
-

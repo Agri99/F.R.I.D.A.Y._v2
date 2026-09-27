@@ -77,8 +77,13 @@ class SkillOptimizer:
 
     def detect_regression(self, current: SkillCandidate, previous: SkillCandidate) -> dict | None:
         """Detect if current version regressed compared to previous version."""
-        current_rate = current.success_rate
-        previous_rate = previous.success_rate
+        current_rate = getattr(current, "success_rate", None)
+        if current_rate is None:
+            current_rate = current.successes / current.attempts if getattr(current, "attempts", 0) > 0 else 0.0
+
+        previous_rate = getattr(previous, "success_rate", None)
+        if previous_rate is None:
+            previous_rate = previous.successes / previous.attempts if getattr(previous, "attempts", 0) > 0 else 0.0
 
         if previous_rate > 0 and current_rate < previous_rate - 0.1:  # 10% drop threshold
             return {

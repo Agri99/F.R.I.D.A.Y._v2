@@ -15,6 +15,7 @@ dependencies = [
     "psutil>=5.9",
     "pillow>=10.0",
     "tzdata>=2024.1",  # IANA timezone database for Windows (ZoneInfo fallback)
+    "docker>=7.0",  # self-development sandbox execution (development/tester.py); was installed manually but never declared
     # ── Model client ──
     "ollama>=0.4.0",
     # ── Audio/Voice ──

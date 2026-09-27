@@ -61,6 +61,7 @@ class GeminiLiveSession:
         tool_registry: Any = None,
         wakeword_listener: Any = None,
         speech_synthesizer: Any = None,
+        speech_director: Any = None,
         followup_timeout: float = 10.0,
         on_state_change: Callable[[SessionState], None] | None = None,
     ) -> None:
@@ -82,6 +83,8 @@ class GeminiLiveSession:
         self.model = model
         self.voice_name = voice_name
         self.speech_synthesizer = speech_synthesizer
+        self.speech_director = speech_director
+        self._last_user_text = ""
 
         base_prompt = system_prompt or "You are FRIDAY, an elite personal AI assistant."
         operational_rules = (
@@ -446,6 +449,7 @@ class GeminiLiveSession:
                                 if getattr(server_content, "input_transcription", None):
                                     text = server_content.input_transcription.text
                                     if text:
+                                        self._last_user_text = text
                                         self._interrupted.clear()
                                         if hasattr(self.speech_synthesizer, "reset_interrupt"):
                                             self.speech_synthesizer.reset_interrupt()
@@ -484,9 +488,15 @@ class GeminiLiveSession:
                                     if sentences:
                                         *ready, sentence_buffer = sentences
                                         for s in ready:
+                                            tts_text = s
+                                            if self.speech_director is not None:
+                                                from friday.interaction.speech_director import SpeechContext
+                                                tts_text = self.speech_director.render(
+                                                    s, SpeechContext(user_text=self._last_user_text)
+                                                )
                                             with tts_lock:
                                                 pending_count[0] += 1
-                                            tts_queue.put(s)
+                                            tts_queue.put(tts_text)
 
                                 # 5. Turn Complete (Gemini finished emitting tokens for this turn)
                                 if getattr(server_content, "turn_complete", False):
@@ -495,9 +505,15 @@ class GeminiLiveSession:
                                     leftover = sentence_buffer.strip()
                                     sentence_buffer = ""
                                     if leftover:
+                                        tts_text = leftover
+                                        if self.speech_director is not None:
+                                            from friday.interaction.speech_director import SpeechContext
+                                            tts_text = self.speech_director.render(
+                                                leftover, SpeechContext(user_text=self._last_user_text)
+                                            )
                                         with tts_lock:
                                             pending_count[0] += 1
-                                        tts_queue.put(leftover)
+                                        tts_queue.put(tts_text)
 
                                     if self._shutdown_pending:
                                         # Allow farewell speech to finish playing completely before closing session

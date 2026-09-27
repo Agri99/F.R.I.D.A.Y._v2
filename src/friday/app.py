@@ -96,6 +96,7 @@ from friday.tools.browser import register_all_tools as register_browser_tools
 from friday.tools.calendar import register_all_tools as register_calendar_tools
 from friday.tools.computer import register_all_tools as register_computer_tools
 from friday.tools.conversation import register_all_tools as register_conversation_tools
+from friday.tools.development import register_all_tools as register_development_tools
 from friday.tools.filesystem import register_all_tools as register_filesystem_tools
 from friday.tools.gmail import register_all_tools as register_gmail_tools
 from friday.tools.online import register_all_tools as register_online_tools
@@ -147,6 +148,7 @@ Rules:
 15. Understand the difference between Time/Clock and Date. If asked for the time, only provide the time. If asked for the date, only provide the date.
 16. If asked to "maximize it", "minimize it", or close the current app, use the computer.control_window tool. If the user asks to "minimize all", "minimize everything", "show desktop", or "minimize all windows", use computer.minimize_all_windows instead.
 17. You HAVE a persistent SQLite-backed memory system. Your conversation history, semantic knowledge, and episodic memory of past tasks are all securely persisted on disk across sessions. Never claim you do not have persistent memory.
+18. You HAVE self-development tools: development.propose_and_validate_upgrade can propose a code change to your own source and validate it in an isolated, disposable git worktree (static review, tests, simulation, benchmarking, optionally inside a Docker sandbox) without ever touching the real codebase. Use development.list_recent_reports to check past validation results. Proposing an upgrade always requires the passphrase.
 
 CURRENT PERSONA STATE:
 {persona}"""
@@ -191,8 +193,9 @@ def build_orchestrator(config_path: str | None = None, brain: str = "qwen") -> A
     register_scheduling_tools(tool_registry)
     register_audio_tools(tool_registry)
     register_terminal_tools(tool_registry)
-    register_online_tools(tool_registry)
+    register_online_tools(tool_registry, settings=settings)
     register_conversation_tools(tool_registry)
+    register_development_tools(tool_registry)
 
     
     owner_p, _ = load_personas()
@@ -255,6 +258,7 @@ def run_voice(brain: str = "qwen") -> None:
     from friday.interaction.tts import SpeechSynthesizer
     from friday.interaction.wakeword import WakeWordListener
     from friday.interaction.pipeline import VoicePipeline
+    from friday.interaction.speech_director import SpeechDirector
     from friday.ui.orb_server import set_state, start_server_in_background
 
     start_server_in_background()
@@ -301,6 +305,17 @@ def run_voice(brain: str = "qwen") -> None:
             exaggeration=exaggeration,
         )
         recognizer = SpeechRecognizer()
+
+        # Speech Director - single shared instance for all voice paths
+        sd_cfg = getattr(v_settings, "speech_director", None)
+        speech_director = SpeechDirector(
+            enabled=getattr(sd_cfg, "enabled", True),
+            mode=getattr(sd_cfg, "mode", "rules"),
+            max_tags_per_sentence=getattr(sd_cfg, "max_tags_per_sentence", 1),
+            allow_vocal_effects=getattr(sd_cfg, "allow_vocal_effects", True),
+            allow_experimental_emotion_tags=getattr(sd_cfg, "allow_experimental_emotion_tags", False),
+            log_decisions=getattr(sd_cfg, "log_decisions", False),
+        )
 
         owner_p, _ = load_personas()
 
@@ -379,11 +394,12 @@ def run_voice(brain: str = "qwen") -> None:
                     tool_registry=orch.tool_registry,
                     wakeword_listener=wakeword,
                     speech_synthesizer=synthesizer,
+                    speech_director=speech_director,
                     followup_timeout=getattr(orch.settings.voice, "followup_window_seconds", 10.0),
                     on_state_change=on_state,
                 )
                 print("FRIDAY [Boot]: Gemini Live Bidirectional Voice Engine active.")
-                
+
                 # --- BOOT GREETING ---
                 time_period = get_time_greeting()
                 boot_msg = f"Good {time_period.lower()}, Boss. Gemini Live systems are online and ready."
@@ -432,6 +448,7 @@ def run_voice(brain: str = "qwen") -> None:
             followup_window_seconds=orch.settings.voice.followup_window_seconds,
             on_state_change=on_state,
             voice_pipeline=voice_pipeline,
+            speech_director=speech_director,
         )
 
         controls = {

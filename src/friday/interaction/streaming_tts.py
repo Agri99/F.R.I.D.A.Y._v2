@@ -8,7 +8,7 @@ Runbook §23:
     LLM stream
         -> text segmenter
         -> sentence/clause queue
-        -> Piper synthesis
+        -> Chatterbox Turbo synthesis
         -> audio playback queue
 
 The wrapper accepts streamed text deltas, accumulates them, and emits
