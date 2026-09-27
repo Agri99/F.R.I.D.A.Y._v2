@@ -305,7 +305,7 @@ class ChatterboxTurboSynthesizer:
         padding_end = np.zeros(int(0.12 * self.sample_rate), dtype=np.float32)
         return np.concatenate([padding_start, wav, padding_end])
 
-    def speak(self, text: str) -> TTSResult:
+    def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
         if self._interrupt_event.is_set():
             return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
         try:
@@ -316,6 +316,18 @@ class ChatterboxTurboSynthesizer:
 
         if len(audio) == 0:
             return TTSResult(success=True, duration_seconds=0.0)
+
+        if save_path:
+            try:
+                import soundfile as sf
+                sf.write(str(save_path), audio, self.sample_rate)
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as save_err:
+                logger.exception("Failed to save audio to %s: %s", save_path, save_err)
+                return TTSResult(success=False, error=str(save_err))
+
+        if not play_audio:
+            duration = len(audio) / self.sample_rate
+            return TTSResult(success=True, interrupted=False, duration_seconds=duration)
 
         if self._interrupt_event.is_set():
             return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
@@ -486,9 +498,9 @@ class SpeechSynthesizer:
         if hasattr(self._active_backend, "set_state_callback"):
             self._active_backend.set_state_callback(callback)
 
-    def speak(self, text: str) -> TTSResult:
+    def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
         try:
-            return self._active_backend.speak(text)
+            return self._active_backend.speak(text, save_path=save_path, play_audio=play_audio)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo speak failed: %s", exc)
             return TTSResult(success=False, error=str(exc))

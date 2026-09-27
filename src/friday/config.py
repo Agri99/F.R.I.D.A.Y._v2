@@ -66,7 +66,7 @@ class VoiceConfig(BaseModel):
 class SearchConfig(BaseModel):
     """Configuration for the self-hosted SearXNG search tier."""
     enabled: bool = True
-    base_url: str = "http://127.0.0.1:8088"
+    base_url: str = "http://127.0.0.1:8080"
     timeout_seconds: float = 6.0
     max_results: int = 5
     language: str = "en"

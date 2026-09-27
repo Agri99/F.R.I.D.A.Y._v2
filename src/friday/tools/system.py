@@ -138,9 +138,9 @@ def _get_time(timezone: str | None = None, **kwargs) -> dict:
         if tz_key in _CITY_TO_IANA:
             timezone = _CITY_TO_IANA[tz_key]
         try:
-            from zoneinfo import ZoneInfo
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
             tzinfo = ZoneInfo(timezone)
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+        except (ZoneInfoNotFoundError, ValueError):
             # ZoneInfo database not available on this system (e.g. Windows without tzdata).
             # First try the raw key as a city name.
             if tz_key in _CITY_TO_UTC_OFFSET:
@@ -338,8 +338,8 @@ def register_all_tools(registry) -> None:
             mem = SemanticMemory(db)
             mem.store_fact(subject="User", predicate="stated", value=fact, source="user_explicit", confidence=1.0)
             return {"status": "ok", "message": "Fact stored successfully."}
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
-            return {"status": "error", "message": str(e)}
+        except Exception as exc:  # noqa: BLE001 - tool handlers must return structured errors
+            return {"status": "error", "message": str(exc)}
 
     registry.register(Tool(
         name="system.remember",

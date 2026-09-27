@@ -26,7 +26,7 @@ class OnlineSourceRegistry:
         self._sources: dict[str, CapabilitySource] = {
             "search": CapabilitySource(
                 name="SearXNG",
-                primary_url="http://127.0.0.1:8088/search",
+                primary_url="http://127.0.0.1:8080/search",
                 fallback_strategy="wikipedia_then_google_news",
                 requires_auth=False,
             ),

@@ -38,13 +38,15 @@ class TestChatterboxTTS(unittest.TestCase):
         cleaned = clean_tts_text(text, preserve_emotion_tags=True)
         self.assertEqual(cleaned, "Open Google Search right now [whisper].")
 
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
     @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
-    def test_chatterbox_synthesizer_build_audio_and_speak(self, mock_from_pretrained):
+    def test_chatterbox_synthesizer_build_audio_and_speak(self, mock_from_pretrained, mock_from_local):
         mock_model = MagicMock()
         mock_model.sr = 24000
         # Return fake 1-second sine wave
         mock_model.generate.return_value = torch.zeros((1, 24000), dtype=torch.float32)
         mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
 
         synth = ChatterboxTurboSynthesizer(device="cuda")
         with patch("sounddevice.play") as mock_play, patch("sounddevice.wait"):
@@ -55,11 +57,13 @@ class TestChatterboxTTS(unittest.TestCase):
             args, kwargs = mock_play.call_args
             self.assertEqual(kwargs["samplerate"], 24000)
 
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
     @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
-    def test_speech_synthesizer_initializes_chatterbox(self, mock_from_pretrained):
+    def test_speech_synthesizer_initializes_chatterbox(self, mock_from_pretrained, mock_from_local):
         mock_model = MagicMock()
         mock_model.sr = 24000
         mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
 
         synth = SpeechSynthesizer(engine="chatterbox_turbo", device="cuda")
         self.assertEqual(synth.engine, "chatterbox_turbo")
@@ -73,11 +77,13 @@ class TestChatterboxTTS(unittest.TestCase):
             self.assertFalse(res.success)
             self.assertEqual(res.error, "Device busy")
 
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
     @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
-    def test_cancel_stops_playback(self, mock_from_pretrained):
+    def test_cancel_stops_playback(self, mock_from_pretrained, mock_from_local):
         mock_model = MagicMock()
         mock_model.sr = 24000
         mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
 
         synth = ChatterboxTurboSynthesizer(device="cuda")
         synth._current_audio = np.zeros(1000, dtype=np.float32)
@@ -87,12 +93,14 @@ class TestChatterboxTTS(unittest.TestCase):
             self.assertEqual(synth.get_state(), VoiceState.IDLE)
             self.assertTrue(synth._interrupt_event.is_set())
 
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
     @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
-    def test_reset_interrupt_allows_subsequent_playback(self, mock_from_pretrained):
+    def test_reset_interrupt_allows_subsequent_playback(self, mock_from_pretrained, mock_from_local):
         mock_model = MagicMock()
         mock_model.sr = 24000
         mock_model.generate.return_value = torch.zeros((1, 24000), dtype=torch.float32)
         mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
 
         synth = ChatterboxTurboSynthesizer(device="cuda")
         synth.cancel()

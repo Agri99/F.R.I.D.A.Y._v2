@@ -40,8 +40,8 @@ def register_all_tools(registry, settings=None) -> None:
     search_cfg = getattr(settings, "search", None) if settings is not None else None
     global scraper
     scraper = WebSearchProvider(
-        base_url=getattr(search_cfg, "base_url", "http://127.0.0.1:8088"),
-        timeout_seconds=getattr(search_cfg, "timeout_seconds", 6.0),
+        base_url=getattr(search_cfg, "base_url", "http://127.0.0.1:8080"),
+        timeout_seconds=float(getattr(search_cfg, "timeout_seconds", 6.0)),
         language=getattr(search_cfg, "language", "en"),
         safe_search=getattr(search_cfg, "safe_search", 1),
         specialized_fallbacks=getattr(search_cfg, "specialized_fallbacks", True),

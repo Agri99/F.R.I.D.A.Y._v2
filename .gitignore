@@ -51,8 +51,9 @@ _stale_delete_me/
 Thumbs.db
 .DS_Store
 
-# ── Pytest ──────────────────────────────────────────────────────
+# ── Testing & Type Checking ─────────────────────────────────────
 .pytest_cache/
+.mypy_cache/
 .coverage
 htmlcov/
 
@@ -74,3 +75,4 @@ models/piper/
 # ── Developing related files ────────────────────────────────────
 FRIDAY_v2_System_Architecture_Blueprint.md
 Update_Log.txt
+CI Fix.txt

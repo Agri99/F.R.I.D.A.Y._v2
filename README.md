@@ -13,7 +13,7 @@ F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs on Wi
 - **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, and local neural voice synthesis.
 - **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) or Google Gemini Cloud (`gemini-3.8-flash`, `gemini-3.5-flash-lite`) with multi-step replanning, fast/deep reasoning preferences, and hardware-aware routing.
 - **Speech Synthesis:** Resemble AI's `Chatterbox Turbo` neural TTS with custom speaker timbre cloning (`models/voice_reference.wav`), fine-tuned LoRA checkpoint support (`models/chatterbox-turbo`), automatic short-clip tiling, and expressive prosody.
-- **Multi-Tier Online Search:** Privacy-respecting real-time retrieval combining self-hosted SearXNG (`http://127.0.0.1:8088`) as the primary general web search layer, with Wikipedia API (instant authoritative encyclopedic summaries) and Google News RSS (current affairs and breaking events) as specialized fallbacks.
+- **Multi-Tier Online Search:** Privacy-respecting real-time retrieval combining self-hosted SearXNG (`http://127.0.0.1:8080`) as the primary general web search layer, with Wikipedia API (instant authoritative encyclopedic summaries) and Google News RSS (current affairs and breaking events) as specialized fallbacks.
 - **Computer-Use Subsystem:** Target resolver (UIA -> Automation ID -> DOM -> Visual match -> Coordinates), foreground window validation, verified post-action state checking, safety checks, and native Windows automation.
 - **Visual Presence:** Constellation 3D holographic orb overlay hosted in PySide6 / Three.js via an isolated WebSocket state server with state-matched speeds and color synchronization.
 - **Self-Improvement:** Trajectory logging, pattern distillation into reusable `SKILL.md` workflows, skill benchmark auto-promotion, and isolated sandbox validation (Docker and subprocess).
@@ -140,7 +140,7 @@ FRIDAY uses a local, self-hosted SearXNG container for privacy-respecting genera
    cd ops/searxng
    docker compose up -d
    ```
-3. The instance is accessible at `http://127.0.0.1:8088` with JSON format enabled. Wikipedia and Google News remain active as specialized fallbacks.
+3. The instance is accessible at `http://127.0.0.1:8080` with JSON format enabled. Wikipedia and Google News remain active as specialized fallbacks.
 
 ---
 
@@ -237,7 +237,7 @@ Connects directly to Google Gemini Live API for low-latency, real-time voice con
 ```powershell
 python -m friday --gemini
 ```
-- FRIDAY boots up and speaks a time-aware greeting (*"Good morning, Boss. Gemini Live systems are online and ready."*).
+- FRIDAY boots up and speaks a natural, varied greeting (e.g. *"All systems operational, Boss. Ready when you are."*).
 - Say **"FRIDAY"** to initiate conversation.
 - Once active, FRIDAY maintains a 10-second post-speech follow-up window, allowing natural back-and-forth dialogue without repeating the wake word.
 - Barge-in interruption allows cutting off speech naturally by speaking over playback.

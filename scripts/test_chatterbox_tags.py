@@ -15,6 +15,10 @@ import argparse
 import logging
 from pathlib import Path
 import sys
+import warnings
+
+# Suppress benign diffusers LoRACompatibleLinear FutureWarning
+warnings.filterwarnings("ignore", category=FutureWarning, module="diffusers")
 
 # Ensure repository root is on PYTHONPATH
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -63,7 +67,7 @@ def run_tag_calibration(
     print(f"\n--- Synthesizing baseline: '{BASELINE_TEXT}' ---")
     baseline_wav = output_dir / "00_baseline.wav"
     try:
-        res = synthesizer.speak(BASELINE_TEXT, save_path=str(baseline_wav))
+        res = synthesizer.speak(BASELINE_TEXT, save_path=str(baseline_wav), play_audio=False)
         if res.success:
             print(f"  [OK] Saved: {baseline_wav}")
         else:
@@ -82,7 +86,7 @@ def run_tag_calibration(
         out_file = output_dir / f"event_{tag.replace(' ', '_')}.wav"
         print(f"Synthesizing [{tag}]...")
         try:
-            res = synthesizer.speak(tagged_text, save_path=str(out_file))
+            res = synthesizer.speak(tagged_text, save_path=str(out_file), play_audio=False)
             if res.success:
                 print(f"  [OK] Saved: {out_file}")
             else:
@@ -100,7 +104,7 @@ def run_tag_calibration(
             out_file = output_dir / f"experimental_{tag}.wav"
             print(f"Synthesizing [{tag}]...")
             try:
-                res = synthesizer.speak(tagged_text, save_path=str(out_file))
+                res = synthesizer.speak(tagged_text, save_path=str(out_file), play_audio=False)
                 if res.success:
                     print(f"  [OK] Saved: {out_file}")
                 else:

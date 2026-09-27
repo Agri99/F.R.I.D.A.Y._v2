@@ -11,6 +11,11 @@ import ctypes
 import time
 
 user32 = ctypes.windll.user32
+try:
+    winmm = ctypes.windll.winmm
+    winmm.timeBeginPeriod(1)
+except Exception:  # noqa: BLE001
+    pass
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -90,7 +95,7 @@ def press(key: str) -> None:
         key_up(key)
 
 
-def type_text(text: str, interval: float = 0.01) -> None:
+def type_text(text: str, interval: float = 0.025) -> None:
     """Type arbitrary unicode text into foreground window."""
     try:
         import pyautogui
@@ -105,9 +110,11 @@ def type_text(text: str, interval: float = 0.01) -> None:
         elif char == "\t":
             press("tab")
         else:
-            # Send character as unicode event
+            # Send character as unicode event with positive key-press duration (10ms)
+            # and interval (25ms) to prevent Windows raw input drop/repeat race conditions
             code = ord(char)
             user32.keybd_event(0, code, KEYEVENTF_UNICODE, 0)
+            time.sleep(0.010)
             user32.keybd_event(0, code, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
         if interval > 0:
             time.sleep(interval)

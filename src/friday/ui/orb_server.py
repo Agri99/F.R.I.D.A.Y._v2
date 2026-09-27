@@ -55,7 +55,7 @@ def set_orb_visibility(visible: bool) -> dict:
     future = asyncio.run_coroutine_threadsafe(_broadcast(message), _loop)
     try:
         future.result(timeout=2)
-    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+    except Exception as exc:  # noqa: BLE001 - catch threadsafe future errors
         return {"status": "error", "message": f"Could not reach the orb: {exc}"}
     if not _clients:
         return {"status": "error", "message": "Orb window is not connected."}

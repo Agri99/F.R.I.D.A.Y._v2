@@ -150,6 +150,7 @@ class TestGeminiLiveSession(unittest.TestCase):
             api_key="fake-key-for-test",
             tool_registry=mock_registry,
         )
+        session._last_user_text = "please shut down"
         self.assertFalse(session._shutdown_pending)
         self.assertFalse(session._stop_requested)
 
@@ -158,6 +159,22 @@ class TestGeminiLiveSession(unittest.TestCase):
         # _stop_requested MUST remain False so farewell speech is not aborted!
         self.assertFalse(session._stop_requested)
         self.assertEqual(res, {"status": "shutdown_initiated"})
+
+    def test_execute_shutdown_intercepts_hallucination(self):
+        mock_registry = MagicMock()
+        mock_tool = MagicMock()
+        mock_tool.run.return_value = {"status": "shutdown_initiated"}
+        mock_registry.get.return_value = mock_tool
+
+        session = GeminiLiveSession(
+            api_key="fake-key-for-test",
+            tool_registry=mock_registry,
+        )
+        session._last_user_text = "what is the weather today?"
+        res = session._execute_local_tool("system_shutdown_friday", {})
+        self.assertFalse(session._shutdown_pending)
+        self.assertEqual(res["status"], "cancelled")
+        mock_tool.run.assert_not_called()
 
 
 if __name__ == "__main__":

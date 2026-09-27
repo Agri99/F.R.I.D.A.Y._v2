@@ -47,12 +47,12 @@ voice:
     mode: "rules"
     max_tags_per_sentence: 1
     allow_vocal_effects: true
-    allow_experimental_emotion_tags: true
+    allow_experimental_emotion_tags: false
     log_decisions: true
 
 search:
   enabled: true
-  base_url: "http://127.0.0.1:8088"
+  base_url: "http://127.0.0.1:8080"
   timeout_seconds: 6
   max_results: 5
   language: "en"

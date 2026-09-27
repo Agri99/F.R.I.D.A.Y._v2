@@ -33,11 +33,11 @@ torchaudio>=2.2.0
 speechbrain>=1.0.0
 
 # ── Windows System & GUI Automation ──
-pywin32>=306; sys_platform == 'win32'
-pywinauto>=0.6.8; sys_platform == 'win32'
+pywin32>=306; platform_system == 'Windows'
+pywinauto>=0.6.8; platform_system == 'Windows'
 pyautogui>=0.9.54
-pycaw>=20240210; sys_platform == 'win32'
-comtypes>=1.4.0; sys_platform == 'win32'
+pycaw>=20240210; platform_system == 'Windows'
+comtypes>=1.4.0; platform_system == 'Windows'
 pytesseract>=0.3.10
 
 # ── Web & Browser Automation ──
@@ -57,3 +57,5 @@ websockets>=12.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=5.0.0
+ruff>=0.4.0
+mypy>=1.10.0

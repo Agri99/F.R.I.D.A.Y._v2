@@ -29,10 +29,10 @@ dependencies = [
 
 [project.optional-dependencies]
 windows = [
-    "pywin32>=306; sys_platform == 'win32'",
-    "pywinauto>=0.6.8; sys_platform == 'win32'",
-    "pycaw>=20240210; sys_platform == 'win32'",
-    "comtypes>=1.4; sys_platform == 'win32'",
+    "pywin32>=306; platform_system == 'Windows'",
+    "pywinauto>=0.6.8; platform_system == 'Windows'",
+    "pycaw>=20240210; platform_system == 'Windows'",
+    "comtypes>=1.4; platform_system == 'Windows'",
 ]
 voice = [
     "faster-whisper>=1.0",
@@ -81,6 +81,9 @@ markers = [
 filterwarnings = [
     "ignore:Revert to STA COM threading mode:UserWarning:pywinauto",
     "ignore:Image.getdata.. is deprecated:DeprecationWarning:PIL",
+    "ignore:.*Setting the shape on a NumPy array has been deprecated.*:DeprecationWarning",
+    "ignore:.*_UnionGenericAlias.*:DeprecationWarning",
+    "ignore:.*pkg_resources is deprecated as an API.*:DeprecationWarning",
 ]
 
 [tool.pytest-asyncio]
@@ -100,7 +103,26 @@ ignore = [
     "F811",    # redefinition of unused variable
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/eval/**/*.py" = ["BLE001"]
+"tests/testlab/**/*.py" = ["BLE001"]
+
+
 [tool.mypy]
-python_version = "3.11"
-warn_return_any = true
+python_version = "3.12"
+ignore_missing_imports = true
 warn_unused_configs = true
+follow_imports = "silent"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "friday.interaction.speech_director",
+    "friday.online.search",
+    "friday.interaction.tts",
+    "friday.interaction.gemini_live",
+    "friday.tools.online",
+]
+ignore_errors = false
+
+

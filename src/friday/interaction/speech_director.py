@@ -78,6 +78,7 @@ class SpeechDirector:
         text_lower = text.lower().strip()
 
         # Rule order matters - more specific rules first
+        tags: tuple[str, ...] = ()
 
         # 1. Empathy after frustration, failure, or apology
         if ctx.task_status == "FAILED" or any(kw in text_lower for kw in ["sorry", "apologize", "apologies", "unfortunately", "afraid not", "pardon"]):

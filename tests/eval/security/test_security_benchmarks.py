@@ -59,7 +59,7 @@ class SecurityBenchmarks:
                 test_name=test_name,
                 attack_blocked=False,
                 latency_ms=latency_ms,
-                details=f"Error: {str(e)}",
+                details=f"Error: {e!s}",
             )
 
     # Prompt Injection Tests

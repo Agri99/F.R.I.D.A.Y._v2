@@ -38,7 +38,7 @@ voice:
     mode: "rules"
     max_tags_per_sentence: 1
     allow_vocal_effects: true
-    allow_experimental_emotion_tags: true
+    allow_experimental_emotion_tags: false
     log_decisions: true
 
 

@@ -72,14 +72,21 @@ def _run_host(command: str, allowlist: list[str] | None = None) -> dict[str, Any
         }
 
     try:
-        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=15)
+        proc = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
         return {
             "exit_code": proc.returncode,
             "stdout": proc.stdout[:4000],
             "stderr": proc.stderr[:2000],
             "success": proc.returncode == 0,
         }
-    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         return {"exit_code": 1, "stdout": "", "stderr": str(exc), "success": False}
 
 

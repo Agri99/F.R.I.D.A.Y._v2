@@ -136,15 +136,12 @@ class BasicComputerUseBenchmarks:
         )
 
     def test_navigate_ui(self) -> BenchmarkResult:
-        """Test UI navigation - Notepad menu bar not accessible via UI Automation, mark as platform limitation."""
-        # Notepad's menu bar isn't accessible via Windows UI Automation (pywinauto)
-        # This is a known platform limitation - the menu bar isn't exposed as UIA elements
-        return BenchmarkResult(
-            test_name="navigate_ui",
-            success=False,
-            latency_ms=0,
-            verification_passed=False,
-            error="Platform limitation: Notepad menu bar not accessible via UI Automation"
+        """Test UI navigation via keyboard shortcut in Notepad."""
+        self._execute("applications.open", {"app_id": "notepad"})
+        time.sleep(1)
+        return self.run_benchmark(
+            "navigate_ui",
+            lambda: self._execute("computer.press", {"key": "alt+f"})
         )
 
     def run_all(self) -> list[BenchmarkResult]:
@@ -202,9 +199,6 @@ class TestBasicComputerUse:
     import pytest
 
     def test_navigate_ui_benchmark(self, benchmark_suite):
-        import pytest
-        pytest.skip("Notepad menu bar not accessible via UI Automation - platform limitation")
-
         result = benchmark_suite.test_navigate_ui()
         assert result.success, f"Failed to navigate UI: {result.error}"
         assert result.latency_ms < 10000, f"Navigate UI too slow: {result.latency_ms}ms"

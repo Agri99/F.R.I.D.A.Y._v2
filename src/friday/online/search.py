@@ -12,6 +12,7 @@ import logging
 import re
 import urllib.parse
 from dataclasses import dataclass
+from typing import Any
 
 import requests
 
@@ -31,8 +32,8 @@ class WebSearchProvider:
     def __init__(
         self,
         api_key: str | None = None,
-        timeout_seconds: int = 6,
-        base_url: str = "http://127.0.0.1:8088",
+        timeout_seconds: float = 6.0,
+        base_url: str = "http://127.0.0.1:8080",
         language: str = "en",
         safe_search: int = 1,
         specialized_fallbacks: bool = True,
@@ -57,7 +58,7 @@ class WebSearchProvider:
 
         try:
             url = f"{self.base_url}/search"
-            params = {
+            params: dict[str, Any] = {
                 "q": query,
                 "format": "json",
                 "language": self.language,
@@ -129,15 +130,16 @@ class WebSearchProvider:
                 if len(results) >= max_results:
                     break
                 try:
+                    wiki_params: dict[str, Any] = {
+                        "action": "query",
+                        "list": "search",
+                        "srsearch": wq,
+                        "format": "json",
+                        "utf8": 1,
+                    }
                     r_wiki = requests.get(
                         "https://en.wikipedia.org/w/api.php",
-                        params={
-                            "action": "query",
-                            "list": "search",
-                            "srsearch": wq,
-                            "format": "json",
-                            "utf8": 1,
-                        },
+                        params=wiki_params,
                         headers=headers,
                         timeout=min(self.timeout_seconds, 4),
                     )
