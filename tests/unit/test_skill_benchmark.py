@@ -89,7 +89,7 @@ def test_benchmark_result_failed_low_verification():
 
 
 def test_skill_benchmark_runner_creates_result():
-    runner = SkillBenchmarkRunner(orchestrator_factory=lambda: FakeOrchestrator())
+    SkillBenchmarkRunner(orchestrator_factory=lambda: FakeOrchestrator())
     # Just test that it runs without error (mocking internals)
     result = BenchmarkResult(
         skill_name="test",

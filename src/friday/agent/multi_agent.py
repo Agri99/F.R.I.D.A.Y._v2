@@ -169,7 +169,7 @@ class MultiAgentCoordinator:
                 output=output,
                 evidence="Executed under shared policy engine",
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return SpecialistResult(
                 role=specialist_role,
                 action=action,

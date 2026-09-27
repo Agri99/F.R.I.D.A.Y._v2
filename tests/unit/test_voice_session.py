@@ -117,7 +117,7 @@ def test_awaiting_auth_resumes_same_task():
     tts = FakeTTS()
     session = VoiceSession(stt, tts, FakeWake(), agent, resume_agent=resume)
 
-    response = session.run_once()
+    session.run_once()
 
     assert session._pending_task_id is None
     assert "Opened notepad" in tts.spoken[-1]

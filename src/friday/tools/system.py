@@ -140,7 +140,7 @@ def _get_time(timezone: str | None = None, **kwargs) -> dict:
         try:
             from zoneinfo import ZoneInfo
             tzinfo = ZoneInfo(timezone)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             # ZoneInfo database not available on this system (e.g. Windows without tzdata).
             # First try the raw key as a city name.
             if tz_key in _CITY_TO_UTC_OFFSET:
@@ -338,7 +338,7 @@ def register_all_tools(registry) -> None:
             mem = SemanticMemory(db)
             mem.store_fact(subject="User", predicate="stated", value=fact, source="user_explicit", confidence=1.0)
             return {"status": "ok", "message": "Fact stored successfully."}
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return {"status": "error", "message": str(e)}
 
     registry.register(Tool(

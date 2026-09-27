@@ -52,7 +52,7 @@ class WebSearchProvider:
         try:
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         # 1. Wikipedia Search API + REST Lead Extract (encyclopedic, lore, entities, games)
@@ -102,13 +102,13 @@ class WebSearchProvider:
                                 extract = r_sum.json().get("extract")
                                 if extract:
                                     snippet = extract
-                        except Exception:
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                             pass
 
                         results.append(SearchResult(title=title, url=page_url, snippet=snippet))
                         if len(results) >= max_results:
                             break
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.debug(f"Wikipedia search failed for '{wq}': {exc}")
 
         # 2. Google News RSS for real-time news, awards, and recent developments
@@ -134,7 +134,7 @@ class WebSearchProvider:
                         results.append(SearchResult(title=title, url=url, snippet=snippet))
                         if len(results) >= max_results:
                             break
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.debug(f"Google News RSS search failed: {exc}")
 
 
@@ -155,7 +155,7 @@ class WebSearchProvider:
                     if abstract and abstract_url and abstract_url not in seen_urls:
                         seen_urls.add(abstract_url)
                         results.append(SearchResult(title=heading, url=abstract_url, snippet=abstract))
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.debug(f"DuckDuckGo API search failed: {exc}")
 
         # 4. DuckDuckGo Lite HTML fallback
@@ -181,7 +181,7 @@ class WebSearchProvider:
                         if clean_title and raw_url and raw_url not in seen_urls:
                             seen_urls.add(raw_url)
                             results.append(SearchResult(title=clean_title, url=raw_url, snippet=clean_snippet))
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.debug(f"DuckDuckGo Lite fallback failed: {exc}")
 
         return results[:max_results]

@@ -35,7 +35,7 @@ class ForegroundVerifier:
     def verify(self, expected: ForegroundExpectation) -> VerificationResult:
         try:
             import win32gui
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"win32gui not available: {e}")
 
         hwnd = win32gui.GetForegroundWindow()
@@ -85,7 +85,7 @@ class ForegroundVerifier:
             import psutil
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             return psutil.Process(pid).name()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return ""
 
 

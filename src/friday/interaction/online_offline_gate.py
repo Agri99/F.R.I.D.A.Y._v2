@@ -130,7 +130,7 @@ class OnlineOfflineGate:
             socket.setdefaulttimeout(self._timeout)
             socket.gethostbyname("api.openai.com")
             status = NetworkStatus(connected=True, last_check=now)
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             status = NetworkStatus(
                 connected=False,
                 last_check=now,

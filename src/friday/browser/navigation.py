@@ -114,7 +114,7 @@ class BrowserNavigator:
                 success=True, url=resp.url, status_code=resp.status_code, title=title,
                 risk_level=risk, policy_approved=policy_approved, requires_approval=requires_approval
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return NavigationResult(success=False, url=url, error=str(exc), risk_level=risk)
 
     def search(self, query: str, engine: str = "google") -> NavigationResult:
@@ -183,5 +183,5 @@ class BrowserNavigator:
                 success=True, url=resp.url, status_code=resp.status_code, title=title,
                 risk_level="ORANGE", policy_approved=True, requires_approval=requires_approval
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return NavigationResult(success=False, url=url, error=str(exc), risk_level="ORANGE")

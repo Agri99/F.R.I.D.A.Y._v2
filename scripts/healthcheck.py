@@ -38,7 +38,7 @@ def check_database() -> tuple[bool, str]:
         tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
         conn.close()
         return True, f"SQLite database accessible. Tables: {', '.join(tables)}"
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return False, f"Database error: {exc}"
 
 
@@ -48,7 +48,7 @@ def check_ollama() -> tuple[bool, str]:
         if r.status_code == 200:
             models = [m.get("name") for m in r.json().get("models", [])]
             return True, f"Ollama online. Available models: {', '.join(models) if models else 'None'}"
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         pass
     return False, "Ollama is not reachable on http://localhost:11434."
 
@@ -60,7 +60,7 @@ def check_disk_space() -> tuple[bool, str]:
         if free_gb < 2.0:
             return False, f"Low disk space: {free_gb:.1f} GB remaining."
         return True, f"{free_gb:.1f} GB free disk space available."
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return True, f"Disk check skipped ({exc})"
 
 
@@ -71,7 +71,7 @@ def check_audio_subsystem() -> tuple[bool, str]:
         input_devs = [d for d in devices if d.get("max_input_channels", 0) > 0]
         output_devs = [d for d in devices if d.get("max_output_channels", 0) > 0]
         return True, f"Audio ready. {len(input_devs)} input, {len(output_devs)} output devices detected."
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return False, f"Audio error: {exc}"
 
 

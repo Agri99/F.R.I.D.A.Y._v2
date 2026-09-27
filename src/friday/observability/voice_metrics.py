@@ -67,7 +67,7 @@ class VoiceMetrics:
         for cb in listeners:
             try:
                 cb(sample)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     def add_listener(self, callback: Any) -> None:

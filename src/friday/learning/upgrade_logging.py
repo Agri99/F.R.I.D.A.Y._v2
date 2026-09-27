@@ -59,7 +59,7 @@ class UpgradeLogger:
         if open_editor:
             try:
                 notification = "opened" if open_report_in_editor(md_path) else "failed"
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 notification = f"failed: {exc}"
         self.audit.log_tool_execution(
             task_id=report.task_id,
@@ -123,7 +123,7 @@ def open_report_in_editor(path: str | Path, editor: str | None = None) -> bool:
         else:
             subprocess.Popen(["xdg-open", str(target)])
         return True
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return False
 
 

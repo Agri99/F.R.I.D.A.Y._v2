@@ -93,7 +93,7 @@ class BackupManager:
 
                 metadata["items"].append(item)
                 logger.info(f"Backed up: {item}")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 logger.error(f"Error backing up {item}: {e}")
 
         # Save metadata
@@ -119,7 +119,7 @@ class BackupManager:
                         metadata = json.load(f)
                     metadata["path"] = str(backup_path)
                     backups.append(metadata)
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                     logger.error(f"Error reading backup metadata: {e}")
 
         return backups
@@ -177,13 +177,13 @@ class BackupManager:
                         shutil.copy2(source_path, target_path)
 
                     logger.info(f"Restored: {item}")
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                     logger.error(f"Error restoring {item}: {e}")
 
             logger.info("Backup restore complete")
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Error restoring backup: {e}")
             return False
 
@@ -215,7 +215,7 @@ class StateValidator:
 
             if not has_input or not has_output:
                 results["warnings"].append("Audio devices may have changed")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             results["warnings"].append(f"Could not check audio devices: {e}")
 
         # Check GPU
@@ -224,7 +224,7 @@ class StateValidator:
             gpus = GPUtil.getGPUs()
             if not gpus:
                 results["warnings"].append("GPU not detected (was previously available)")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             results["warnings"].append("GPU library not available")
 
         # Validate model compatibility
@@ -239,7 +239,7 @@ class StateValidator:
                     model_file = self.data_dir / "models" / model_info.get("path", "")
                     if not model_file.exists():
                         results["warnings"].append(f"Model file missing: {model_name}")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 results["errors"].append(f"Error validating models: {e}")
                 results["valid"] = False
 

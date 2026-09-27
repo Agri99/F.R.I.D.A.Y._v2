@@ -44,7 +44,7 @@ def _list(max_results: int = 5, **kwargs) -> dict[str, Any]:
         return {"status": "ok", "events": events, "count": len(events)}
     except FileNotFoundError as exc:
         return {"status": "error", "message": f"Calendar not configured: {exc}"}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not check calendar: {exc}"}
 
 
@@ -63,7 +63,7 @@ def _create(title: str, start: str, end: str, description: str = "") -> dict[str
         }
         event = service.events().insert(calendarId="primary", body=body).execute()
         return {"status": "ok", "event_id": event.get("id"), "title": title, "start": start, "end": end}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not create event: {exc}"}
 
 
@@ -84,7 +84,7 @@ def _update(event_id: str, title: str | None = None, start: str | None = None, e
 
         updated = service.events().update(calendarId="primary", eventId=event_id, body=event).execute()
         return {"status": "ok", "event_id": updated.get("id"), "title": updated.get("summary")}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not update event: {exc}"}
 
 
@@ -97,7 +97,7 @@ def _delete(event_id: str) -> dict[str, Any]:
         service = build("calendar", "v3", credentials=get_credentials())
         service.events().delete(calendarId="primary", eventId=event_id).execute()
         return {"status": "ok", "event_id": event_id, "deleted": True}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not delete event: {exc}"}
 
 

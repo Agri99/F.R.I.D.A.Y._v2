@@ -59,7 +59,7 @@ class IsolatedTester:
                 stderr=res.stderr,
                 passed=(res.returncode == 0),
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             duration = time.perf_counter() - start
             return TestExecutionResult(
                 command=" ".join(cmd),

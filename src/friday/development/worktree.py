@@ -36,7 +36,7 @@ class WorktreeManager:
                 check=True,
             )
             return res.stdout.strip()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return "unknown-commit"
 
     def create_worktree(self, upgrade_id: str) -> Path:
@@ -66,12 +66,12 @@ class WorktreeManager:
                     # Final fallback: shallow directory copy
                     shutil.copytree(self.repo_root, worktree_path, ignore=shutil.ignore_patterns(".git", ".venv", "workspace"))
             return worktree_path
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             # Copytree fallback
             try:
                 shutil.copytree(self.repo_root, worktree_path, ignore=shutil.ignore_patterns(".git", ".venv", "workspace"))
                 return worktree_path
-            except Exception as copy_err:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as copy_err:
                 raise WorktreeError(f"Failed to create worktree {upgrade_id}: {copy_err}") from copy_err
 
     def remove_worktree(self, worktree_path: str | Path) -> None:
@@ -86,19 +86,19 @@ class WorktreeManager:
                 capture_output=True,
                 text=True,
             )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         if path.exists():
             try:
                 shutil.rmtree(path, ignore_errors=True)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     def commit_changes(self, worktree_path: str | Path, message: str) -> str:
         """Stage and commit all changes in worktree. Returns commit hash."""
         path = Path(worktree_path).resolve()
         subprocess.run(["git", "add", "-A"], cwd=path, capture_output=True, text=True)
-        res = subprocess.run(
+        subprocess.run(
             ["git", "commit", "-m", message],
             cwd=path,
             capture_output=True,

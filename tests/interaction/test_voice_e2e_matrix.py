@@ -163,7 +163,7 @@ class TestBasicVoice:
         # Normal speech
         for _ in range(5):
             chunk = create_speech_chunk(rms=500, duration_ms=100)
-            event = vad.process(chunk.data, time.time())
+            vad.process(chunk.data, time.time())
 
         # VAD should detect speech
         assert vad._speaking or True  # May need multiple chunks
@@ -383,11 +383,11 @@ class TestIntegration:
         from friday.interaction.session import TurnLatency
 
         manager = ConversationManager()
-        im = InterruptionManager()
+        InterruptionManager()
         latency = TurnLatency()
 
         # 1. Begin turn
-        turn_id = manager.begin_turn()
+        manager.begin_turn()
         assert manager.snapshot().listening
 
         # 2. Capture speech (simulated)
@@ -427,7 +427,7 @@ class TestGenerationSafety:
         captured_gen = im.generation()
 
         # Simulate barge-in
-        new_gen = im.interrupt(reason="user_barge_in")
+        im.interrupt(reason="user_barge_in")
 
         # Old generation should be stale
         assert im.is_stale(captured_gen)

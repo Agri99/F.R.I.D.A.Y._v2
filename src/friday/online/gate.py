@@ -97,7 +97,7 @@ class OnlineCapabilityGate:
         for cb in callbacks:
             try:
                 cb(self._state)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     def check_online(self, operation: str) -> tuple[bool, str | None]:
@@ -157,7 +157,7 @@ class OnlineCapabilityGate:
         while self._monitoring:
             try:
                 self._check_and_update()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass  # Continue monitoring even if check fails
 
             # Sleep with small intervals to allow quick shutdown
@@ -182,7 +182,7 @@ class OnlineCapabilityGate:
         for cb in callbacks:
             try:
                 cb(self._state)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
 

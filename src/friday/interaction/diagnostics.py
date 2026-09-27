@@ -86,7 +86,7 @@ class VoiceDiagnostics:
                 # For legacy TTS that doesn't return a result
                 self.state.add_result("speaker", True, "Speaker test passed (legacy TTS)")
                 return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.state.add_result("speaker", False, f"Speaker test exception: {e}")
             return False
 
@@ -139,7 +139,7 @@ class VoiceDiagnostics:
                 self.state.add_warning(f"Very low peak ({peak}) - possible microphone issue")
 
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.state.add_result("microphone", False, f"Microphone test exception: {e}")
             return False
 
@@ -160,7 +160,7 @@ class VoiceDiagnostics:
                 "transcript": transcript
             })
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.state.add_result("stt", False, f"STT test exception: {e}")
             return False
 
@@ -177,7 +177,7 @@ class VoiceDiagnostics:
                 "response_length": len(str(response))
             })
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.state.add_result("agent", False, f"Agent test exception: {e}")
             return False
 
@@ -234,7 +234,7 @@ class VoiceDiagnostics:
                 "speech_success": tts_result.success if hasattr(tts_result, 'success') else True
             })
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.state.add_result("full_voice", False, f"Full voice test exception: {e}")
             return False
 
@@ -257,9 +257,8 @@ class VoiceDiagnostics:
         agent_passed = self.test_agent(agent)
 
         # Test 5: Full voice (only if all previous tests passed)
-        full_voice_passed = False
         if speaker_passed and mic_passed and stt_passed and agent_passed:
-            full_voice_passed = self.test_full_voice(stt, tts, agent)
+            self.test_full_voice(stt, tts, agent)
 
         print("[DIAGNOSTICS] Diagnostic suite completed")
         return self.state.summary()

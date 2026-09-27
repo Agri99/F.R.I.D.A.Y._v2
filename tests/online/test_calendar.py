@@ -74,7 +74,7 @@ class TestCalendarClient:
 
     def test_parse_event(self):
         mock_secrets = MagicMock()
-        client = CalendarClient(secrets=mock_secrets)
+        CalendarClient(secrets=mock_secrets)
         event = {
             "id": "evt1",
             "summary": "Test",

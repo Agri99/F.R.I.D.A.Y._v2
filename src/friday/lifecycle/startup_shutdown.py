@@ -166,7 +166,7 @@ class StartupManager:
             logger.info("FRIDAY startup complete")
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Startup failed: {e}")
             self._cleanup()
             return False
@@ -189,7 +189,7 @@ class StartupManager:
                 logger.info("Model config present")
 
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Health check error: {e}")
             return False
 
@@ -243,7 +243,7 @@ class ShutdownManager:
                 try:
                     logger.info(f"Running shutdown handler: {name}")
                     handler()
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                     logger.error(f"Shutdown handler {name} failed: {e}")
 
             # 8. Release lock
@@ -251,7 +251,7 @@ class ShutdownManager:
 
             logger.info("FRIDAY shutdown complete")
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Shutdown error: {e}")
 
 

@@ -104,7 +104,7 @@ class SkillRuntime:
                         )
 
                 results.append({"step": action, "result": res, "observation": obs})
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 return SkillResult(
                     success=False,
                     data=results,

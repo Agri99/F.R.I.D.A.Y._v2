@@ -49,7 +49,7 @@ class OllamaProvider(ModelProvider):
         
         info = self._fetch_model_info()
         if info:
-            template = info.get("template", "")
+            info.get("template", "")
             # Modern Ollama models (Qwen, Llama, Mistral) support tools natively
             self._supports_tools_cache = True
         else:

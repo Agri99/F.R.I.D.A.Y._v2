@@ -23,7 +23,7 @@ from pathlib import Path
 try:
     import dotenv
     dotenv.load_dotenv()
-except Exception:
+except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
     pass
 
 # ==============================================================================
@@ -38,24 +38,24 @@ class _DualLogger:
     def write(self, message):
         try:
             self.terminal.write(message)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         try:
             if hasattr(self.log, "closed") and not self.log.closed:
                 self.log.write(message)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         
     def flush(self):
         try:
             if hasattr(self.terminal, "closed") and not self.terminal.closed:
                 self.terminal.flush()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         try:
             if hasattr(self.log, "closed") and not self.log.closed:
                 self.log.flush()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def close(self):
@@ -63,7 +63,7 @@ class _DualLogger:
             if hasattr(self.log, "closed") and not self.log.closed:
                 self.log.flush()
                 self.log.close()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
 Path("data").mkdir(exist_ok=True)
@@ -121,7 +121,7 @@ def load_personas() -> tuple[str, str]:
             if data:
                 owner_p = data.get("owner_persona", owner_p)
                 guest_p = data.get("guest_persona", guest_p)
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"Warning: Could not load personas.yaml: {e}")
             
     return owner_p.strip(), guest_p.strip()
@@ -264,7 +264,7 @@ def run_voice(brain: str = "qwen") -> None:
     if orb_script.exists():
         try:
             orb_process = subprocess.Popen([sys.executable, str(orb_script)])
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             print(f"Warning: Could not launch 3D orb: {exc}")
 
     try:
@@ -284,7 +284,7 @@ def run_voice(brain: str = "qwen") -> None:
         print(f"FRIDAY [Boot]: AI Brain active: {brain.upper()} ({reasoning_config.model})")
 
         from friday.models.router import RoutingContext, TaskComplexity
-        model = orch.model_router.route(RoutingContext(task_complexity=TaskComplexity.LOW))
+        orch.model_router.route(RoutingContext(task_complexity=TaskComplexity.LOW))
 
         wakeword = WakeWordListener()
         v_settings = getattr(orch.settings, "voice", None)
@@ -390,13 +390,13 @@ def run_voice(brain: str = "qwen") -> None:
                 print(f"FRIDAY [Boot]: {boot_msg}")
                 try:
                     synthesizer.speak(boot_msg)
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                     print(f"FRIDAY [Boot]: Greeting playback error: {e}")
 
                 print("FRIDAY v3 is ready.")
                 live_session.run_loop()
                 return
-            except Exception as live_err:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as live_err:
                 print(f"FRIDAY [Boot]: Gemini Live session failed to start ({live_err}); falling back to standard pipeline.")
 
         # Build the event-driven voice pipeline (M2). This routes audio
@@ -417,7 +417,7 @@ def run_voice(brain: str = "qwen") -> None:
                     rms_threshold=getattr(orch.settings.voice, "vad_threshold", 50.0),
                 )
                 print("FRIDAY [Boot]: Event-driven voice pipeline (M2) active.")
-            except Exception as _pipe_err:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as _pipe_err:
                 print(f"FRIDAY [Boot]: Event-driven pipeline failed to init ({_pipe_err}); using legacy path.")
                 voice_pipeline = None
 
@@ -460,14 +460,14 @@ def run_voice(brain: str = "qwen") -> None:
             session.set_state(SessionState.SPEAKING)
             try:
                 synthesizer.speak(boot_msg)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 print(f"FRIDAY [Boot]: Greeting playback error: {e}")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"FRIDAY [Boot]: Online and ready. (Greeting failed: {e})")
 
         print("FRIDAY v3 is ready.")
         session.run_loop()
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"FRIDAY [Voice]: Critical error: {exc}")
         import traceback
         traceback.print_exc()
@@ -475,7 +475,7 @@ def run_voice(brain: str = "qwen") -> None:
         if orb_process is not None:
             try:
                 orb_process.terminate()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
 
@@ -547,7 +547,7 @@ def main(brain: str | None = None) -> None:
             try:
                 idx = sys.argv.index("--brain")
                 brain = sys.argv[idx + 1].lower() if idx + 1 < len(sys.argv) else "qwen"
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 brain = "qwen"
         else:
             for arg in sys.argv:

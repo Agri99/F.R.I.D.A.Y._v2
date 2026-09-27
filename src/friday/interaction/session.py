@@ -144,7 +144,7 @@ class VoiceSession:
                 streaming_tts = getattr(self.voice_pipeline, "streaming_tts", None)
                 if streaming_tts is not None:
                     streaming_tts.cancel()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         self.set_state(SessionState.INTERRUPTED)
 
@@ -160,7 +160,7 @@ class VoiceSession:
             if self.voice_pipeline is not None:
                 return self._run_once_event_driven(require_wake=require_wake)
             return self._run_once_legacy(require_wake=require_wake)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             self.set_state(SessionState.ERROR)
             raise
         finally:
@@ -193,7 +193,7 @@ class VoiceSession:
         # --- Persistent microphone: open once, close in finally ---
         try:
             audio_in.start()
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             print(f"FRIDAY [Voice]: audio input unavailable: {exc}")
             self.set_state(SessionState.ERROR)
             return None
@@ -205,7 +205,7 @@ class VoiceSession:
                     # uses its own stream, then restart after detection.
                     try:
                         audio_in.stop()
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
                     self.set_state(SessionState.LISTENING_FOR_WAKE)
                     print("FRIDAY [Voice]: Listening for wake word...")
@@ -215,7 +215,7 @@ class VoiceSession:
                     # Re-open mic after wake-word listener releases its stream
                     try:
                         audio_in.start()
-                    except Exception as exc:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                         print(f"FRIDAY [Voice]: audio input unavailable after wake: {exc}")
                         self.set_state(SessionState.ERROR)
                         return None
@@ -247,7 +247,7 @@ class VoiceSession:
                 self.set_state(SessionState.THINKING)
                 print(f"\nUSER: {transcript}")
 
-                llm_start = time.time()
+                time.time()
                 fastpath_match = getattr(self, "_fastpath", None).match(transcript) if getattr(self, "_fastpath", None) else None
                 if fastpath_match:
                     # FastPath intent (time, apps, window control, volume, orb, shutdown).
@@ -274,7 +274,7 @@ class VoiceSession:
                         try:
                             print("FRIDAY [Voice]: Long task detected, providing acknowledgment...")
                             self.tts.speak_interruptible("On it, working on that now.", self.wakeword)
-                        except Exception as e:
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                             print(f"FRIDAY [Voice]: speculative ack failed: {e}")
                         finally:
                             ack_speaking.clear()
@@ -328,7 +328,7 @@ class VoiceSession:
         finally:
             try:
                 audio_in.stop()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         return last_response
@@ -366,7 +366,6 @@ class VoiceSession:
             vad.reset()
 
         max_idle_seconds = 0.5
-        max_capture_seconds = 30.0
         max_wait_for_speech = float(max_wait_for_speech)
         last_chunk_at = time.time()
         capture_started_at = time.time()
@@ -399,7 +398,7 @@ class VoiceSession:
             # Pull chunks with a short timeout
             try:
                 chunk = audio_in.queue.get(timeout=0.05)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 idle = time.time() - last_chunk_at
                 if turn_detector._turn_started_at is not None and idle > max_idle_seconds:
                     break
@@ -442,7 +441,7 @@ class VoiceSession:
         if turn_detector._turn_started_at is None:
             try:
                 transcriber.finalize()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
             return None
 
@@ -499,7 +498,6 @@ class VoiceSession:
             turn_detector.set_system_speaking(False)
 
         interruption.register("voice_session_speak", on_interrupt)
-        interrupted = False
 
         try:
             # Feed the text (or iterator) through StreamingTts via the bridge
@@ -514,7 +512,6 @@ class VoiceSession:
             # Run the bridge – it will feed StreamingTts and handle cancellation
             bridge.stream(stream, generation_id=captured)
             if interruption.is_stale(captured):
-                interrupted = True
                 return True
             streaming_tts.finish()
 
@@ -526,7 +523,6 @@ class VoiceSession:
             chunks = sink.drain()
             for chunk in chunks:
                 if interruption.is_stale(captured) or self._playback_stop.is_set():
-                    interrupted = True
                     if latency:
                         latency.audio_stop_at = time.time()
                     return True
@@ -536,12 +532,11 @@ class VoiceSession:
                     interruption, captured, latency,
                 )
                 if barge_in:
-                    interrupted = True
                     return True
 
             return None  # Completed successfully (falsy, not interrupted)
 
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.error("TTS failed during streaming: %s", exc)
             return None
         finally:
@@ -567,7 +562,7 @@ class VoiceSession:
         import numpy as np
         try:
             import sounddevice as sd
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False
 
         from friday.interaction.vad import VadEventKind
@@ -604,12 +599,12 @@ class VoiceSession:
                 blocksize=1024,
             )
             stream.start()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             # Fallback: blocking play
             try:
                 sd.play(audio_int16, samplerate=sample_rate)
                 sd.wait()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
             return False
 
@@ -636,7 +631,7 @@ class VoiceSession:
                         interruption.interrupt(reason="user_barge_in")
                         print("FRIDAY [Voice]: Barge-in detected — stopping playback")
                         return True
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     # No mic data ready — keep playing
                     pass
 
@@ -645,7 +640,7 @@ class VoiceSession:
             try:
                 stream.stop()
                 stream.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     def _wait_for_followup_event_driven(self, pipeline: Any) -> bool:
@@ -662,21 +657,21 @@ class VoiceSession:
         if hasattr(vad, "reset"):
             try:
                 vad.reset()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         # Drain any leftover audio from TTS playback
         try:
             while True:
                 audio_in.queue.get(timeout=0.0)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         deadline = time.time() + self.followup_window_seconds
         while time.time() < deadline and not self.cancelled:
             try:
                 chunk = audio_in.queue.get(timeout=0.05)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 continue
             vad_event = vad.process(chunk.data, chunk.timestamp)
             if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
@@ -688,7 +683,7 @@ class VoiceSession:
         while not self._stop_requested and not sys_tools.SHUTDOWN_REQUESTED:
             try:
                 self.run_once(require_wake=True)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:
                     break
                 raise
@@ -767,7 +762,7 @@ class VoiceSession:
             if callback:
                 try:
                     callback()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
             else:
                 farewell = "Shutting down. Goodbye, Boss."
@@ -776,7 +771,7 @@ class VoiceSession:
                 elif self.tts:
                     try:
                         self.tts.speak(farewell)
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
                 self.request_shutdown()
             return True

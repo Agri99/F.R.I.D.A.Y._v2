@@ -28,7 +28,7 @@ def _mouse_move(x: int, y: int) -> dict[str, Any]:
     try:
         mouse.move(int(x), int(y))
         return {"status": "ok", "message": f"Moved mouse to ({x}, {y}).", "x": int(x), "y": int(y)}
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Mouse move failed: {exc}"}
 
 
@@ -54,7 +54,7 @@ def _mouse_click(
             action = "Left-clicked"
         pos_str = f" at ({cx}, {cy})" if cx is not None and cy is not None else " at current position"
         return {"status": "ok", "message": f"{action}{pos_str}."}
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Mouse click failed: {exc}"}
 
 
@@ -75,7 +75,7 @@ def _mouse_scroll(
         mouse.scroll(n_clicks)
         dir_desc = "up" if n_clicks > 0 else "down"
         return {"status": "ok", "message": f"Scrolled mouse wheel {dir_desc} by {abs(n_clicks)} clicks.", "clicks": n_clicks}
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Mouse scroll failed: {exc}"}
 
 
@@ -87,7 +87,7 @@ def _mouse_drag(from_x: int, from_y: int, to_x: int, to_y: int) -> dict[str, Any
             "status": "ok",
             "message": f"Dragged mouse from ({from_x}, {from_y}) to ({to_x}, {to_y}).",
         }
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Mouse drag failed: {exc}"}
 
 
@@ -96,7 +96,7 @@ def _capture_screen(filename: str = "screenshot.png") -> dict[str, Any]:
     try:
         path = save_screenshot(filename)
         return {"status": "ok", "path": path, "message": "Screenshot captured successfully."}
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Screen capture failed: {exc}"}
 
 
@@ -135,7 +135,7 @@ def _type_text(text: str, text_label: str | None = None, **kwargs) -> dict[str, 
         target = Target(text_label=text_label or kwargs.get("label")) if text_label or kwargs.get("label") else None
         result = _controller.type_text(target, text)
         return {"status": "ok" if result.success else "error", "message": result.message}
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": f"Typing failed: {exc}"}
 
 
@@ -254,7 +254,7 @@ def _minimize_all_windows() -> dict[str, Any]:
             "skipped": len(skipped),
             "message": f"Minimized {len(minimized)} window(s).",
         }
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, AttributeError) as exc:
         return {"status": "error", "message": str(exc)}
 
 

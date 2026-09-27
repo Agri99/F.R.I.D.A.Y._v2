@@ -124,7 +124,7 @@ class Planner:
 
         try:
             response = provider.generate(messages=messages, tools=available_tools)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return [Step(action="error", arguments={"message": str(exc)}, expected_observation="Error reported")]
 
         if not response.tool_calls:
@@ -137,7 +137,7 @@ class Planner:
             if isinstance(tool_args, str):
                 try:
                     tool_args = json.loads(tool_args)
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     tool_args = {}
 
             if tool_name:

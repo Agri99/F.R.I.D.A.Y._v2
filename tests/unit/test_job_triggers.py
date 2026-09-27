@@ -68,7 +68,7 @@ def test_resource_condition_trigger(mock_disk, mock_mem, mock_cpu):
     mock_mem.return_value.percent = 90.0
     mock_disk.return_value.percent = 50.0
 
-    mock_scheduler = FakeScheduler([
+    FakeScheduler([
         FakeJob(trigger="resource_condition", enabled=True),
     ])
 

@@ -26,7 +26,7 @@ def move(x: int, y: int) -> None:
     try:
         import pyautogui
         pyautogui.moveTo(x, y)
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         user32.SetCursorPos(int(x), int(y))
 
 
@@ -38,7 +38,7 @@ def click(x: int | None = None, y: int | None = None) -> None:
     try:
         import pyautogui
         pyautogui.click()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         user32.mouse_event(MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
@@ -50,7 +50,7 @@ def double_click(x: int | None = None, y: int | None = None) -> None:
     try:
         import pyautogui
         pyautogui.doubleClick()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         click()
         time.sleep(0.1)
         click()
@@ -64,7 +64,7 @@ def right_click(x: int | None = None, y: int | None = None) -> None:
     try:
         import pyautogui
         pyautogui.rightClick()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         user32.mouse_event(MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
 
 
@@ -74,7 +74,7 @@ def drag(from_x: int, from_y: int, to_x: int, to_y: int) -> None:
         import pyautogui
         pyautogui.moveTo(from_x, from_y)
         pyautogui.dragTo(to_x, to_y, button="left")
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         move(from_x, from_y)
         time.sleep(0.05)
         user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
@@ -89,6 +89,6 @@ def scroll(amount: int) -> None:
     try:
         import pyautogui
         pyautogui.scroll(amount)
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         wheel_delta = int(amount) * 120
         user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, wheel_delta, 0)

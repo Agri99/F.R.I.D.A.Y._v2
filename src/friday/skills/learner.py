@@ -246,7 +246,7 @@ class SkillLearner:
             triggers=[goal.lower(), f"run {safe_name}"],
             procedure="\n".join(procedure_lines),
             procedure_steps=procedure_steps,
-            required_capabilities=sorted(list(capabilities)),
+            required_capabilities=sorted(capabilities),
             risk_profile="YELLOW" if any(c in capabilities for c in ("filesystem", "terminal", "computer")) else "GREEN",
             expected_observations=observations,
             verification="Verify all actions completed and target state was achieved.",

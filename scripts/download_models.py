@@ -11,8 +11,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 import urllib.request
 from pathlib import Path
 
@@ -54,7 +52,7 @@ def download_file(url: str, dest: Path) -> None:
         urllib.request.urlretrieve(url, str(dest))
         size_mb = dest.stat().st_size / (1024 * 1024)
         print(f"  ✓ Downloaded: {dest.name} ({size_mb:.1f} MB)")
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         print(f"  ✗ Failed: {dest.name} — {e}")
         if dest.exists():
             dest.unlink()
@@ -94,7 +92,7 @@ def main():
             print(f"  ↓ Loading/caching ChatterboxTurboTTS on {dev.upper()}...")
             ChatterboxTurboTTS.from_pretrained(device=dev)
             print("  ✓ Chatterbox Turbo cached successfully.")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"  ✗ Failed to pre-cache Chatterbox Turbo: {e}")
 
     if args.all or not any([args.tts, args.wakeword, args.voiceauth]):

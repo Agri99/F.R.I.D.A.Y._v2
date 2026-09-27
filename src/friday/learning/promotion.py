@@ -96,7 +96,7 @@ class PromotionManager:
             candidate.verification_rate = loaded.verification_rate
             candidate.user_corrections = loaded.user_corrections
             return candidate
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     def promote(self, candidate: SkillCandidate, save_to_disk: bool = True, benchmark_result: Any = None) -> Skill:
@@ -131,7 +131,7 @@ class PromotionManager:
                 skill_path = self.learned_skills_dir / f"{candidate.proposed_name}.md"
                 md_content = candidate.to_markdown() if hasattr(candidate, "to_markdown") else candidate.procedure
                 skill_path.write_text(md_content, encoding="utf-8")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         return skill

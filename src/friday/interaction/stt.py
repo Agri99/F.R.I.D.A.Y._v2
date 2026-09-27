@@ -11,20 +11,22 @@ and state machine for clear listening/thinking/speaking states.
 
 from __future__ import annotations
 
-import os
-os.environ["CT2_VERBOSE"] = "-1"
 import logging
-logging.getLogger("faster_whisper").setLevel(logging.ERROR)
+import os
+import threading
+import time
 from collections import deque
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+from typing import Callable
+
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import threading
-import time
-from enum import Enum
-from dataclasses import dataclass
-from typing import Callable
+
+os.environ["CT2_VERBOSE"] = "-1"
+logging.getLogger("faster_whisper").setLevel(logging.ERROR)
 
 SAMPLE_RATE = 16000
 CHUNK_DURATION = 0.1  # 100ms
@@ -293,7 +295,7 @@ class StreamingTranscriber:
             self._buffer_samples.append(np.asarray(audio, dtype=np.int16))
             self._buffer_duration_s += float(audio.size) / float(self.sample_rate)
             # Safety cap: never let an unbounded buffer accumulate.
-            max_samples = int(self.max_buffer_seconds * self.sample_rate)
+            int(self.max_buffer_seconds * self.sample_rate)
             while self._buffer_duration_s > self.max_buffer_seconds and self._buffer_samples:
                 dropped = self._buffer_samples.pop(0)
                 self._buffer_duration_s -= float(dropped.size) / float(self.sample_rate)
@@ -318,7 +320,7 @@ class StreamingTranscriber:
         if self._partial_future is not None:
             try:
                 self._partial_future.result(timeout=0.2)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
             self._partial_future = None
 
@@ -337,7 +339,7 @@ class StreamingTranscriber:
         if self._callback is not None:
             try:
                 self._callback(text, True)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         return [event]
 
@@ -390,9 +392,9 @@ class StreamingTranscriber:
                 if self._callback is not None:
                     try:
                         self._callback(text, False)
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         self._partial_future = self._executor.submit(_worker)
@@ -429,7 +431,7 @@ class StreamingTranscriber:
             avg = sum(logprobs) / len(logprobs)
             confidence = max(0.0, min(1.0, 1.0 - abs(avg) / 1.5))
             return text, confidence
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return "", 0.0
 
 
@@ -486,7 +488,7 @@ class SpeechRecognizer:
                 vad_parameters={"min_silence_duration_ms": 400},
             )
             return self._filter_segments(segments)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             # Fallback to standard transcribe if VAD or options encounter issue
             segments, _ = self.model.transcribe(audio_file, language="en")
             return self._filter_segments(segments)

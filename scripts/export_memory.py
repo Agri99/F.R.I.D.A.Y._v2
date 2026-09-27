@@ -9,7 +9,6 @@ to human-readable YAML files for backup, review, and migration (§12.1).
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -53,14 +52,14 @@ def export_all() -> None:
         export_messages(cursor, _EXPORT_DIR / "messages.yaml")
 
         print("[+] Memory export completed successfully.")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"[!] Error exporting memory: {exc}")
     finally:
         conn.close()
 
 
 def export_table(cursor: sqlite3.Cursor, table: str, out_path: Path) -> None:
-    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
     if not cursor.fetchone():
         print(f"    [-] Table '{table}' does not exist, skipping.")
         return
@@ -180,7 +179,7 @@ def import_from_yaml(export_dir: Path | str = None) -> None:
 
         conn.commit()
         print("[+] Memory import completed.")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"[!] Error importing memory: {exc}")
     finally:
         conn.close()

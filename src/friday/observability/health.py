@@ -14,7 +14,7 @@ def check_model_health() -> Dict[str, Any]:
     try:
         urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
         return {"status": "ok", "message": "Ollama is reachable"}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         return {"status": "degraded", "message": f"Model endpoint unreachable: {e}"}
 
 
@@ -36,7 +36,7 @@ def check_audio_health() -> Dict[str, Any]:
         if not in_devs or not out_devs:
             return {"status": "degraded", "message": "Missing audio input/output devices"}
         return {"status": "ok", "message": "Audio subsystem ready"}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         return {"status": "degraded", "message": f"Audio error: {e}"}
 
 
@@ -52,7 +52,7 @@ def check_memory_health() -> Dict[str, Any]:
         conn.execute("PRAGMA integrity_check;")
         conn.close()
         return {"status": "ok", "message": "Memory DB is healthy"}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         return {"status": "error", "message": f"Memory DB corrupt: {e}"}
 
 

@@ -71,7 +71,7 @@ class GeminiLiveSession:
         if not self.api_key:
             try:
                 self.api_key = SecretsManager().get("gemini_api_key")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         if not self.api_key:
@@ -140,7 +140,7 @@ class GeminiLiveSession:
         declarations = []
         try:
             schemas = self.tool_registry.all_schemas()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
         for schema in schemas:
@@ -186,7 +186,7 @@ class GeminiLiveSession:
             result = tool.run(**call_args)
             print(f"FRIDAY [Live Tool]: Result -> {result}")
             return result
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             print(f"FRIDAY [Live Tool]: Execution error: {exc}")
             return {"error": str(exc)}
 
@@ -266,7 +266,7 @@ class GeminiLiveSession:
                         sr = getattr(self.speech_synthesizer, "sample_rate", 24000)
                         sd.play(audio, samplerate=sr)
                         sd.wait()
-                except Exception as play_err:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as play_err:
                     print(f"FRIDAY [Voice]: TTS playback error: {play_err}")
                 finally:
                     is_playing_audio.clear()
@@ -287,11 +287,11 @@ class GeminiLiveSession:
             if audio_in_q.full():
                 try:
                     audio_in_q.get_nowait()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
             try:
                 audio_in_q.put_nowait(chunk)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         # Input audio callback (from microphone)
@@ -380,7 +380,7 @@ class GeminiLiveSession:
                                 continue
                     except asyncio.CancelledError:
                         pass
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
 
                 # Receiver Task: Handles returned text, interruptions, and tool calls across all turns
@@ -512,7 +512,7 @@ class GeminiLiveSession:
 
                     except asyncio.CancelledError:
                         pass
-                    except Exception as exc:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                         if not session_closed_event.is_set() and not self._stop_requested:
                             if "1000" not in str(exc):
                                 print(f"FRIDAY [Voice]: receive error: {exc}")
@@ -572,7 +572,7 @@ class GeminiLiveSession:
                         t.cancel()
                 await asyncio.gather(sender, receiver, timer, closed_waiter, return_exceptions=True)
 
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             print(f"FRIDAY [Voice]: Live session disconnected: {exc}")
         finally:
             if self._stop_requested:
@@ -588,7 +588,7 @@ class GeminiLiveSession:
             try:
                 mic_stream.stop()
                 mic_stream.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     def run_loop(self) -> None:
@@ -614,7 +614,7 @@ class GeminiLiveSession:
             # 2. Run Live Conversation until 10s inactivity or shutdown
             try:
                 asyncio.run(self._live_conversation_loop())
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 print(f"FRIDAY [Voice]: Live session error: {e}")
 
             if self._stop_requested or sys_tools.SHUTDOWN_REQUESTED:

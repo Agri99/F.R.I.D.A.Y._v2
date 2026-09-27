@@ -155,7 +155,7 @@ class ModelProvisioner:
             names = [m.model for m in getattr(models, "models", [])]
             # Accept exact match or prefix match (e.g. "qwen3:8b" matches "qwen3:8b-q4_k_m")
             return any(n == model_name or n.startswith(model_name.split(":")[0]) for n in names)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False
 
     def _pull_model(self, entry: ModelEntry) -> bool:
@@ -166,7 +166,7 @@ class ModelProvisioner:
                 print(f"[Provisioner] Pulling {entry.model} via Ollama...")
                 ollama.pull(entry.model)
                 return True
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 print(f"[Provisioner] Pull failed for {entry.model}: {exc}")
                 return False
         return False
@@ -178,7 +178,7 @@ class ModelProvisioner:
         try:
             import ollama
             start = time.perf_counter()
-            resp = ollama.chat(
+            ollama.chat(
                 model=entry.model,
                 messages=[{"role": "user", "content": "Hi"}],
                 stream=False,
@@ -190,7 +190,7 @@ class ModelProvisioner:
                 "model": entry.model,
                 "timestamp": time.time(),
             }
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return {"error": str(exc)}
 
 

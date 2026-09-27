@@ -27,7 +27,7 @@ if str(_ROOT_DIR) not in sys.path:
 try:
     import dotenv
     dotenv.load_dotenv()
-except Exception:
+except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
     pass
 
 

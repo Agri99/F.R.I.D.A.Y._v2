@@ -125,7 +125,7 @@ class SkillSandbox:
         except subprocess.TimeoutExpired:
             success = False
             errors.append(f"Skill execution timed out after {self.timeout_seconds} seconds")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             success = False
             errors.append(str(e))
 

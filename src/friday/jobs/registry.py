@@ -72,7 +72,7 @@ class JobRegistry:
                 data = yaml.safe_load(f)
                 if data:
                     return self._deserialize_job(data)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.error(f"Failed to load job {job_id}: {exc}")
         return None
 
@@ -129,6 +129,6 @@ class JobRegistry:
                     data = yaml.safe_load(f)
                     if data and isinstance(data, dict):
                         jobs.append(self._deserialize_job(data))
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.warning(f"Skipping malformed job file {file}: {exc}")
         return jobs

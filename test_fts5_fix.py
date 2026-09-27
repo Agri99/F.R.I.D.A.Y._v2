@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
         try:
             results = sem.recall(q, limit=5)
             print(f'OK: "{q}" -> {len(results)} results')
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError) as e:
             print(f'FAIL: "{q}" -> {e}')
 
     print('All tests passed!')

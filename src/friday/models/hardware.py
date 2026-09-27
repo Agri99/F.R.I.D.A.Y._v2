@@ -70,7 +70,7 @@ def _detect_amd() -> tuple[str | None, str | None, float | None, bool]:
                 elif "VRAM" in line or "vram" in line:
                     try:
                         vram = float(line.split(":")[-1].strip().split()[0]) / 1024.0  # MB to GB
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
             return "amd", name, vram, True
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -161,7 +161,7 @@ def _benchmark_cpu_inference() -> float:
 
         # Normalize: faster = higher score
         return 10.0 / max(elapsed, 0.01)
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return 1.0
 
 

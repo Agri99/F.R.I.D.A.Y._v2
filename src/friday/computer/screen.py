@@ -30,7 +30,7 @@ def capture_screen(region: tuple[int, int, int, int] | None = None) -> Image.Ima
         if region:
             return ImageGrab.grab(bbox=region)
         return ImageGrab.grab()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return None
 
 
@@ -44,7 +44,7 @@ def grab_screen_bytes(max_edge: int = 1280) -> bytes | None:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return buf.getvalue()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return None
 
 
@@ -53,7 +53,7 @@ def ocr(image: Image.Image | None = None) -> str:
     try:
         img = image or ImageGrab.grab()
         return pytesseract.image_to_string(img).strip()
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return f"OCR error: {exc}"
 
 
@@ -97,7 +97,7 @@ def describe_screen(
             return {"status": "error", "message": "Vision model returned empty description."}
 
         return {"status": "ok", "model": vision_model, "description": description}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {
             "status": "error",
             "message": f"Vision inference failed for '{vision_model}': {exc}. Ensure Ollama is running.",
@@ -116,7 +116,7 @@ def save_screenshot(filename: str = "screenshot.png", workspace_dir: str | Path 
         img = ImageGrab.grab()
         img.save(output_path)
         return str(output_path)
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         # Silently fail in headless environments (e.g. CI/CD benchmarks)
         # to prevent benchmark logs from flooding with "screen grab failed".
         if "screen grab failed" not in str(e).lower():
@@ -137,7 +137,7 @@ def compute_screen_hash(image: Image.Image | None = None) -> str:
         avg = sum(pixels) / len(pixels)
         bits = ''.join('1' if p > avg else '0' for p in pixels)
         return hex(int(bits, 2))[2:].zfill(16)
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return ""
 
 
@@ -159,7 +159,7 @@ def compare_screens(before_hash: str, after_hash: str, threshold: float = 0.05) 
             "change_ratio": change_ratio,
             "reason": f"Pixel change ratio: {change_ratio:.2%}"
         }
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         return {"changed": False, "confidence": 0.0, "reason": "hash compare error"}
 
 
@@ -200,7 +200,7 @@ class ScreenObserver:
             img = ImageGrab.grab()
             screen_hash = compute_screen_hash(img)
             ocr_text = ocr(img)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             title = "Unknown"
             screen_hash = ""
             ocr_text = ""
@@ -224,7 +224,7 @@ class ScreenObserver:
             img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
             screen_hash = compute_screen_hash(img)
             ocr_text = ocr(img)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             img = None
             screen_hash = ""
             ocr_text = ""
@@ -251,7 +251,7 @@ class ScreenObserver:
             vlm_result = describe_screen()
             vlm_desc = vlm_result.get("description", "") if vlm_result.get("status") == "ok" else ""
             screenshot_path = save_screenshot("full")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             img = None
             screen_hash = ""
             ocr_text = ""

@@ -67,7 +67,7 @@ class TriggerMonitor:
                 self._check_idle_trigger()
                 self._check_network_change()
                 self._check_resource_conditions()
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.exception("Error in trigger monitor loop: %s", e)
@@ -79,7 +79,7 @@ class TriggerMonitor:
         try:
             # Check CPU and input activity as proxy for user activity
             cpu_percent = psutil.cpu_percent(interval=0.1)
-            current_time = time.time()
+            time.time()
 
             if cpu_percent < 5.0:  # Low CPU usage indicates potential idle
                 if self._last_idle_check == 0:
@@ -89,7 +89,7 @@ class TriggerMonitor:
                     self._last_idle_check = time.time()  # Reset to avoid repeated triggers
             else:
                 self._last_idle_check = 0
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _check_network_change(self) -> None:
@@ -104,7 +104,7 @@ class TriggerMonitor:
             elif current_online != self._last_network_state:
                 self._trigger_jobs(TriggerType.NETWORK_CHANGE)
                 self._last_network_state = current_online
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _check_resource_conditions(self) -> None:
@@ -136,7 +136,7 @@ class TriggerMonitor:
 
             if triggered:
                 self._trigger_jobs(TriggerType.RESOURCE_CONDITION, metadata)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _trigger_jobs(self, trigger_type: TriggerType, metadata: dict = None) -> None:
@@ -165,7 +165,7 @@ class TriggerMonitor:
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.info(f"Triggered job {job.id} ({job.name}) by {trigger_type.value}")
-                except Exception as e:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.exception(f"Failed to trigger job {job.id}: {e}")
@@ -179,6 +179,6 @@ class TriggerMonitor:
                 try:
                     import urllib.request
                     urllib.request.urlopen("http://www.google.com", timeout=2)
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     return False
         return True

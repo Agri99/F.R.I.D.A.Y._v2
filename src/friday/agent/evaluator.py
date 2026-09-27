@@ -92,7 +92,7 @@ Respond with ONLY a JSON object:
                     observation_summary=result.observation,
                     needs_replan=not verification.passed,
                 )
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # A faulty verifier must not silently pass. Fall through to
                 # the next strategy but flag it.
                 step._tool_verified = True
@@ -216,5 +216,5 @@ Respond with ONLY a JSON object:
                 )
             except json.JSONDecodeError:
                 return None
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None

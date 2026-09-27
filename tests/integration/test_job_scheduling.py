@@ -27,7 +27,7 @@ def test_job_persistence_and_execution():
     with tempfile.TemporaryDirectory() as tmpdir:
         registry = JobRegistry(storage_dir=tmpdir)
         executor = JobExecutor()
-        scheduler = JobScheduler(jobs=[])
+        JobScheduler(jobs=[])
 
         job = Job(
             id="daily_healthcheck",

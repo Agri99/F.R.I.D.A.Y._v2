@@ -46,7 +46,7 @@ class WindowVerifier:
         """
         try:
             import win32gui
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"win32gui not available: {e}")
         hwnd = win32gui.FindWindow(None, expected_state)
         if hwnd:
@@ -78,7 +78,7 @@ class FileContentVerifier:
             if expected_text in content:
                 return VerificationResult(True, f"File content verified in '{path}'.")
             return VerificationResult(False, f"Expected text not found in '{path}'.")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"Error reading file '{path}': {e}")
 
 
@@ -96,7 +96,7 @@ class ControlVerifier:
         window_hint, control_hint = expected_state
         try:
             import win32gui
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"win32gui not available: {e}")
 
         target_hwnd = self._find_window_by_hint(window_hint)
@@ -119,7 +119,7 @@ class ControlVerifier:
                 text = elem.window_text() or elem.element_info.name or ""
                 if control_hint.lower() in text.lower():
                     return VerificationResult(True, f"Control '{control_hint}' text matches in window '{window_hint}' (UIA).")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
             
         return VerificationResult(False, f"Control '{control_hint}' not found in window '{window_hint}'.")
@@ -195,7 +195,7 @@ class URLVerifier:
         if self._url_provider is not None:
             try:
                 url = self._url_provider()
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 return (None, f"provider_error: {e}")
             if url:
                 return (str(url), None)
@@ -257,7 +257,7 @@ class ApplicationStateVerifier:
                         f"Foreground window is '{title}', expected "
                         f"'{expected.window_title_substring}'.",
                     )
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 return VerificationResult(False, f"Foreground check failed: {e}")
 
         return VerificationResult(
@@ -301,7 +301,7 @@ class TextEntryVerifier:
     def verify(self, post_value: str | None) -> VerificationResult:
         try:
             import win32gui
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"win32gui not available: {e}")
 
         target_hwnd = ControlVerifier._find_window_by_hint(self.expected.window_hint)
@@ -335,7 +335,7 @@ class TextEntryVerifier:
                         False,
                         f"Control '{self.expected.control_hint}' not found in focused window.",
                     )
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return VerificationResult(
                     False,
                     f"Control '{self.expected.control_hint}' not found in focused window.",

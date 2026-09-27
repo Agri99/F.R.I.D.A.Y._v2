@@ -108,7 +108,7 @@ class BrowserSession:
             import shutil
             try:
                 shutil.rmtree(self._temp_dir, ignore_errors=True)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
     @property
@@ -178,13 +178,13 @@ class SessionManager:
         for session in self._sessions.values():
             try:
                 await session.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         self._sessions.clear()
         if self._default_session:
             try:
                 await self._default_session.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
             self._default_session = None
 

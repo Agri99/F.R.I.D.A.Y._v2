@@ -42,7 +42,7 @@ class PluginSandbox:
             try:
                 import docker
                 self._docker_client = docker.from_env()
-            except (ImportError, Exception):
+            except (ImportError, OSError, RuntimeError, ValueError):
                 self.use_docker = False
         return self._docker_client
 
@@ -117,7 +117,7 @@ class PluginSandbox:
                 )
                 stdout = container.decode("utf-8") if isinstance(container, bytes) else str(container)
                 return SandboxResult(True, 0, stdout=stdout)
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 return SandboxResult(False, 1, stderr=str(exc))
 
 

@@ -43,7 +43,7 @@ class LearningBenchmarks:
             result = operation()
             latency_ms = (time.perf_counter() - start) * 1000
             return result
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             latency_ms = (time.perf_counter() - start) * 1000
             return type('Result', (), {
                 'success': False,
@@ -79,110 +79,6 @@ class LearningBenchmarks:
 
         candidate = optimizer.refine(skill, failure_traj)
         success = candidate is not None and 'Recovery note' in candidate.procedure
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    # Skill Distillation Tests
-    def test_skill_distillation_from_trajectories(self) -> Any:
-        """Test skill distillation from successful trajectories."""
-        distiller = PatternDistiller()
-
-        # Create mock successful trajectories
-        trajectories = [
-            type('Traj', (), {
-                'goal': 'Open notepad and type hello',
-                'steps': [
-                    type('Step', (), {'action': 'applications.open', 'arguments': {'app_id': 'notepad'}, 'expected_observation': 'opened'})(),
-                    type('Step', (), {'action': 'computer.type', 'arguments': {'text': 'hello'}, 'expected_observation': 'typed'})(),
-                ],
-                'outcome': 'success',
-                'id': 'traj_1',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-            type('Traj', (), {
-                'goal': 'Open notepad and type hello',
-                'steps': [
-                    type('Step', (), {'action': 'applications.open', 'arguments': {'app_id': 'notepad'}, 'expected_observation': 'opened'})(),
-                    type('Step', (), {'action': 'computer.type', 'arguments': {'text': 'hello world'}, 'expected_observation': 'typed'})(),
-                ],
-                'outcome': 'success',
-                'id': 'traj_2',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-        ]
-
-        candidate = distiller.distill(trajectories)
-        success = candidate is not None and len(candidate.procedure_steps) > 0
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_skill_distillation_requires_multiple_trajectories(self) -> Any:
-        """Test that distillation requires at least 2 successful trajectories."""
-        distiller = PatternDistiller()
-
-        # Single trajectory should not produce candidate
-        trajectories = [
-            type('Traj', (), {
-                'goal': 'Test',
-                'steps': [type('Step', (), {'action': 'test', 'result': 'success'})()],
-                'outcome': 'success',
-                'id': 'traj_1',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-        ]
-
-        candidate = distiller.distill(trajectories)
-        success = candidate is None  # Should not create candidate
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    # Skill Distillation Tests
-    def test_skill_distillation_from_trajectories(self) -> Any:
-        """Test skill distillation from successful trajectories."""
-        distiller = PatternDistiller()
-
-        # Create mock successful trajectories
-        trajectories = [
-            type('Traj', (), {
-                'goal': 'Open notepad and type hello',
-                'steps': [
-                    type('Step', (), {'action': 'applications.open', 'arguments': {'app_id': 'notepad'}, 'expected_observation': 'opened'})(),
-                    type('Step', (), {'action': 'computer.type', 'arguments': {'text': 'hello'}, 'expected_observation': 'typed'})(),
-                ],
-                'outcome': 'success',
-                'id': 'traj_1',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-            type('Traj', (), {
-                'goal': 'Open notepad and type hello',
-                'steps': [
-                    type('Step', (), {'action': 'applications.open', 'arguments': {'app_id': 'notepad'}, 'expected_observation': 'opened'})(),
-                    type('Step', (), {'action': 'computer.type', 'arguments': {'text': 'hello world'}, 'expected_observation': 'typed'})(),
-                ],
-                'outcome': 'success',
-                'id': 'traj_2',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-        ]
-
-        candidate = distiller.distill(trajectories)
-        success = candidate is not None and len(candidate.procedure_steps) > 0
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_skill_distillation_requires_multiple_trajectories(self) -> Any:
-        """Test that distillation requires at least 2 successful trajectories."""
-        distiller = PatternDistiller()
-
-        # Single trajectory should not produce candidate
-        trajectories = [
-            type('Traj', (), {
-                'goal': 'Test',
-                'steps': [type('Step', (), {'action': 'test', 'result': 'success'})()],
-                'outcome': 'success',
-                'id': 'traj_1',
-                'get': lambda self, key, default=None: getattr(self, key, default)
-            })(),
-        ]
-
-        candidate = distiller.distill(trajectories)
-        success = candidate is None  # Should not create candidate
         return type('Result', (), {'success': success, 'latency_ms': 0})()
 
     # Skill Distillation Tests
@@ -384,7 +280,7 @@ class LearningBenchmarks:
         """Test skill version comparison for regression detection."""
         versioner = SkillVersionManager()
 
-        skill = type('Skill', (), {
+        type('Skill', (), {
             'name': 'test_skill',
             'version': '1.0',
             'procedure': 'Procedure',
@@ -413,153 +309,6 @@ class LearningBenchmarks:
 
         comparison = versioner.compare_versions('test_skill', '1.0', '1.1')
         success = comparison is not None and comparison['regression']
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_skill_versioning_comparison(self) -> Any:
-        """Test skill version comparison for regression detection."""
-        versioner = SkillVersionManager()
-
-        skill = type('Skill', (), {
-            'name': 'test_skill',
-            'version': '1.0',
-            'procedure': 'Procedure',
-            'attempts': 10,
-            'successes': 9,
-            'avg_execution_time_ms': 1000,
-            'verification_rate': 0.9,
-        })()
-
-        # Add versions with different success rates
-        v1 = SkillVersion("1.0", "Initial", success_rate=0.9, attempts=10, successes=9)
-        v2 = SkillVersion("1.1", "Improved", success_rate=0.95, attempts=20, successes=19)
-        versioner._history['test_skill'] = [v1, v2]
-
-        comparison = versioner.compare_versions('test_skill', '1.0', '1.1')
-        success = comparison is not None and not comparison['regression']
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_skill_versioning_regression_detection(self) -> Any:
-        """Test regression detection when success rate drops."""
-        versioner = SkillVersionManager()
-
-        v1 = SkillVersion("1.0", "Good", success_rate=0.95, attempts=20, successes=19)
-        v2 = SkillVersion("1.1", "Regression", success_rate=0.75, attempts=20, successes=15)
-        versioner._history['test_skill'] = [v1, v2]
-
-        comparison = versioner.compare_versions('test_skill', '1.0', '1.1')
-        success = comparison is not None and comparison['regression']
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-
-    # Promotion Tests
-    def test_promotion_approves_valid_skills(self) -> Any:
-        """Test promotion approves valid skill candidates."""
-        promoter = PromotionManager()
-
-        candidate = SkillCandidate(
-            proposed_name='valid_skill',
-            purpose='Test skill',
-            triggers=['run test'],
-            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
-            required_capabilities=['system'],
-            risk_profile='GREEN',
-            expected_observations=['success'],
-            verification='Check success',
-        )
-
-        decision = promoter.check_promotion_criteria(candidate)
-        success = decision == PromotionDecision.APPROVED
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_promotion_rejects_destructive_skills(self) -> Any:
-        """Test promotion rejects destructive skills."""
-        promoter = PromotionManager()
-
-        candidate = SkillCandidate(
-            proposed_name='destructive_skill',
-            purpose='Delete files',
-            triggers=['delete all'],
-            procedure="", procedure_steps=[{'action': 'filesystem.delete', 'args': {}}],
-            required_capabilities=['filesystem.delete'],
-            risk_profile='RED',
-            expected_observations=['deleted'],
-            verification='Check deleted',
-        )
-
-        decision = promoter.check_promotion_criteria(candidate)
-        success = decision == PromotionDecision.NEEDS_REVIEW
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_promotion_detects_regression(self) -> Any:
-        """Test promotion detects regression and rejects."""
-        promoter = PromotionManager()
-
-        # Create candidate with regression
-        candidate = SkillCandidate(
-            proposed_name='regressed_skill',
-            purpose='Regressed skill',
-            triggers=['run'],
-            procedure="", procedure_steps=[{'action': 'test', 'args': {}}],
-            required_capabilities=['system'],
-            risk_profile='GREEN',
-            expected_observations=['success'],
-            verification='Check success',
-            version='1.1',
-            attempts=20,
-            successes=10,  # 50% success rate - regression from 90%
-        )
-
-        # Mock existing skill with better metrics
-        promoter._get_existing_skill = lambda name: type('Skill', (), {
-            'version': '1.0',
-            'attempts': 20,
-            'successes': 18,  # 90% success rate
-            'success_rate': 0.9,
-        })()
-
-        decision = promoter.check_promotion_criteria(candidate)
-        success = decision == PromotionDecision.REGRESSION_DETECTED
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    # Skill Sandbox Tests
-    def test_skill_sandbox_execution(self) -> Any:
-        """Test skill sandbox executes allowed commands."""
-        sandbox = SkillSandbox(Path("workspace/sandbox"), allowed_capabilities=['system'])
-
-        skill = Skill(
-            name='test_skill',
-            purpose='Test',
-            trigger='run',
-            procedure="", procedure_steps=[{'action': 'echo', 'args': {'text': 'hello'}}],
-            required_capabilities=['system'],
-            risk_profile='GREEN',
-            expected_observations=['hello'],
-            verification_rules=[{"check": "output"}],
-            version='1.0',
-        )
-
-        result = sandbox.validate_skill(skill)
-        success = result.valid
-        return type('Result', (), {'success': success, 'latency_ms': 0})()
-
-    def test_skill_sandbox_rejects_disallowed(self) -> Any:
-        """Test skill sandbox rejects disallowed commands."""
-        sandbox = SkillSandbox(Path("workspace/sandbox"), allowed_capabilities=['system'])
-
-        skill = Skill(
-            name='test_skill',
-            purpose='Test',
-            trigger='run',
-            procedure="", procedure_steps=[{'action': 'terminal.run', 'args': {'command': 'rm -rf /'}}],
-            required_capabilities=['terminal'],
-            risk_profile='RED',
-            expected_observations=['deleted'],
-            verification_rules=[{"check": "deleted"}],
-            version='1.0',
-        )
-
-        result = sandbox.validate_skill(skill)
-        success = not result.valid
         return type('Result', (), {'success': success, 'latency_ms': 0})()
 
     # Trajectory Recording Tests

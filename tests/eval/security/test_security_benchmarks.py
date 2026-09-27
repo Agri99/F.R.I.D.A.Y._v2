@@ -53,7 +53,7 @@ class SecurityBenchmarks:
                 latency_ms=latency_ms,
                 details=str(result) if not blocked else "Attack successfully blocked",
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             latency_ms = (time.perf_counter() - start) * 1000
             return SecurityBenchmarkResult(
                 test_name=test_name,

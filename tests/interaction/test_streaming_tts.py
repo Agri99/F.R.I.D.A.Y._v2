@@ -77,7 +77,6 @@ class TestStreamingTts:
     def test_stale_results_dropped(self):
         """After cancel(), a stale synth that finishes must not enqueue."""
         sink = QueuedAudioSink()
-        events: list[bool] = []
         tts_generation_at_synth_entry: list[int] = []
         tts_gen = {"v": 0}
 

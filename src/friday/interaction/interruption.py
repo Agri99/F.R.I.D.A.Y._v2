@@ -104,7 +104,7 @@ class InterruptionManager:
         for _name, cb in callbacks:
             try:
                 cb(prev, new)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # Defensive: a misbehaving cancel must not stop others.
                 pass
 
@@ -117,7 +117,7 @@ class InterruptionManager:
         for sub in subscribers:
             try:
                 sub(event)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         return new
 

@@ -103,7 +103,7 @@ class ConversationManager:
         for cb in list(self._listeners):
             try:
                 cb(snap)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # Defensive: a buggy subscriber must not break the manager.
                 pass
 

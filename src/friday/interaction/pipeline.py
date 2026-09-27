@@ -84,7 +84,7 @@ class VoicePipeline:
         def synth(text: str) -> tuple[bytes, int] | None:
             try:
                 audio = speech_synthesizer._build_audio(text)
-            except Exception as synth_exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as synth_exc:
                 logger.warning("Pipeline TTS synthesis failed for '%s': %s", text, synth_exc)
                 return None
             if audio is None or len(audio) == 0:

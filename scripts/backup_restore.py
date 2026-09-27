@@ -10,11 +10,7 @@ Supports full backup, incremental backup, point-in-time recovery, and automated 
 from __future__ import annotations
 
 import argparse
-import gzip
 import json
-import shutil
-import sqlite3
-import sys
 import tarfile
 import time
 from datetime import datetime
@@ -93,7 +89,7 @@ class BackupManager:
             with open(_ROOT / "pyproject.toml", "rb") as f:
                 data = tomli.load(f)
                 return data.get("project", {}).get("version", "unknown")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return "unknown"
 
     def _find_latest_backup(self) -> Path | None:
@@ -151,7 +147,7 @@ class BackupManager:
 
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"[!] Restore failed: {e}")
             return False
 

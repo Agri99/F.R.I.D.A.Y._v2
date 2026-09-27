@@ -78,7 +78,7 @@ class SkillBenchmarkRunner:
                 details=["No orchestrator factory provided for benchmarking"]
             )
 
-        orchestrator = self.orchestrator_factory()
+        self.orchestrator_factory()
         runs = min(self.config.max_runs, len(test_inputs))
         if runs < self.config.min_runs:
             runs = self.config.min_runs
@@ -104,7 +104,7 @@ class SkillBenchmarkRunner:
                     details.append(f"Run {i+1}: PASS ({duration*1000:.1f}ms)")
                 else:
                     details.append(f"Run {i+1}: FAIL - {result.get('error', 'Unknown error')}")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 details.append(f"Run {i+1}: EXCEPTION - {e}")
 
         runs_completed = runs
@@ -151,7 +151,7 @@ class SkillBenchmarkRunner:
                 "verified": task.actions[-1].get("verified", False) if task.actions else False,
                 "error": task.last_message if task.status.value not in ("COMPLETED", "DONE") else None
             }
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return {"success": False, "error": str(e)}
 
 

@@ -107,7 +107,7 @@ class ResourceMonitor:
                 if gpus:
                     vram_percent = gpus[0].memoryUsed / gpus[0].memoryTotal * 100
                     gpu_percent = gpus[0].load * 100
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
             pressure = self._calculate_pressure(cpu_percent, ram_percent, vram_percent)
@@ -124,7 +124,7 @@ class ResourceMonitor:
                 queue_depth=0,
                 pressure=pressure,
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Error sampling metrics: {e}")
             return ResourceMetrics(
                 cpu_percent=0,

@@ -43,7 +43,7 @@ class ControlVerifier:
     def verify(self, expected: ControlExpectation) -> VerificationResult:
         try:
             import win32gui
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return VerificationResult(False, f"win32gui not available: {e}")
 
         target_hwnd = self._find_window_by_hint(expected.window_hint)
@@ -181,7 +181,7 @@ class ControlVerifier:
         try:
             if not win32gui_module.IsWindowEnabled(hwnd):
                 return "disabled"
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         # Pressed state is best-effort; treat as "enabled" when the control
         # is enabled and observable.
@@ -197,7 +197,7 @@ class ControlVerifier:
             style = win32gui_module.GetWindowLongPtr(hwnd, -16)  # GWL_STYLE
             BST_CHECKED = 0x00000010
             return bool(style & BST_CHECKED)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     @staticmethod
@@ -217,7 +217,7 @@ class ControlVerifier:
             if max_val == min_val:
                 return None
             return (pos - min_val) / (max_val - min_val)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
 

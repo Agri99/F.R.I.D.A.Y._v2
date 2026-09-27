@@ -96,7 +96,7 @@ def type_text(text: str, interval: float = 0.01) -> None:
         import pyautogui
         pyautogui.write(text, interval=interval)
         return
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         pass
 
     for char in text:

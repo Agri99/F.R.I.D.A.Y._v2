@@ -19,7 +19,7 @@ class PluginRollbackManager:
         if failed.instance is not None:
             try:
                 failed.instance.deactivate()
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 logger.error("Failed to deactivate plugin %s during rollback: %s", failed.manifest.name, exc)
                 raise
         PluginLifecycle.transition(failed, PluginState.ROLLED_BACK)

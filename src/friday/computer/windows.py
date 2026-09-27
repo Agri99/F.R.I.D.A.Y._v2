@@ -43,7 +43,7 @@ class WindowManager:
         try:
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             process_name = psutil.Process(pid).name()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             process_name = ""
             
         return WindowInfo(title, process_name, rect, True)
@@ -64,7 +64,7 @@ class WindowManager:
             title = win32gui.GetWindowText(hwnd)
             win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
             return True, f"Maximized '{title}'"
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return False, f"Maximize failed: {exc}"
 
     def minimize(self) -> tuple[bool, str]:
@@ -73,7 +73,7 @@ class WindowManager:
             title = win32gui.GetWindowText(hwnd)
             win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
             return True, f"Minimized '{title}'"
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return False, f"Minimize failed: {exc}"
 
     def restore(self) -> tuple[bool, str]:
@@ -82,7 +82,7 @@ class WindowManager:
             title = win32gui.GetWindowText(hwnd)
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
             return True, f"Restored '{title}'"
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return False, f"Restore failed: {exc}"
 
     def close(self) -> tuple[bool, str]:
@@ -91,7 +91,7 @@ class WindowManager:
             title = win32gui.GetWindowText(hwnd)
             win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
             return True, f"Sent close to '{title}'"
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return False, f"Close failed: {exc}"
 
     def focus(self, title: str) -> None:
@@ -111,7 +111,7 @@ class WindowManager:
                 try:
                     _, pid = win32process.GetWindowThreadProcessId(hwnd)
                     process_name = psutil.Process(pid).name()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     process_name = ""
                 windows.append(WindowInfo(title, process_name, rect, False))
         win32gui.EnumWindows(callback, None)

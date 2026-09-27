@@ -44,14 +44,14 @@ def get_credentials() -> Any:
     if stored:
         try:
             creds = Credentials.from_authorized_user_info(json.loads(stored), SCOPES)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             creds = None
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # Token expired or scope mismatch — force re-auth
                 creds = None
 

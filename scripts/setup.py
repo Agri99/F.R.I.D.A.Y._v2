@@ -8,9 +8,7 @@ Interactive/automated first-run bootstrap wizard for F.R.I.D.A.Y. v2 (Runbook §
 
 from __future__ import annotations
 
-import os
 import platform
-import shutil
 import sys
 from pathlib import Path
 
@@ -59,7 +57,7 @@ def detect_hardware_and_profile() -> str:
         profile = recommend_profile(hw)
         print(f"    [+] Recommended Hardware Profile: {profile}")
         return profile
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"    [!] Hardware detection fallback ({exc}). Defaulting to balanced.yaml")
         return "balanced.yaml"
 
@@ -75,7 +73,7 @@ def check_ollama() -> bool:
             models = [m.get("name") for m in data.get("models", [])]
             print(f"    [+] Ollama is online. Installed models: {', '.join(models) if models else 'None'}")
             return True
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         pass
     print("    [!] Ollama is not reachable on http://localhost:11434.")
     print("        Please start Ollama and run: ollama pull qwen2.5-coder:7b")
@@ -149,9 +147,9 @@ def initialize_database() -> None:
     try:
         from friday.memory.database import MemoryDatabase
         db_path = _ROOT / "data" / "friday.db"
-        db = MemoryDatabase(str(db_path))
+        MemoryDatabase(str(db_path))
         print("    [+] Database connected and verified.")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"    [!] Database initialization error: {exc}")
 
 
@@ -164,7 +162,7 @@ def main() -> None:
     ensure_directories()
     profile = detect_hardware_and_profile()
     
-    config = setup_env_file()
+    setup_env_file()
     
     # Record the chosen hardware profile
     env_path = _ROOT / ".env"

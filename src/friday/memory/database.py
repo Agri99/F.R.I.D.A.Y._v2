@@ -182,7 +182,7 @@ class MemoryDatabase:
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             conn.rollback()
             raise
         finally:

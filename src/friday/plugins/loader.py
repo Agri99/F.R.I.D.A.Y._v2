@@ -34,7 +34,7 @@ class PluginLoader:
             return record
         try:
             instance = self._instantiate(record)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             PluginLifecycle.transition(record, PluginState.FAILED, f"Instantiation failed: {exc}")
             return record
         PluginLifecycle.transition(record, PluginState.SANDBOXED)
@@ -51,7 +51,7 @@ class PluginLoader:
             record.instance = instance
             PluginLifecycle.transition(record, PluginState.ACTIVE)
             return record
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             PluginLifecycle.transition(record, PluginState.FAILED, str(exc))
             return record
 
@@ -67,7 +67,7 @@ class PluginLoader:
         try:
             if active.instance is not None:
                 active.instance.deactivate()
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             loaded.instance.deactivate() if loaded.instance else None
             PluginLifecycle.transition(loaded, PluginState.FAILED, f"Hot swap failed during deactivation: {exc}")
             return loaded

@@ -167,7 +167,7 @@ def _build_pipeline(sink: QueuedAudioSink | None = None, **overrides) -> VoicePi
     def synth_cb(text: str):
         try:
             audio = synth._build_audio(text)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
         if audio is None or len(audio) == 0:
             return None
@@ -212,7 +212,6 @@ class TestEventDrivenVoiceSession:
         pipeline.audio_input.start = lambda: None  # type: ignore[assignment]
         pipeline.audio_input.stop = lambda: None  # type: ignore[assignment]
         # Replace the queue getter so we control pacing.
-        original_queue = pipeline.audio_input.queue
 
         agent = FakeAgent(responses=["Sure, opening VS Code."])
         session = VoiceSession(
@@ -297,7 +296,7 @@ class TestEventDrivenVoiceSession:
         # Direct call into _speak_event_driven with a known response.
         result = session._speak_event_driven(pipeline, "Sure, opening VS Code now.")
         # After speaking, the sink should have been drained and played.
-        chunks = sink.drain()
+        sink.drain()
         assert result is None  # None = success (not interrupted, not failed)
         # At least one chunk was emitted and played.
         # In tests, the audio may not actually play, but chunks should have been generated.
@@ -328,7 +327,7 @@ class TestEventDrivenVoiceSession:
             pipeline.interruption.interrupt(reason="test_barge_in")
 
         threading.Thread(target=_delayed_interrupt, daemon=True).start()
-        interrupted = session._speak_event_driven(pipeline, "Another long answer.")
+        session._speak_event_driven(pipeline, "Another long answer.")
         # After interruption, the streaming TTS is cancelled.
         assert pipeline.streaming_tts.generation_id() >= 2  # bumped on start() + cancel()
 

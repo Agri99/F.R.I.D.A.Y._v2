@@ -208,7 +208,7 @@ class ContextPrimingEngine:
         items: list[ContextItem] = []
         try:
             episodes = self.episodic_memory.recall_similar(goal, limit=5)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return []
         for episode in episodes:
             if episode.outcome in {"SUCCESS", "COMPLETED"}:

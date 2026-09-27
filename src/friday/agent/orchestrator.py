@@ -72,7 +72,7 @@ def _format_confirmation_prompt(action: str, args: dict[str, Any]) -> str:
             wm = WindowManager()
             active = wm.get_active_window()
             app_name = active.title.split(" - ")[-1] if active.title else "the current window"
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             app_name = "the current window"
         return f"Do you want me to {op} {app_name}?"
 
@@ -254,7 +254,7 @@ class AgentOrchestrator:
                 arguments={"status": new_status.value, "reason": reason},
                 risk="GREEN",
             )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _trigger_replan(self, context: dict) -> None:
@@ -267,7 +267,7 @@ class AgentOrchestrator:
                 arguments={"reason": context.get("reason", "")},
                 risk="GREEN",
             )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _pause_execution(self) -> None:
@@ -280,13 +280,13 @@ class AgentOrchestrator:
                 arguments={},
                 risk="GREEN",
             )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _remember(self, role: str, content: str) -> None:
         try:
             self.conversation_memory.append(role, content)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def _check_shutdown_requested(self) -> bool:
@@ -312,7 +312,7 @@ class AgentOrchestrator:
 
         fast_intent = self.fastpath.match(goal)
         if fast_intent:
-            tool = self.tools.get(fast_intent.tool_name) if hasattr(self.tools, "get") else None
+            self.tools.get(fast_intent.tool_name) if hasattr(self.tools, "get") else None
             tier = self.tools.tier_of(fast_intent.tool_name) if hasattr(self.tools, "tier_of") else None
             step = Step(
                 action=fast_intent.tool_name,

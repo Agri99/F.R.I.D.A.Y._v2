@@ -124,7 +124,7 @@ class TerminalSandbox:
         """Create a virtual environment in the sandbox."""
         try:
             venv.create(self._venv_path, with_pip=True)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             self._venv_path = None
 
     def _get_venv_python(self) -> Path | None:
@@ -228,7 +228,7 @@ class TerminalSandbox:
                 error=f"Command timed out after {self.timeout_seconds}s",
                 mode=self.mode,
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return TerminalResult(success=False, output="", exit_code=1, error=str(exc), mode=self.mode)
 
     def clone_repository(self, repo_url: str, target_dir: str | None = None) -> TerminalResult:

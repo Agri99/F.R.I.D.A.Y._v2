@@ -97,7 +97,7 @@ class JobExecutor:
             except TimeoutError:
                 success = False
                 error_msg = f"Job timed out after {job.budget.max_time_seconds}s"
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 success = False
                 error_msg = str(exc)
                 output_msg = f"Job execution error: {exc}"
@@ -139,7 +139,7 @@ class JobExecutor:
         def run_orchestrator():
             try:
                 result_container["task"] = orchestrator.run(job.skill)
-            except Exception as exc:  # surface, do not swallow
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:  # surface, do not swallow
                 result_container["error"] = exc
                 logger.exception("Job %s execution raised", job.id)
 
@@ -185,7 +185,7 @@ class JobExecutor:
         if job.verification == VerificationType.CUSTOM and job.verification_func:
             try:
                 return job.verification_func(task)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return False
 
         return True

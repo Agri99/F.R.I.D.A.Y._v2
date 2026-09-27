@@ -36,7 +36,7 @@ class EventBus:
         for sub in self.subscribers:
             try:
                 sub(event)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
 

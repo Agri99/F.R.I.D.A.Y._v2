@@ -135,7 +135,7 @@ class SelfDevelopmentManager:
             report.passed = True
             report.stage = canary.stage.value
 
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             report.error = str(exc)
             canary.transition(UpgradeStage.REJECTED, str(exc))
         finally:

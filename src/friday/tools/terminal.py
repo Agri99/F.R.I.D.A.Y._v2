@@ -79,7 +79,7 @@ def _run_host(command: str, allowlist: list[str] | None = None) -> dict[str, Any
             "stderr": proc.stderr[:2000],
             "success": proc.returncode == 0,
         }
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"exit_code": 1, "stdout": "", "stderr": str(exc), "success": False}
 
 

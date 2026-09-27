@@ -71,7 +71,7 @@ class VoiceAuthProvider:
             self._reference_embedding = self._build_reference_embedding()
             if self._reference_embedding is None:
                 logger.warning("No voice enrollment found. Voice auth will deny all attempts.")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.warning(f"VoiceAuthProvider could not load SpeechBrain models: {e}")
 
     def _load_waveform(self, path: str | Path) -> Any:
@@ -104,14 +104,14 @@ class VoiceAuthProvider:
                 rate = wf.getframerate()
                 if rate > 0:
                     return frames / float(rate)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         try:
             import soundfile as sf
             info = sf.info(str(path))
             return info.frames / info.samplerate
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return 0.0
 
     def verify(self, audio_path: str | Path) -> VerificationResult:
@@ -174,7 +174,7 @@ class VoiceAuthProvider:
                 threshold=effective_threshold,
                 duration_seconds=duration
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self.metrics.failed_verifications += 1
             logger.error(f"Voice verification failed during processing: {e}")
             return VerificationResult(

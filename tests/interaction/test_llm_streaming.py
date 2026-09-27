@@ -85,7 +85,7 @@ class TestLlmStreamToTts:
         def llm_stream():
             yield ModelDelta(text="Hello there.")
 
-        metrics = bridge.stream(llm_stream())
+        bridge.stream(llm_stream())
 
         # First audio time should be tracked after synthesis
         # (may be None if synthesis doesn't happen immediately)

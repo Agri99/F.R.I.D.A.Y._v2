@@ -163,7 +163,7 @@ class ModelRouter:
                 provider = self.get(role)
                 if self._compatible(provider, role, context):
                     return provider
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 continue
         raise ModelRoutingError(f"No healthy compatible model provider for roles: {', '.join(attempted)}")
 

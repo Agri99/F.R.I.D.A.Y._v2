@@ -60,7 +60,7 @@ def run_command(cmd: list[str], timeout: float = 30.0) -> tuple[bool, str]:
         return result.returncode == 0, result.stdout + result.stderr
     except subprocess.TimeoutExpired:
         return False, f"Command timed out after {timeout}s"
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         return False, str(e)
 
 
@@ -164,7 +164,7 @@ def run_all_tests() -> list[tuple[str, bool, str]]:
             results.append((name, ok, msg))
             status = "PASS" if ok else "FAIL"
             print(f"[{status}] {name}: {msg}")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             results.append((name, False, f"Exception: {e}"))
             print(f"[FAIL] {name}: Exception: {e}")
 

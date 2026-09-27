@@ -44,7 +44,7 @@ class NetworkMonitor:
                     return self._state
             except (urllib.error.URLError, OSError, TimeoutError):
                 continue
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 continue
 
         with self._lock:

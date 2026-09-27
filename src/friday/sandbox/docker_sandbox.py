@@ -47,7 +47,7 @@ class DockerSandbox:
                 timeout=5,
                 check=True,
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             raise RuntimeError(f"Docker not available: {e}")
 
     def execute(
@@ -118,7 +118,7 @@ class DockerSandbox:
                     "duration_ms": round(duration_ms, 2),
                     "timeout": True,
                 }
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 duration_ms = (time.time() - start_time) * 1000
                 return {
                     "output": "",
@@ -164,7 +164,7 @@ import sys
 try:
     result = {function}(**json.loads(sys.stdin.read()))
     print(json.dumps({{"success": True, "result": result}}))
-except Exception as e:
+except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
     print(json.dumps({{"success": False, "error": str(e)}}))
     sys.exit(1)
 """
@@ -180,7 +180,7 @@ except Exception as e:
             try:
                 output = json.loads(result["output"])
                 return output
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return {
                     "success": False,
                     "error": result.get("error") or result.get("output") or "Execution failed",

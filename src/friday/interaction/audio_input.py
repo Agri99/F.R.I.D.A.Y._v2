@@ -145,7 +145,7 @@ class AudioInputStream:
         if self.on_chunk is not None:
             try:
                 keep_going = self.on_chunk(chunk)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # Defensive: a buggy callback must not stop audio capture.
                 keep_going = True
         self.queue.put(chunk)
@@ -153,7 +153,7 @@ class AudioInputStream:
             self._running = False
             try:
                 self._stream.stop()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 self._lost_device = True
 
     def start(self, retries: int = 3, retry_delay_s: float = 0.25) -> None:
@@ -170,11 +170,11 @@ class AudioInputStream:
         while not self.queue._q.empty():
             try:
                 self.queue._q.get_nowait()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 break
         try:
             import sounddevice as sd
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             self._lost_device = True
             raise RuntimeError(f"sounddevice not available: {e}")
 
@@ -196,7 +196,7 @@ class AudioInputStream:
                 )
                 self._stream.start()
                 return
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 last_error = e
                 self._running = False
                 self._lost_device = True
@@ -211,7 +211,7 @@ class AudioInputStream:
             try:
                 self._stream.stop()
                 self._stream.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 self._lost_device = True
             self._stream = None
 

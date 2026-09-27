@@ -258,7 +258,7 @@ class ChatterboxTurboSynthesizer:
             return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
         try:
             audio = self._build_audio(text)
-        except Exception as synth_err:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as synth_err:
             logger.exception("Chatterbox Turbo synthesis failed: %s", synth_err)
             return TTSResult(success=False, error=str(synth_err))
 
@@ -278,7 +278,7 @@ class ChatterboxTurboSynthesizer:
             interrupted = self._interrupt_event.is_set()
             duration = time.time() - start_time
             return TTSResult(success=True, interrupted=interrupted, duration_seconds=duration)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo playback failed: %s", exc)
             return TTSResult(success=False, error=str(exc))
         finally:
@@ -293,7 +293,7 @@ class ChatterboxTurboSynthesizer:
         self._interrupt_event.clear()
         try:
             audio = self._build_audio(text)
-        except Exception as synth_err:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as synth_err:
             logger.exception("Chatterbox Turbo synthesis failed: %s", synth_err)
             return TTSResult(success=False, error=str(synth_err))
 
@@ -333,7 +333,7 @@ class ChatterboxTurboSynthesizer:
                             if wakeword_listener.check_frame(stream, debug=False):
                                 interrupted = True
                                 break
-                        except Exception:
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                             pass
 
                     if not interrupted:
@@ -344,7 +344,7 @@ class ChatterboxTurboSynthesizer:
                     if remaining > 0:
                         time.sleep(remaining)
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.warning("Barge-in monitoring failed, falling back to simple playback: %s", e)
             remaining = duration - (time.time() - start_time)
             if remaining > 0:
@@ -354,7 +354,7 @@ class ChatterboxTurboSynthesizer:
             if interrupted:
                 try:
                     sd.stop()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
             self._current_audio = None
             if interrupted:
@@ -374,7 +374,7 @@ class ChatterboxTurboSynthesizer:
         self._interrupt_event.set()
         try:
             sd.stop()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         self._current_audio = None
         self._set_state(VoiceState.INTERRUPTED)
@@ -415,7 +415,7 @@ class SpeechSynthesizer:
             self._active_backend._ensure_model()
             timbre_info = f" (timbre: {Path(self._active_backend.audio_prompt_path).name})" if self._active_backend.audio_prompt_path else ""
             print(f"FRIDAY [Voice]: Initialized Chatterbox Turbo TTS engine on {self._active_backend.device.upper()}{timbre_info}.")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.warning("Chatterbox Turbo lazy-load deferred or warning: %s", e)
 
     @property
@@ -437,7 +437,7 @@ class SpeechSynthesizer:
     def speak(self, text: str) -> TTSResult:
         try:
             return self._active_backend.speak(text)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo speak failed: %s", exc)
             return TTSResult(success=False, error=str(exc))
 
@@ -448,7 +448,7 @@ class SpeechSynthesizer:
                 text, wakeword_listener=wakeword_listener,
                 playback_gain=playback_gain, on_interrupt=on_interrupt
             )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo speak_interruptible failed: %s", exc)
             return TTSResult(success=False, error=str(exc))
 

@@ -8,15 +8,19 @@ Enhanced with full job schema: trigger, context, skill, capabilities, budget, wi
 
 from __future__ import annotations
 
+import logging
 import sched
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as dt_time
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     from croniter import croniter
@@ -278,7 +282,7 @@ class JobScheduler:
             try:
                 cron = croniter(expr, base)
                 return cron.get_next(datetime)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return base + timedelta(hours=24)
 
         if trigger.startswith("interval:"):
@@ -320,7 +324,7 @@ class JobScheduler:
             try:
                 date_str = trigger.split(":", 1)[1]
                 return datetime.fromisoformat(date_str)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return base + timedelta(hours=24)
 
         if trigger == "daily":
@@ -400,7 +404,7 @@ class JobScheduler:
             success = task.status.value in ("COMPLETED", "DONE", "SUCCESS", "done") and verified
             self.mark_completed(job.id, success, task.last_message)
 
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.error(f"Job {job.id} execution failed: {exc}")
             self.mark_completed(job.id, False, {"error": str(exc)})
 
@@ -429,15 +433,8 @@ class JobScheduler:
         if job.verification == VerificationType.CUSTOM and job.verification_func:
             try:
                 return job.verification_func(task)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return False
 
         return False
 
-
-# Helper imports
-import logging
-import threading
-from datetime import timedelta
-
-logger = logging.getLogger(__name__)

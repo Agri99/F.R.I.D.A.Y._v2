@@ -123,20 +123,20 @@ class WindowsComputerController:
             import win32gui
             hwnd = win32gui.GetForegroundWindow()
             title = win32gui.GetWindowText(hwnd) if hwnd else "Unknown"
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             title = "Unknown"
 
         try:
             img = grab_screen_bytes()
             screen_hash = str(hash(img)) if img else ""
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             screen_hash = "no_screen_available"
             img = None
 
         try:
-            ui_state = self.accessibility.get_ui_tree()
-        except Exception:
-            ui_state = "ui_automation_unavailable"
+            self.accessibility.get_ui_tree()
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            pass
         
         ocr_text = ""
         vlm_desc = ""
@@ -152,7 +152,7 @@ class WindowsComputerController:
                 screen_hash = compute_screen_hash(pil_img)
                 from friday.computer.screen import ocr
                 ocr_text = ocr(pil_img)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         screenshot_path = save_screenshot()
@@ -260,7 +260,7 @@ class WindowsComputerController:
             try:
                 keyboard.press(key)
                 return (True, f"Pressed key '{key}'")
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 return (False, f"Failed to press key '{key}': {exc}")
 
         return self._execute_and_verify(do_press, expected_change)
@@ -272,7 +272,7 @@ class WindowsComputerController:
             try:
                 mouse.scroll(amount)
                 return (True, f"Scrolled {amount} clicks")
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 return (False, f"Scroll failed: {exc}")
 
         return self._execute_and_verify(do_scroll, expected_change)
@@ -336,7 +336,7 @@ class WindowsComputerController:
                     verification_passed=True,
                     verification_reason="Tool executed successfully"
                 )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return ActionResult(
                 success=False,
                 message=f"Tool execution failed: {str(e)}",
@@ -376,7 +376,7 @@ class WindowsComputerController:
             reg_conv(registry)
 
             return registry.get(tool_name)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     def verify_action(self, before: ControllerObservation, after: ControllerObservation,

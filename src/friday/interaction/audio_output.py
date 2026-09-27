@@ -196,7 +196,7 @@ class AudioOutputService:
             return {"available": False, "error": "sounddevice not installed"}
 
         try:
-            devices = sd.query_devices()
+            sd.query_devices()
             default_output = sd.default.device[1] if sd.default.device else None
 
             if self.config.device is not None:
@@ -220,7 +220,7 @@ class AudioOutputService:
                 }
 
             return {"available": False, "error": "no output device found"}
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return {"available": False, "error": str(e)}
 
     def is_running(self) -> bool:
@@ -259,7 +259,7 @@ class AudioOutputService:
             if chunk.on_done:
                 try:
                     chunk.on_done()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
 
     def _play_chunk_blocking(self, chunk: PlaybackChunk) -> None:
@@ -270,7 +270,7 @@ class AudioOutputService:
         try:
             sd.play(chunk.audio, samplerate=chunk.sample_rate, device=self.config.device)
             sd.wait()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             self._device_lost = True
 
     def _close_stream(self) -> None:
@@ -280,7 +280,7 @@ class AudioOutputService:
                 self._stream.stop()
                 self._stream.close()
                 self._stream = None
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             self._device_lost = True
 
 

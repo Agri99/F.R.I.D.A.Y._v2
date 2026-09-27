@@ -140,7 +140,7 @@ class StreamingAudioConsumer:
                 sd.wait()
             except queue.Empty:
                 continue
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 import logging
                 logging.getLogger(__name__).warning("Audio playback error: %s", e)
 
@@ -224,7 +224,7 @@ class StreamingTts:
             self._generation += 1
         try:
             self._sink.stop()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     def generation_id(self) -> int:
@@ -246,7 +246,7 @@ class StreamingTts:
     def _synthesize_and_emit(self, text: str) -> None:
         try:
             result = self._synth(text)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return
         if not result:
             return
@@ -272,7 +272,7 @@ class StreamingTts:
                 self._sink.enqueue(chunk)
             else:
                 self._sink.play(audio, sample_rate)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
 

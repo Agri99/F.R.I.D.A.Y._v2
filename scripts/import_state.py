@@ -3,7 +3,6 @@
 scripts/import_state.py
 Imports memory, identity, preferences, and knowledge from exported YAML into SQLite database. Runbook §82.
 """
-import sys
 import sqlite3
 from pathlib import Path
 import yaml
@@ -30,7 +29,7 @@ def import_table(cursor: sqlite3.Cursor, table_name: str, yaml_path: Path):
         try:
             cursor.execute(sql, list(row.values()))
             count += 1
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
     print(f"  [+] Imported {count} rows into {table_name}")
 

@@ -75,7 +75,7 @@ class PlaywrightController:
 
     async def click(self, selector: str) -> None:
         """Click element by CSS selector. Must be used with caution on untrusted pages."""
-        scope = evaluate_action("click_button")
+        evaluate_action("click_button")
         # Orange scope requires confirmation; in programmatic use caller handles auth
         await self._page.click(selector)
 

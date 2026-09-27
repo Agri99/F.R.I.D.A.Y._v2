@@ -65,18 +65,18 @@ class TelemetryMonitor:
         snap = TelemetrySnapshot()
         try:
             snap.cpu_percent = psutil.cpu_percent(interval=None)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         try:
             mem = psutil.virtual_memory()
             snap.ram_used_gb = mem.used / (1024 ** 3)
             snap.ram_percent = mem.percent
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         try:
             disk = psutil.disk_usage("/")
             snap.disk_percent = disk.percent
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         # GPU stats attempted via nvidia-smi / rocm-smi
         try:
@@ -90,6 +90,6 @@ class TelemetryMonitor:
                 util, mem_used = res.stdout.strip().split(",")
                 snap.gpu_util_percent = float(util.strip().replace("%", ""))
                 snap.vram_used_gb = float(mem_used.strip().replace(" MiB", "")) / 1024.0
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         return snap

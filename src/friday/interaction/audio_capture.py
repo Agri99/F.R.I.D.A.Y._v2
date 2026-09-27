@@ -146,7 +146,7 @@ class AudioCapture:
         for listener in listeners:
             try:
                 listener(chunk)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass  # Defensive: a buggy listener must not stop capture
         # Push to queue and ring buffer
         self._frame_queue.put(chunk)
@@ -164,7 +164,7 @@ class AudioCapture:
         while not self._frame_queue.empty():
             try:
                 self._frame_queue.get_nowait()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 break
 
         last_error: Exception | None = None
@@ -182,7 +182,7 @@ class AudioCapture:
                 )
                 self._stream.start()
                 return
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 last_error = e
                 self._running = False
                 self._lost_device = True
@@ -198,7 +198,7 @@ class AudioCapture:
             try:
                 self._stream.stop()
                 self._stream.close()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 self._lost_device = True
             self._stream = None
 

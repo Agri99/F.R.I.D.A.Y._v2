@@ -140,7 +140,7 @@ class LlmStreamToTts:
             if not metrics.cancelled:
                 self.tts.finish()
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             metrics.error = str(e)
 
         metrics.total_tokens = token_count

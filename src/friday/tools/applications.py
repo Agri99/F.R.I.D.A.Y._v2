@@ -49,7 +49,7 @@ def _scan_installed_apps(force_refresh: bool = False) -> dict[str, str]:
                             continue
                         if name not in discovered:
                             discovered[name] = str(item)
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
 
         # 2. Registry App Paths
@@ -68,11 +68,11 @@ def _scan_installed_apps(force_refresh: bool = False) -> dict[str, str]:
                                         clean_name = sub_name.lower().replace(".exe", "").strip()
                                         if clean_name not in discovered:
                                             discovered[clean_name] = str(val)
-                            except Exception:
+                            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                                 pass
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
     _INSTALLED_APPS_CACHE = discovered
@@ -162,7 +162,7 @@ def _open_app(app_id: str, force_new: bool = False, confirmed: bool = False) -> 
                             if hwnd:
                                 ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
                                 ctypes.windll.user32.SetForegroundWindow(hwnd)
-                        except Exception:
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                             pass
                     return {
                         "status": "opened",
@@ -186,7 +186,7 @@ def _open_app(app_id: str, force_new: bool = False, confirmed: bool = False) -> 
             "target": target,
             "message": f"Opened {app_name}.",
         }
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 

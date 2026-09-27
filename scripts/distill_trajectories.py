@@ -47,7 +47,7 @@ def main() -> None:
                 trajectories.extend(data)
             else:
                 trajectories.append(data)
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"[!] Failed to load {f}: {e}")
 
     print(f"[*] Loaded {len(trajectories)} trajectory records from {len(trajectory_files)} files")

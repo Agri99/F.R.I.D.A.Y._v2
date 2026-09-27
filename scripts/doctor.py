@@ -36,13 +36,11 @@ Outputs PASS, WARN, or FAIL with remediation advice.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import shutil
 import sqlite3
-import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
@@ -52,7 +50,7 @@ def check_item(name: str, check_fn: Callable[[], tuple[bool, str]]) -> tuple[str
     try:
         ok, msg = check_fn()
         return ("PASS" if ok else "WARN", name, msg)
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
         return ("FAIL", name, str(e))
 
 
@@ -87,7 +85,7 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
             devices = sd.query_devices()
             has_input = any(d.get("max_input_channels", 0) > 0 for d in devices)
             return has_input, "Microphone available" if has_input else "No recording input device detected"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Audio check failed: {e}"
     checks.append(("Audio Input Device", c_audio_in))
 
@@ -98,7 +96,7 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
             devices = sd.query_devices()
             has_out = any(d.get("max_output_channels", 0) > 0 for d in devices)
             return has_out, "Speaker available" if has_out else "No playback output device detected"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Audio check failed: {e}"
     checks.append(("Audio Output Device", c_audio_out))
 
@@ -129,7 +127,7 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
             return True, f"Chatterbox Turbo available (device: {dev})"
         except ImportError:
             return False, "chatterbox-tts package missing (pip install chatterbox-tts)"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"TTS check failed: {e}"
     checks.append(("TTS Engine (Chatterbox Turbo)", c_tts))
 
@@ -139,7 +137,7 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
             import urllib.request
             urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
             return True, "Ollama daemon reachable at localhost:11434"
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False, "Ollama daemon not reachable. Run 'ollama serve'"
     checks.append(("LLM Provider (Ollama)", c_llm))
 
@@ -168,7 +166,7 @@ def run_basic_diagnostics() -> list[tuple[str, str, str]]:
             conn = sqlite3.connect(str(db_path))
             conn.close()
             return True, "SQLite database accessible"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Database error: {e}"
     checks.append(("Memory Database", c_db))
 
@@ -203,13 +201,13 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             from friday.interaction.vad import RmsVoiceActivityDetector, SileroVoiceActivityDetector
             # Try Silero first
             try:
-                vad = SileroVoiceActivityDetector()
+                SileroVoiceActivityDetector()
                 return True, "Silero VAD loaded successfully"
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 # Fallback to RMS
-                vad = RmsVoiceActivityDetector(rms_threshold=50.0)
+                RmsVoiceActivityDetector(rms_threshold=50.0)
                 return True, "RMS VAD available (Silero not found)"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"VAD initialization failed: {e}"
     results.append(check_item("VAD", test_vad))
 
@@ -225,7 +223,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
                 return True, "openwakeword will download models on first use"
             except ImportError:
                 return False, "Wake word model not found and openwakeword not installed"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Wake word check failed: {e}"
     results.append(check_item("Wake Word Model", test_wakeword_model))
 
@@ -235,7 +233,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             from friday.interaction.stt import StreamingTranscriber
             # Don't actually load the model, just verify the class works
             return True, "StreamingTranscriber available (model loads on first use)"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"STT check failed: {e}"
     results.append(check_item("Streaming STT", test_stt_model))
 
@@ -247,9 +245,9 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             def dummy_synth(text: str):
                 return None
             sink = QueuedAudioSink()
-            tts = StreamingTts(synth=dummy_synth, sink=sink)
+            StreamingTts(synth=dummy_synth, sink=sink)
             return True, "StreamingTts initialized successfully"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"TTS check failed: {e}"
     results.append(check_item("Streaming TTS", test_tts_synthesis))
 
@@ -258,10 +256,10 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
         try:
             from friday.interaction.audio_capture import AudioCapture, AudioCaptureConfig
             config = AudioCaptureConfig()
-            capture = AudioCapture(config)
+            AudioCapture(config)
             # Don't actually start it, just verify creation
             return True, "AudioCapture service available"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Audio capture check failed: {e}"
     results.append(check_item("Audio Capture Service", test_audio_capture))
 
@@ -270,9 +268,9 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
         try:
             from friday.interaction.audio_output import AudioOutputService, AudioOutputConfig
             config = AudioOutputConfig()
-            output = AudioOutputService(config)
+            AudioOutputService(config)
             return True, "AudioOutputService available"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Audio output check failed: {e}"
     results.append(check_item("Audio Output Service", test_audio_output))
 
@@ -281,9 +279,9 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
         try:
             from friday.interaction.turn_detector import TurnDetector, TurnDetectorConfig
             config = TurnDetectorConfig()
-            detector = TurnDetector(config)
+            TurnDetector(config)
             return True, "TurnDetector initialized successfully"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Turn detector check failed: {e}"
     results.append(check_item("Turn Detector", test_turn_detector))
 
@@ -294,7 +292,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             manager = ConversationManager()
             snap = manager.snapshot()
             return True, f"ConversationManager ready (id={snap.conversation_id[:12]}...)"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Conversation manager check failed: {e}"
     results.append(check_item("Conversation Manager", test_conversation_manager))
 
@@ -305,7 +303,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
             im = InterruptionManager()
             gen = im.generation()
             return True, f"InterruptionManager ready (gen={gen})"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Interruption manager check failed: {e}"
     results.append(check_item("Interruption Manager", test_interruption_manager))
 
@@ -323,7 +321,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
 
             sink = QueuedAudioSink()
             tts = StreamingTts(synth=lambda x: None, sink=sink)
-            pipeline = VoicePipeline(
+            VoicePipeline(
                 audio_input=AudioInputStream(),
                 vad=RmsVoiceActivityDetector(),
                 transcriber=StreamingTranscriber(model_size="small"),
@@ -334,7 +332,7 @@ def run_voice_diagnostics() -> list[tuple[str, str, str]]:
                 sink=sink,
             )
             return True, "VoicePipeline assembled successfully"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return False, f"Pipeline assembly failed: {e}"
     results.append(check_item("Voice Pipeline Assembly", test_voice_pipeline))
 

@@ -125,7 +125,7 @@ class GmailClient:
             with open(self.token_file, "rb") as f:
                 data = pickle.load(f)
             return GmailCredentials(**data)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     def _save_credentials(self, creds: GmailCredentials) -> None:
@@ -179,7 +179,7 @@ class GmailClient:
                     self._save_credentials(self._credentials)
                 self._active_scopes = scopes
                 return True
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass  # Fall through to full auth flow
 
         # Full OAuth flow

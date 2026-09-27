@@ -5,7 +5,6 @@ scripts/benchmark_models.py
 Standalone model benchmarking script.
 """
 from __future__ import annotations
-import sys
 
 def main():
     print("Starting benchmarks...")

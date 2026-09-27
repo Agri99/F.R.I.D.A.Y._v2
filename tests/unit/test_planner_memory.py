@@ -5,6 +5,8 @@ WHAT THIS IS FOR:
 Unit test for planner's memory-aware replanning.
 """
 
+from unittest.mock import MagicMock
+
 from friday.agent.planner import Planner
 from friday.agent.task import Task
 
@@ -43,6 +45,3 @@ def test_planner_produces_structured_steps():
         system_prompt="You are a test.",
     )
     assert isinstance(steps, list)
-
-
-from unittest.mock import MagicMock

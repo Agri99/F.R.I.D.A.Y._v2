@@ -46,7 +46,7 @@ def _search(query: str = "", max_results: int = 5, **kwargs) -> dict[str, Any]:
         return {"status": "ok", "messages": messages, "count": len(messages)}
     except FileNotFoundError as exc:
         return {"status": "error", "message": f"Gmail not configured: {exc}"}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not search Gmail: {exc}"}
 
 
@@ -78,7 +78,7 @@ def _read(message_id: str) -> dict[str, Any]:
             "date": headers.get("Date", ""),
             "body": body,
         }
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not read email {message_id}: {exc}"}
 
 
@@ -95,7 +95,7 @@ def _send(to: str, subject: str, body: str) -> dict[str, Any]:
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
         sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()
         return {"status": "ok", "message_id": sent.get("id"), "to": to, "subject": subject}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not send email: {exc}"}
 
 

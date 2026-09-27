@@ -23,7 +23,7 @@ def _open_url(url: str) -> dict[str, Any]:
     try:
         _browser.open_url(url)
         return {"status": "ok", "url": url}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 
@@ -35,7 +35,7 @@ def _search(query: str) -> dict[str, Any]:
     try:
         url = _browser.search(query)
         return {"status": "ok", "query": query, "url": url}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 
@@ -47,7 +47,7 @@ def _observe(url: str | None = None) -> dict[str, Any]:
         else:
             content = _browser.get_page_content()
         return {"status": "ok", "content": content}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": f"Could not read webpage content: {exc}"}
 
 

@@ -124,7 +124,7 @@ class CalendarClient:
             with open(self.token_file, "rb") as f:
                 data = pickle.load(f)
             return CalendarCredentials(**data)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     def _save_credentials(self, creds: CalendarCredentials) -> None:
@@ -177,7 +177,7 @@ class CalendarClient:
                     self._save_credentials(self._credentials)
                 self._active_scopes = scopes
                 return True
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass  # Fall through to full auth flow
 
         # Full OAuth flow
@@ -451,7 +451,7 @@ class CalendarClient:
         try:
             from datetime import datetime
             return datetime.fromisoformat(time_str.replace("Z", "+00:00")).timestamp()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return 0.0
 
     def _ensure_scope(self, capability: str) -> None:

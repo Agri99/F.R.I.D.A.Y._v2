@@ -50,7 +50,7 @@ class GeminiProvider(ModelProvider):
             try:
                 secrets = SecretsManager()
                 self.api_key = secrets.get("gemini_api_key") or secrets.get("google/gemini_api_key")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         self._client: Any = None
@@ -67,7 +67,7 @@ class GeminiProvider(ModelProvider):
                 if not self.api_key:
                     try:
                         self.api_key = SecretsManager().get("gemini_api_key")
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
             if not self.api_key:
                 raise RuntimeError("GEMINI_API_KEY is not configured.")
@@ -96,7 +96,7 @@ class GeminiProvider(ModelProvider):
                 self.client.models.get(model=m)
                 latency = (time.time() - start_time) * 1000.0
                 return ProviderHealth(available=True, model_loaded=True, latency_ms=latency)
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 if "503" in str(exc) or "UNAVAILABLE" in str(exc):
                     continue
                 return ProviderHealth(available=False, model_loaded=False, error=str(exc))
@@ -135,7 +135,7 @@ class GeminiProvider(ModelProvider):
                     last_content.parts.append(
                         types.Part.from_bytes(data=raw_bytes, mime_type="image/jpeg")
                     )
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
 
         # If no user messages were provided, supply a minimal prompt
@@ -195,7 +195,7 @@ class GeminiProvider(ModelProvider):
                     config=config,
                 )
                 break
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 last_exc = exc
                 if "503" in str(exc) or "UNAVAILABLE" in str(exc):
                     continue
@@ -252,7 +252,7 @@ class GeminiProvider(ModelProvider):
                     config=config,
                 )
                 break
-            except Exception as exc:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
                 if "503" in str(exc) or "UNAVAILABLE" in str(exc):
                     continue
                 raise exc

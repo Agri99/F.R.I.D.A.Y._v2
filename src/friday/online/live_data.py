@@ -66,7 +66,7 @@ class LiveDataProvider:
                     humidity=humidity,
                     wind_speed=wind,
                 )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.warning(f"Live weather fetch failed: {exc}")
 
         return f"Unable to retrieve live weather for '{location}' (service offline or unreachable)."
@@ -88,7 +88,7 @@ class LiveDataProvider:
                         items.append(NewsItem(headline=title, url=link, source=source))
                 if items:
                     return items
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.warning(f"News fetch failed: {exc}")
 
         return f"Unable to fetch live news headlines for '{query}'."

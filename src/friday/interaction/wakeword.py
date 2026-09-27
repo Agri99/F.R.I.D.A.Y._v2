@@ -75,7 +75,7 @@ class WakeWordListener:
                 if frame_count <= warmup_frames:
                     try:
                         stream.read(FRAME_SIZE)
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         return False
                     continue
 
@@ -89,5 +89,5 @@ class WakeWordListener:
                 try:
                     stream.stop()
                     stream.close()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass

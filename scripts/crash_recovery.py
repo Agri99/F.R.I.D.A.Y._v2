@@ -44,7 +44,7 @@ class CrashRecoveryManager:
         for sig in (signal.SIGTERM, signal.SIGINT):
             try:
                 signal.signal(sig, self._signal_handler)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass  # Windows may not support all signals
 
     def _signal_handler(self, signum, frame) -> None:
@@ -87,7 +87,7 @@ class CrashRecoveryManager:
             if data.get("pid") != os.getpid():
                 self.crashed = True
                 return True
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         return False
 
@@ -97,7 +97,7 @@ class CrashRecoveryManager:
         if state_file.exists():
             try:
                 return json.loads(state_file.read_text())
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         return None
 
@@ -164,7 +164,7 @@ class Watchdog:
         while self.running:
             time.sleep(1)
             if time.time() - self.last_heartbeat > self.timeout:
-                print(f"[!] Watchdog timeout - process appears hung!")
+                print("[!] Watchdog timeout - process appears hung!")
                 self._trigger_restart()
 
     def _trigger_restart(self) -> None:
@@ -209,7 +209,7 @@ def main():
         # Simulate a crash for testing
         try:
             raise RuntimeError("Simulated crash for testing")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             manager.log_crash(e, "Test crash simulation")
         return 0
 

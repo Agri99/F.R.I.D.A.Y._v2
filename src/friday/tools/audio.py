@@ -19,7 +19,7 @@ def _set_volume(level: int) -> dict:
         volume = _get_volume_interface()
         volume.SetMasterVolumeLevelScalar(level / 100.0, None)
         return {"status": "ok", "volume": level}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 def _mute(mute: bool = True) -> dict:
@@ -27,7 +27,7 @@ def _mute(mute: bool = True) -> dict:
         volume = _get_volume_interface()
         volume.SetMute(1 if mute else 0, None)
         return {"status": "ok", "muted": mute}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 def _get_volume() -> dict:
@@ -35,7 +35,7 @@ def _get_volume() -> dict:
         volume = _get_volume_interface()
         current = volume.GetMasterVolumeLevelScalar()
         return {"volume": round(current * 100), "muted": bool(volume.GetMute())}
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
 def _verify_set_volume(args: dict, result: dict) -> VerificationResult:

@@ -104,9 +104,9 @@ class ModelRegistry:
                 for item in raw:
                     try:
                         entries.append(ModelEntry(**item))
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         pass
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
         if not entries:
             entries = _default_entries()

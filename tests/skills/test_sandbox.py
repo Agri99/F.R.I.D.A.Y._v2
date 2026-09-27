@@ -80,7 +80,7 @@ class TestSkillSandbox:
             required_capabilities=["filesystem"],
             risk_profile="YELLOW",
         )
-        result = sandbox.validate_skill(skill)
+        sandbox.validate_skill(skill)
         # filesystem is allowed, so should pass validation
         # The actual execution check will catch disallowed actions
 

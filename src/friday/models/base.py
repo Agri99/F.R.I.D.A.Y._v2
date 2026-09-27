@@ -126,6 +126,6 @@ class ModelProvider(ABC):
         """Quick check if the provider is healthy/available."""
         try:
             return self.health().available
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False
 

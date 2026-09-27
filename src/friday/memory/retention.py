@@ -67,7 +67,7 @@ class MemoryRetentionEngine:
                 expiry_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
                 if expiry_dt < datetime.now():
                     return RetentionScore(value=0.0, should_retain=False, reason="Expired")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         # Source authority weighting
@@ -91,7 +91,7 @@ class MemoryRetentionEngine:
                 age_days = (datetime.now() - created_dt).days
                 if age_days > 30:
                     age_penalty = min(0.2, age_days * 0.002)  # Max 20% penalty after ~100 days
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         final_score = max(0.0, effective_confidence - age_penalty + (evidence_count * 0.01))
@@ -132,7 +132,7 @@ class RetentionManager:
                     self.engine.source_authorities[row["source_name"]] = SourceAuthority(
                         row["source_name"], row["authority_level"], row["description"]
                     )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass  # Use defaults
 
     def _load_retention_policies(self) -> dict:
@@ -143,7 +143,7 @@ class RetentionManager:
                 rows = conn.execute("SELECT category, min_confidence, max_age_days, decay_rate, archive_threshold FROM retention_policies").fetchall()
                 for row in rows:
                     policies[row["category"]] = dict(row)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
         return policies
 
@@ -181,7 +181,7 @@ class RetentionManager:
             confidence = float(row["confidence"])
             evidence_count = int(row["evidence_count"])
             source = row["source"] if "source" in row.keys() else "inferred"
-            created_at = row["created_at"] if "created_at" in row.keys() else None
+            row["created_at"] if "created_at" in row.keys() else None
 
             if new_evidence and verification_passed:
                 evidence_count += 1
@@ -222,7 +222,7 @@ class RetentionManager:
         with self.db.connection() as conn:
             for category, table in [("fact", "facts"), ("preference", "preferences"), ("episode", "episodes")]:
                 policy = policies.get(category, {})
-                decay_rate = policy.get("decay_rate", 0.01)
+                policy.get("decay_rate", 0.01)
                 max_age_days = policy.get("max_age_days", 365)
 
                 rows = conn.execute(
@@ -248,7 +248,7 @@ class RetentionManager:
                             conn.execute(f"UPDATE {table} SET confidence = ? WHERE id = ?", (new_confidence, row["id"]))
                             if new_confidence < 0.1:
                                 decayed[table] += 1
-                    except Exception:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                         continue
 
         return decayed

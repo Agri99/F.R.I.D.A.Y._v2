@@ -48,7 +48,7 @@ class AccessibilityProvider:
                 for app_id, exe_names in AUTOMATION_ALLOWLIST.items():
                     if exe_name in exe_names:
                         return app_id, hwnd, None
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         candidates: list[tuple[str, int]] = []
@@ -59,7 +59,7 @@ class AccessibilityProvider:
             try:
                 _, pid = win32process.GetWindowThreadProcessId(candidate_hwnd)
                 exe_name = psutil.Process(pid).name().lower()
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return
             for app_id, exe_names in AUTOMATION_ALLOWLIST.items():
                 if exe_name in exe_names:
@@ -100,10 +100,10 @@ class AccessibilityProvider:
                         is_enabled=elem.is_enabled(),
                         _raw_element=elem,
                     ))
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     continue
             return elements
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return []
 
     def find_element_by_label(self, label: str, hwnd: int | None = None) -> UIElement | None:
@@ -129,11 +129,11 @@ class AccessibilityProvider:
             try:
                 element._raw_element.click_input()
                 return True
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 try:
                     element._raw_element.click()
                     return True
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     pass
         
         # Fallback to pyautogui using bounding_rect
@@ -149,7 +149,7 @@ class AccessibilityProvider:
                     y = rect[1] + (rect[3] - rect[1]) // 2
                 pyautogui.click(x, y)
                 return True
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
                 
         return False
@@ -161,7 +161,7 @@ class AccessibilityProvider:
                 element._raw_element.set_focus()
                 element._raw_element.type_keys(text, with_spaces=True)
                 return True
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 return False
         return False
 
@@ -192,8 +192,8 @@ class AccessibilityProvider:
                         is_enabled=elem.is_enabled(),
                         _raw_element=elem,
                     ))
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     continue
             return elements
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return []

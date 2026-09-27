@@ -21,5 +21,5 @@ class PluginHealthMonitor:
         try:
             healthy = bool(record.instance.health())
             return PluginHealth(healthy, datetime.now(timezone.utc), "ok" if healthy else "health returned false")
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return PluginHealth(False, datetime.now(timezone.utc), str(exc))

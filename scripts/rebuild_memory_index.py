@@ -51,7 +51,7 @@ def rebuild_fts5_indexes() -> None:
 
         conn.commit()
         print("[+] All memory FTS5 indexes successfully rebuilt.")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"[!] Error rebuilding FTS5 index: {exc}")
     finally:
         conn.close()
@@ -99,7 +99,7 @@ def import_from_yaml(export_dir: Path = None) -> None:
 
         conn.commit()
         print("[+] Memory import completed.")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         print(f"[!] Error importing memory: {exc}")
     finally:
         conn.close()

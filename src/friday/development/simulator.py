@@ -87,7 +87,7 @@ class ScenarioSimulator:
                 message=f"Scenario '{name}' recovered via {sc.expected_recovery}",
                 latency_ms=dur,
             )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             dur = (time.perf_counter() - start) * 1000
             return SimulationResult(
                 scenario_name=name,

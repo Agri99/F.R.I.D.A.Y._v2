@@ -45,13 +45,13 @@ class MemoryRetriever:
         episodes = []
         try:
             episodes = self.episodes.recall_similar(clean_query, limit=3)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass # FTS syntax error
             
         facts = []
         try:
             facts = self.semantic.recall(clean_query, limit=5)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
             
         prefs = []

@@ -74,7 +74,7 @@ class BrowserController:
             await pc.launch()
             self._playwright = pc
             return self._playwright
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return None
 
     def _is_safe_url(self, url: str) -> bool:
@@ -139,7 +139,7 @@ class BrowserController:
             return "No URL currently open."
         try:
             return self.fetch_text_content(self._current_url)
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             return f"Failed to fetch content from {self._current_url}: {exc}"
 
     async def get_page_content_async(self) -> str:

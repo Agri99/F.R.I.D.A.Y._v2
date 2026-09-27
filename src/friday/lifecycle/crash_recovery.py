@@ -84,7 +84,7 @@ class CrashRecoveryManager:
                             f"Found incomplete task: {task.name} "
                             f"(step {task.step}/{task.total_steps})"
                         )
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 logger.error(f"Error reading checkpoint: {e}")
 
         return tasks
@@ -168,7 +168,7 @@ class CrashRecoveryManager:
                 "safe_to_retry": True,
             }
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.error(f"Error reconciling task state: {e}")
             return {
                 "action": "ask",
@@ -191,7 +191,7 @@ class CrashRecoveryManager:
                     saved = json.load(f)
                 memory.update(saved)
                 logger.info(f"Restored memory with {len(saved)} entries")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 logger.error(f"Error restoring memory: {e}")
 
         return memory
@@ -206,7 +206,7 @@ class CrashRecoveryManager:
                 with open(jobs_file) as f:
                     jobs = json.load(f)
                 logger.info(f"Restored {len(jobs)} scheduled jobs")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 logger.error(f"Error restoring jobs: {e}")
 
         return jobs
@@ -221,7 +221,7 @@ class CrashRecoveryManager:
                 with open(self.checkpoint_file) as f:
                     data = json.load(f)
                 tasks_data = data.get("tasks", [])
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
         # Update or add task

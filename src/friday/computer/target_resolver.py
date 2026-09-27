@@ -85,7 +85,7 @@ class TargetResolver:
             try:
                 import win32gui
                 window_context = win32gui.GetWindowText(hwnd) or ""
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 window_context = ""
 
         def _stamp(target: ResolvedTarget) -> ResolvedTarget:
@@ -203,7 +203,7 @@ class TargetResolver:
                         self._last_resolution = _stamp(target)
                         return target
 
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         # Visual match fallback (OCR or Vision bounding box in context)
@@ -288,7 +288,7 @@ class TargetResolver:
                     description=f"VLM-assisted visual match for '{description}'",
                     safety_check=False,
                 )
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         return None
@@ -317,7 +317,7 @@ class TargetResolver:
                                 el.name == target.element.name):
                                 return True
             return False
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False
 
     def re_resolve_after_ui_change(

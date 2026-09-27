@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -65,7 +67,7 @@ class SystemDiagnostics:
         try:
             import psutil
             return time.time() - psutil.boot_time()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return 0.0
 
     def _check_python(self) -> dict:
@@ -121,7 +123,7 @@ class SystemDiagnostics:
         try:
             import sqlite3
             conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
+            conn.cursor()
 
             # Check tables
             tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
@@ -132,7 +134,7 @@ class SystemDiagnostics:
                 try:
                     count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                     counts[table] = count
-                except Exception:
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                     counts[table] = -1
 
             # Check FTS tables
@@ -147,7 +149,7 @@ class SystemDiagnostics:
                 "fts_tables": fts_tables,
                 "row_counts": counts,
             }
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             return {"exists": True, "error": str(e)}
 
     def _check_models(self) -> dict:
@@ -162,7 +164,7 @@ class SystemDiagnostics:
                 models["models"] = [m.get("name") for m in r.json().get("models", [])]
             else:
                 models["error"] = f"HTTP {r.status_code}"
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             models["error"] = str(e)
 
         # Check local model cache
@@ -193,16 +195,16 @@ class SystemDiagnostics:
             try:
                 default_in = sd.query_devices(kind="input")
                 audio["default_input"] = default_in.get("name")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
             try:
                 default_out = sd.query_devices(kind="output")
                 audio["default_output"] = default_out.get("name")
-            except Exception:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             audio["error"] = str(e)
 
         return audio
@@ -216,7 +218,7 @@ class SystemDiagnostics:
             r = requests.get("http://localhost:11434/api/tags", timeout=2)
             net["ollama_reachable"] = r.status_code == 200
             net["latency_ms"] = (time.time() - start) * 1000
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         try:
@@ -224,7 +226,7 @@ class SystemDiagnostics:
             socket.create_connection(("8.8.8.8", 53), timeout=2)
             net["internet"] = True
             net["dns"] = True
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         return net
@@ -255,7 +257,7 @@ class SystemDiagnostics:
         for name, path in log_dirs.items():
             if path.exists():
                 files = list(path.glob("*"))
-                total_size = sum(f.stat().st_size for f in files)
+                sum(f.stat().st_size for f in files)
                 logs[name] = {
                     "path": str(path),
                     "files": len(files),
@@ -281,7 +283,7 @@ class SystemDiagnostics:
                 _ = a @ b
             elapsed = time.time() - start
             perf["cpu_matmul_10x512_ms"] = elapsed * 1000
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             perf["cpu_matmul_10x512_ms"] = -1
 
         # Memory
@@ -291,7 +293,7 @@ class SystemDiagnostics:
             perf["memory_total_gb"] = mem.total / (1024**3)
             perf["memory_available_gb"] = mem.available / (1024**3)
             perf["memory_percent"] = mem.percent
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         # Disk
@@ -299,7 +301,7 @@ class SystemDiagnostics:
             usage = shutil.disk_usage(str(_ROOT))
             perf["disk_free_gb"] = usage.free / (1024**3)
             perf["disk_total_gb"] = usage.total / (1024**3)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             pass
 
         return perf

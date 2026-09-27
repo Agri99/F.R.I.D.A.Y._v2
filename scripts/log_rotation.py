@@ -11,12 +11,10 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import json
-import os
 import shutil
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -78,7 +76,7 @@ class LogRotator:
                 if compress:
                     self._compress_rotated_log(rotated_path, results)
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"  [!] Error rotating {log_file}: {e}")
             results["errors"] += 1
 
@@ -92,7 +90,7 @@ class LogRotator:
             log_file.unlink()
             print(f"  [+] Compressed: {log_file.name}.gz")
             results["compressed"] += 1
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"  [!] Error compressing {log_file}: {e}")
             results["errors"] += 1
 
@@ -113,7 +111,7 @@ class LogRotator:
             all_logs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
             # Keep the most recent N
-            to_keep = set(all_logs[:keep_recent])
+            set(all_logs[:keep_recent])
 
             for log_file in all_logs[keep_recent:]:
                 age_days = (time.time() - log_file.stat().st_mtime) / 86400
@@ -122,7 +120,7 @@ class LogRotator:
                         log_file.unlink()
                         print(f"  [-] Deleted old log: {log_file.name} (age: {age_days:.1f} days)")
                         results["deleted"] += 1
-                    except Exception as e:
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                         print(f"  [!] Error deleting {log_file}: {e}")
                         results["errors"] += 1
                 else:
@@ -148,7 +146,7 @@ class LogRotator:
                     shutil.move(str(traj_file), str(dest))
                     archived += 1
                     print(f"  [+] Archived: {traj_file.name}")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 print(f"  [!] Error archiving {traj_file}: {e}")
 
         print(f"[+] Archived {archived} trajectory files")

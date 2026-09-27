@@ -194,7 +194,7 @@ class SecurityInvariants:
                 else:
                     results["failed"] += 1
                     logger.warning(f"Security invariant {invariant.number} failed: {invariant.name}")
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 results["invariants"].append({
                     "number": invariant.number,
                     "name": invariant.name,

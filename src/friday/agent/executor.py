@@ -81,7 +81,7 @@ class Executor:
                 # A tool returning without raising does NOT prove the intended
                 # state was reached; leave verification to the Evaluator.
                 return ExecutionResult(result=res, observation=obs, verification_passed=None)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                 last_error = str(e)
                 if attempt < retry_limit - 1:
                     time.sleep(0.5)
