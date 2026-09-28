@@ -3,7 +3,7 @@ tests/interaction/test_event_driven_voice_integration.py
 
 WHAT THIS IS FOR:
 End-to-end test of the event-driven voice pipeline wired through
-``VoiceSession``. Replaces real audio devices, Whisper, and Piper with
+``VoiceSession``. Replaces real audio devices, Whisper, and TTS with
 fakes so the test runs in any environment.
 
 The test exercises:
@@ -36,7 +36,7 @@ from friday.interaction.vad import RmsVoiceActivityDetector
 # Fakes
 # ---------------------------------------------------------------------------
 class FakeSpeechSynthesizer:
-    """Stand-in for the Piper-based SpeechSynthesizer."""
+    """Stand-in for SpeechSynthesizer."""
 
     def __init__(self, sample_rate: int = 22050) -> None:
         self.voice = type("V", (), {"config": type("C", (), {"sample_rate": sample_rate})()})()
