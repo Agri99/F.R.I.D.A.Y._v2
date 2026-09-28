@@ -1,5 +1,4 @@
 """Debug wake word detection with real mic input."""
-import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
 

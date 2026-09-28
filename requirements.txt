@@ -33,11 +33,11 @@ torchaudio>=2.2.0
 speechbrain>=1.0.0
 
 # ── Windows System & GUI Automation ──
-pywin32>=306; platform_system == 'Windows'
-pywinauto>=0.6.8; platform_system == 'Windows'
+pywin32>=306; sys_platform == 'win32'
+pywinauto>=0.6.8; sys_platform == 'win32'
 pyautogui>=0.9.54
-pycaw>=20240210; platform_system == 'Windows'
-comtypes>=1.4.0; platform_system == 'Windows'
+pycaw>=20240210; sys_platform == 'win32'
+comtypes>=1.4.0; sys_platform == 'win32'
 pytesseract>=0.3.10
 
 # ── Web & Browser Automation ──
