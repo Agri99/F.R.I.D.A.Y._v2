@@ -53,7 +53,7 @@ def run_command(cmd: list[str], timeout: float = 30.0) -> tuple[bool, str]:
     try:
         result = subprocess.run(
             cmd,
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             timeout=timeout,
         )

@@ -28,7 +28,7 @@ class UpgradeRollback:
 
         res = subprocess.run(
             ["git", "reset", "--hard", target_commit],
-            cwd=self.repo_root,
+            check=False, cwd=self.repo_root,
             capture_output=True,
             text=True,
         )
@@ -39,7 +39,7 @@ class UpgradeRollback:
         branch_name = f"upgrade/{upgrade_id}"
         res = subprocess.run(
             ["git", "branch", "-D", branch_name],
-            cwd=self.repo_root,
+            check=False, cwd=self.repo_root,
             capture_output=True,
             text=True,
         )

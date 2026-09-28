@@ -84,7 +84,7 @@ class TelemetryMonitor:
             res = subprocess.run(
                 ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used",
                  "--format=csv,noheader", "--id=0"],
-                capture_output=True, text=True, timeout=2,
+                check=False, capture_output=True, text=True, timeout=2,
             )
             if res.stdout.strip():
                 util, mem_used = res.stdout.strip().split(",")

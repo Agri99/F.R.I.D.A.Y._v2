@@ -93,7 +93,7 @@ class DockerSandbox:
             try:
                 result = subprocess.run(
                     cmd,
-                    capture_output=True,
+                    check=False, capture_output=True,
                     text=True,
                     timeout=self.config.timeout_seconds,
                     input=json.dumps(input_data) if input_data else None,

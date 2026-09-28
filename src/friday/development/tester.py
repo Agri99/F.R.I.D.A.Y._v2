@@ -198,7 +198,7 @@ class IsolatedTester:
         try:
             res = subprocess.run(
                 cmd,
-                cwd=cwd,
+                check=False, cwd=cwd,
                 capture_output=True,
                 text=True,
                 timeout=180,

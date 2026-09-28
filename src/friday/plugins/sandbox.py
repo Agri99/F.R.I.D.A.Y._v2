@@ -70,7 +70,7 @@ class PluginSandbox:
         try:
             result = subprocess.run(
                 [sys.executable, "-m", "pytest", str(test_path), "-q"],
-                cwd=str(path),
+                check=False, cwd=str(path),
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,

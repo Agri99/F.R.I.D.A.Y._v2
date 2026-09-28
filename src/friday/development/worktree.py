@@ -50,7 +50,7 @@ class WorktreeManager:
             # Try git worktree add
             res = subprocess.run(
                 ["git", "worktree", "add", "-b", branch_name, str(worktree_path)],
-                cwd=self.repo_root,
+                check=False, cwd=self.repo_root,
                 capture_output=True,
                 text=True,
             )
@@ -58,7 +58,7 @@ class WorktreeManager:
                 # Fallback: if branch exists, try without -b or checkout existing
                 res2 = subprocess.run(
                     ["git", "worktree", "add", str(worktree_path), branch_name],
-                    cwd=self.repo_root,
+                    check=False, cwd=self.repo_root,
                     capture_output=True,
                     text=True,
                 )
@@ -82,7 +82,7 @@ class WorktreeManager:
         try:
             subprocess.run(
                 ["git", "worktree", "remove", "--force", str(path)],
-                cwd=self.repo_root,
+                check=False, cwd=self.repo_root,
                 capture_output=True,
                 text=True,
             )
@@ -97,16 +97,16 @@ class WorktreeManager:
     def commit_changes(self, worktree_path: str | Path, message: str) -> str:
         """Stage and commit all changes in worktree. Returns commit hash."""
         path = Path(worktree_path).resolve()
-        subprocess.run(["git", "add", "-A"], cwd=path, capture_output=True, text=True)
+        subprocess.run(["git", "add", "-A"], check=False, cwd=path, capture_output=True, text=True)
         subprocess.run(
             ["git", "commit", "-m", message],
-            cwd=path,
+            check=False, cwd=path,
             capture_output=True,
             text=True,
         )
         rev = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=path,
+            check=False, cwd=path,
             capture_output=True,
             text=True,
         )
@@ -118,7 +118,7 @@ class WorktreeManager:
         cmd = ["git", "diff"]
         if base_commit:
             cmd.append(base_commit)
-        res = subprocess.run(cmd, cwd=path, capture_output=True, text=True)
+        res = subprocess.run(cmd, check=False, cwd=path, capture_output=True, text=True)
         return res.stdout if res.returncode == 0 else ""
 
 

@@ -35,7 +35,7 @@ def _docker_run(args: list[str], timeout: int = 30) -> dict[str, Any]:
     try:
         result = subprocess.run(
             ["docker"] + args,
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             timeout=timeout,
         )
@@ -60,11 +60,12 @@ def _docker_compose_run(args: list[str], project_dir: str | None = None, timeout
         "capture_output": True,
         "text": True,
         "timeout": timeout,
+        "check": False,
     }
     if project_dir:
         kwargs["cwd"] = project_dir
     try:
-        result = subprocess.run(cmd, **kwargs)
+        result = subprocess.run(cmd, check=False, **kwargs)
         return {
             "success": result.returncode == 0,
             "stdout": result.stdout.strip()[:4000],
