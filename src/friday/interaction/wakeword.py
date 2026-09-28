@@ -10,7 +10,13 @@ from __future__ import annotations
 import logging
 import time
 import typing
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+    _SOUNDDEVICE_AVAILABLE = True
+except (ImportError, OSError):
+    sd = None  # type: ignore[assignment]
+    _SOUNDDEVICE_AVAILABLE = False
 
 if typing.TYPE_CHECKING:
     from typing import Any

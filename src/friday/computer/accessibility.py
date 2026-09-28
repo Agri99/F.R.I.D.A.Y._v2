@@ -10,11 +10,19 @@ allowlisted applications (notepad, calculator, vscode) without guessing coordina
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
 from typing import Any
 
 import psutil
-import win32gui
-import win32process
+
+from typing import Any
+
+if sys.platform == "win32":
+    import win32gui
+    import win32process
+else:
+    win32gui = None
+    win32process = None
 
 AUTOMATION_ALLOWLIST: dict[str, set[str]] = {
     "notepad": {"notepad.exe"},
@@ -39,7 +47,9 @@ class AccessibilityProvider:
     """Provides access to Windows UI Automation controls within allowlisted apps."""
 
     def find_allowlisted_window(self) -> tuple[str | None, int | None, str | None]:
-        """Find the active or single allowlisted application window."""
+        if sys.platform != "win32":
+            return None, None, "Windows UI Automation is only available on Windows."
+
         hwnd = win32gui.GetForegroundWindow()
         if hwnd:
             try:
@@ -139,7 +149,7 @@ class AccessibilityProvider:
         # Fallback to pyautogui using bounding_rect
         if element.bounding_rect:
             try:
-                import pyautogui
+                import pyautogui  # type: ignore[import-not-found]
                 rect = element.bounding_rect
                 if hasattr(rect, 'left'):
                     x = rect.left + (rect.right - rect.left) // 2

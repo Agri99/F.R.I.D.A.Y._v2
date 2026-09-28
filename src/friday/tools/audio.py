@@ -1,16 +1,34 @@
 from __future__ import annotations
-import comtypes
-from comtypes import CLSCTX_ALL
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+
+import sys
+
 from .registry import Tool, VerificationResult
 from .metadata import build_schema
 
+if sys.platform == "win32":
+    import comtypes
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+else:
+    comtypes = None  # type: ignore[assignment]
+    CLSCTX_ALL = None
+    AudioUtilities = None
+    IAudioEndpointVolume = None
+
 def _get_volume_interface():
+    if sys.platform != "win32":
+        raise RuntimeError("System volume control is only available on Windows.")
+
     comtypes.CoInitialize()
     devices = AudioUtilities.GetSpeakers()
     if hasattr(devices, "EndpointVolume"):
         return devices.EndpointVolume
-    interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+
+    interface = devices.Activate(
+        IAudioEndpointVolume._iid_,
+        CLSCTX_ALL,
+        None,
+    )
     return interface.QueryInterface(IAudioEndpointVolume)
 
 def _set_volume(level: int) -> dict:

@@ -22,8 +22,14 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
-import sounddevice as sd
 import soundfile as sf
+
+try:
+    import sounddevice as sd
+    _SOUNDDEVICE_AVAILABLE = True
+except (ImportError, OSError):
+    sd = None  # type: ignore[assignment]
+    _SOUNDDEVICE_AVAILABLE = False
 
 os.environ["CT2_VERBOSE"] = "-1"
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)
@@ -84,6 +90,9 @@ def record_until_silence(path: str = "data/audio.wav", on_state_change: Callable
     max_chunks = int(MAX_DURATION / CHUNK_DURATION)
     speech_started = False
 
+    if not _SOUNDDEVICE_AVAILABLE:
+        raise RuntimeError("sounddevice/PortAudio is not available on this system.")
+
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16") as stream:
         for _ in range(max_chunks):
             chunk, _ = stream.read(CHUNK_SIZE)
@@ -134,6 +143,9 @@ def listen_for_followup(timeout_seconds: float = 5.0, path: str = "data/audio.wa
     timeout_chunks = int(timeout_seconds / CHUNK_DURATION)
     speech_started = False
     chunks_waited = 0
+
+    if not _SOUNDDEVICE_AVAILABLE:
+        return None
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16") as stream:
         for _ in range(max_chunks):

@@ -14,7 +14,13 @@ from typing import Any, Callable
 os.environ["TQDM_DISABLE"] = "1"
 
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+    _SOUNDDEVICE_AVAILABLE = True
+except (ImportError, OSError):
+    sd = None  # type: ignore[assignment]
+    _SOUNDDEVICE_AVAILABLE = False
 
 from friday.interaction.stt import VoiceState
 

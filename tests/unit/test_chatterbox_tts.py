@@ -3,7 +3,9 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 import numpy as np
-import torch
+import pytest
+
+torch = pytest.importorskip("torch", reason="torch not installed; skipping Chatterbox TTS tests")
 
 from friday.interaction.tts import (
     SpeechSynthesizer,
