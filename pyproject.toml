@@ -8,26 +8,30 @@ version = "2.1.0"
 description = "F.R.I.D.A.Y. v2 — Local-First Personal Computer AI"
 requires-python = ">=3.11"
 dependencies = [
-    # ── Core ──
+    # Core
     "pydantic>=2.6",
     "pyyaml>=6.0",
     "requests>=2.31",
     "psutil>=5.9",
     "pillow>=10.0",
-    "tzdata>=2024.1",  # IANA timezone database for Windows (ZoneInfo fallback)
-    "docker>=7.0",  # self-development sandbox execution (development/tester.py); was installed manually but never declared
-    # ── Model client ──
+    "tzdata>=2024.1",
+    "docker>=7.0",
+
+    # Model client
     "ollama>=0.4.0",
-    # ── Audio/Voice ──
+
+    # Audio/Voice
     "sounddevice>=0.5",
     "soundfile>=0.12",
     "numpy>=1.26",
-    # ── Windows System (Windows only) ──
+
+    # Windows
     "pywin32>=306; sys_platform == 'win32'",
     "pywinauto>=0.6.8; sys_platform == 'win32'",
     "pycaw>=20240210; sys_platform == 'win32'",
     "comtypes>=1.4; sys_platform == 'win32'",
-    # ── UI / Orb ──
+
+    # UI / Orb
     "PySide6>=6.7",
     "websockets>=12.0",
 ]
@@ -63,7 +67,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff==0.13.0",
     "mypy>=1.10",
 ]
 all = [
