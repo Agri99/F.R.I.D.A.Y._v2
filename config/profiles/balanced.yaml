@@ -4,10 +4,10 @@
 models:
   fast:
     provider: "ollama"
-    model: "qwen2.5:1.5b"
+    model: "qwen2.5:3b"
   reasoning:
     provider: "ollama"
-    model: "qwen3:14b"
+    model: "qwen2.5:3b"
   vision:
     provider: "ollama"
     model: "qwen3-vl:8b"

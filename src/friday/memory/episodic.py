@@ -40,16 +40,32 @@ class EpisodicMemory:
 
     def recall_similar(self, goal: str, limit: int = 5) -> list[Episode]:
         """Recall episodes similar to current goal using FTS5."""
-        with self.db.connection() as conn:
-            rows = conn.execute(
-                """SELECT e.task_id, e.goal, e.steps, e.outcome, e.duration, e.created_at
-                   FROM episodes_fts f
-                   JOIN episodes e ON f.rowid = e.id
-                   WHERE episodes_fts MATCH ?
-                   ORDER BY rank
-                   LIMIT ?""",
-                (goal, limit)
-            ).fetchall()
+        import re
+
+        tokens = re.findall(r"\w+", goal)
+        if not tokens:
+            return []
+        stop_words = {
+            "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "of", "with",
+            "is", "was", "are", "were", "it", "my", "your", "can", "you", "what", "how",
+        }
+        substantive = [t for t in tokens if t.lower() not in stop_words and len(t) > 1]
+        search_tokens = substantive if substantive else tokens
+        fts_query = " OR ".join(search_tokens)
+
+        try:
+            with self.db.connection() as conn:
+                rows = conn.execute(
+                    """SELECT e.task_id, e.goal, e.steps, e.outcome, e.duration, e.created_at
+                       FROM episodes_fts f
+                       JOIN episodes e ON f.rowid = e.id
+                       WHERE episodes_fts MATCH ?
+                       ORDER BY rank
+                       LIMIT ?""",
+                    (fts_query, limit)
+                ).fetchall()
+        except Exception:  # noqa: BLE001
+            return []
             
         return [
             Episode(

@@ -42,13 +42,87 @@ SILENCE_DURATION = 1.2   # Silence needed to end recording (seconds)
 MAX_DURATION = 15
 PREROLL_CHUNKS = 4       # Keep 400ms before speech detection to prevent clipping initial syllables
 
-# Vocabulary biasing prompt for faster-whisper
+# Vocabulary biasing prompts for faster-whisper
 WHISPER_INITIAL_PROMPT = (
     "FRIDAY, an AI personal computer assistant on Windows. "
     "Voice commands: Open Notepad, Calculator, VS Code, Terminal, Explorer, "
     "check my inbox, send email, list calendar events, what time is it, "
     "mute audio, volume up, lock computer, hide yourself, goodbye Friday, shut down."
 )
+
+LANGUAGE_CHAIN_PRIORITY = ["en", "id", "su"]
+
+WHISPER_INITIAL_PROMPTS = {
+    "en": WHISPER_INITIAL_PROMPT,
+    "id": (
+        "FRIDAY, asisten komputer AI pribadi di Windows. "
+        "Perintah suara: Buka Notepad, Kalkulator, VS Code, Terminal, Explorer, "
+        "cek email, periksa kalender, jam berapa sekarang, matikan suara, kunci komputer, selamat tinggal Friday."
+    ),
+    "su": (
+        "FRIDAY, asistén komputer AI pribadi dina Windows. "
+        "Paréntah sora: Buka Notepad, Kalkulator, Terminal, Explorer, "
+        "pariksa email, tabuh sabaraha ayeuna, konci komputer, hatur nuhun Friday."
+    ),
+}
+
+
+def resolve_language_chain(
+    language_probs: dict[str, float] | list[tuple[str, float]],
+    default: str = "en",
+    priority_chain: list[str] | None = None,
+) -> str:
+    """Resolve detected language using the prioritized chain:
+    English > Indonesian > Sundanese > Any other languages.
+
+    Priority criteria:
+    1. English ('en') has top priority:
+       If 'en' probability >= 0.25 or is within 0.20 of the top detected probability, pick 'en'.
+    2. Indonesian ('id'):
+       If 'id' probability >= 0.20, pick 'id'.
+    3. Sundanese ('su'):
+       If 'su' probability >= 0.15, pick 'su'.
+    4. Any other language:
+       If the top detected language has probability >= 0.35, pick it.
+    5. Fallback: default to 'en'.
+    """
+    if priority_chain is None:
+        priority_chain = LANGUAGE_CHAIN_PRIORITY
+
+    if isinstance(language_probs, list):
+        probs_dict = {lang: float(prob) for lang, prob in language_probs}
+    elif isinstance(language_probs, dict):
+        probs_dict = {str(k): float(v) for k, v in language_probs.items()}
+    else:
+        return default
+
+    if not probs_dict:
+        return default
+
+    top_lang, top_prob = max(probs_dict.items(), key=lambda item: item[1])
+
+    # Rule 1: English priority
+    en_prob = probs_dict.get("en", 0.0)
+    if en_prob >= 0.25 or (top_lang == "en") or (top_prob - en_prob <= 0.20 and en_prob > 0.15):
+        return "en"
+
+    # Rule 2: Indonesian priority in chain
+    if "id" in priority_chain:
+        id_prob = probs_dict.get("id", 0.0)
+        if id_prob >= 0.20 or (top_lang == "id"):
+            return "id"
+
+    # Rule 3: Sundanese priority in chain
+    if "su" in priority_chain:
+        su_prob = probs_dict.get("su", 0.0)
+        if su_prob >= 0.15 or (top_lang == "su"):
+            return "su"
+
+    # Rule 4: Other language if sufficiently confident
+    if top_prob >= 0.35:
+        return top_lang
+
+    return default
 
 
 class VoiceState(Enum):
@@ -228,13 +302,16 @@ class StreamingTranscriber:
         min_chunk_seconds: float = 0.5,
         max_buffer_seconds: float = 15.0,
         sample_rate: int = SAMPLE_RATE,
-        language: str = "en",
+        language: str = "auto",
+        language_chain: list[str] | None = None,
     ) -> None:
         self.model_size = model_size
         self.min_partial_interval_s = float(min_partial_interval_s)
         self.min_chunk_seconds = float(min_chunk_seconds)
         self.max_buffer_seconds = float(max_buffer_seconds)
         self.sample_rate = sample_rate
+        self.language = language
+        self.language_chain = language_chain or LANGUAGE_CHAIN_PRIORITY
         self._model = None
         self._lock = threading.Lock()
         self._audio_buffer: list[np.ndarray] = []
@@ -418,10 +495,21 @@ class StreamingTranscriber:
         try:
             # faster-whisper accepts float32 numpy arrays.
             audio_f32 = audio.astype(np.float32) / 32768.0
+            target_lang = self.language
+            if target_lang in ("auto", None):
+                try:
+                    if hasattr(self.model, "detect_language"):
+                        _, _, all_probs = self.model.detect_language(audio_f32)
+                        target_lang = resolve_language_chain(all_probs, default="en", priority_chain=self.language_chain)
+                    else:
+                        target_lang = "en"
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                    target_lang = "en"
+            init_prompt = WHISPER_INITIAL_PROMPTS.get(target_lang, WHISPER_INITIAL_PROMPTS["en"])
             segments, _info = self.model.transcribe(
                 audio_f32,
-                language="en",
-                initial_prompt=WHISPER_INITIAL_PROMPT,
+                language=target_lang,
+                initial_prompt=init_prompt,
                 beam_size=3,
                 temperature=0.0,
                 vad_filter=False,
@@ -454,9 +542,17 @@ class SpeechRecognizer:
     and state tracking for voice UX.
     """
 
-    def __init__(self, model_size: str = "small", wake_word: str = "friday"):
+    def __init__(
+        self,
+        model_size: str = "small",
+        wake_word: str = "friday",
+        language: str = "auto",
+        language_chain: list[str] | None = None,
+    ):
         self.model_size = model_size
         self.wake_word = wake_word.lower()
+        self.language = language
+        self.language_chain = language_chain or LANGUAGE_CHAIN_PRIORITY
         self._model = None
         self.context = VoiceContext()
         self._state_callback: Callable[[VoiceState], None] | None = None
@@ -489,11 +585,22 @@ class SpeechRecognizer:
         executes a nonsense transcript.
         """
         self._set_state(VoiceState.THINKING)
+        target_lang = self.language
+        if target_lang in ("auto", None):
+            try:
+                if hasattr(self.model, "detect_language"):
+                    _, _, all_probs = self.model.detect_language(audio=audio_file)
+                    target_lang = resolve_language_chain(all_probs, default="en", priority_chain=self.language_chain)
+                else:
+                    target_lang = "en"
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                target_lang = "en"
+        init_prompt = WHISPER_INITIAL_PROMPTS.get(target_lang, WHISPER_INITIAL_PROMPTS["en"])
         try:
             segments, _ = self.model.transcribe(
                 audio_file,
-                language="en",
-                initial_prompt=WHISPER_INITIAL_PROMPT,
+                language=target_lang,
+                initial_prompt=init_prompt,
                 beam_size=5,
                 temperature=0.0,
                 vad_filter=True,
@@ -502,7 +609,7 @@ class SpeechRecognizer:
             return self._filter_segments(segments)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             # Fallback to standard transcribe if VAD or options encounter issue
-            segments, _ = self.model.transcribe(audio_file, language="en")
+            segments, _ = self.model.transcribe(audio_file, language=target_lang)
             return self._filter_segments(segments)
 
     def _filter_segments(self, segments) -> str:
@@ -590,4 +697,7 @@ __all__ = [
     "VoiceContext",
     "StreamingTranscriber",
     "TranscriptEvent",
+    "resolve_language_chain",
+    "LANGUAGE_CHAIN_PRIORITY",
+    "WHISPER_INITIAL_PROMPTS",
 ]

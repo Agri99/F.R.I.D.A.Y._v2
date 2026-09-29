@@ -57,6 +57,10 @@ class VoiceConfig(BaseModel):
     model_path: str | None = None
     exaggeration: float = 0.5
     barge_in: bool = True
+    bargein_min_frames: int = 4
+    barge_in_min_rms: float = 1200.0
+    language: str = "auto"
+    language_chain: List[str] = Field(default_factory=lambda: ["en", "id", "su"])
     followup_window_seconds: float = 10.0
     event_driven: bool = True
     vad_threshold: float = 50.0

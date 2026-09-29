@@ -96,28 +96,36 @@ def press(key: str) -> None:
 
 
 def type_text(text: str, interval: float = 0.025) -> None:
-    """Type arbitrary unicode text into foreground window."""
+    """Type arbitrary unicode text into foreground window.
+
+    Prioritizes native Windows KEYEVENTF_UNICODE to send characters directly
+    without simulated Shift-key modifiers, preventing character duplication
+    (e.g., 'FFRIDAY') or dropped spaces caused by PyAutoGUI modifier bounce.
+    Falls back to PyAutoGUI if user32 is unavailable.
+    """
+    if user32 is not None:
+        try:
+            for char in text:
+                if char == "\n":
+                    press("enter")
+                elif char == "\t":
+                    press("tab")
+                else:
+                    code = ord(char)
+                    user32.keybd_event(0, code, KEYEVENTF_UNICODE, 0)
+                    time.sleep(0.010)
+                    user32.keybd_event(0, code, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
+                if interval > 0:
+                    time.sleep(interval)
+            return
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+
     try:
         import pyautogui
         pyautogui.write(text, interval=interval)
-        return
     except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         pass
-
-    for char in text:
-        if char == "\n":
-            press("enter")
-        elif char == "\t":
-            press("tab")
-        else:
-            # Send character as unicode event with positive key-press duration (10ms)
-            # and interval (25ms) to prevent Windows raw input drop/repeat race conditions
-            code = ord(char)
-            user32.keybd_event(0, code, KEYEVENTF_UNICODE, 0)
-            time.sleep(0.010)
-            user32.keybd_event(0, code, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
-        if interval > 0:
-            time.sleep(interval)
 
 
 def hotkey(*keys: str) -> None:

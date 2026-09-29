@@ -154,3 +154,49 @@ class PatternDistiller:
                 "output": "Success"
             }]
         )
+
+    def distill_from_memory(
+        self,
+        episodic_memory: Any,
+        query: str = "",
+        min_occurrences: int = 2,
+    ) -> SkillCandidate | None:
+        """Query successful episodes from episodic memory and distill a reusable skill candidate."""
+        if episodic_memory is None:
+            return None
+
+        episodes = []
+        if hasattr(episodic_memory, "recall_similar") and query:
+            episodes = episodic_memory.recall_similar(query, limit=20)
+        elif hasattr(episodic_memory, "db"):
+            try:
+                with episodic_memory.db.connection() as conn:
+                    rows = conn.execute(
+                        "SELECT task_id, goal, steps, outcome, duration, created_at "
+                        "FROM episodes WHERE UPPER(outcome) IN ('SUCCESS', 'COMPLETED') "
+                        "ORDER BY id DESC LIMIT 50"
+                    ).fetchall()
+                    from friday.memory.episodic import Episode
+                    episodes = [
+                        Episode(
+                            task_id=r["task_id"],
+                            goal=r["goal"],
+                            steps=json.loads(r["steps"]) if isinstance(r["steps"], str) else r["steps"],
+                            outcome=r["outcome"],
+                            duration=r["duration"],
+                            created_at=r["created_at"],
+                        )
+                        for r in rows
+                    ]
+            except Exception:  # noqa: BLE001
+                return None
+
+        if not episodes:
+            return None
+
+        trajectories = [
+            {"goal": getattr(ep, "goal", ""), "steps": getattr(ep, "steps", []), "outcome": getattr(ep, "outcome", "")}
+            for ep in episodes
+            if str(getattr(ep, "outcome", "")).upper() in ("SUCCESS", "COMPLETED", "DONE", "OK")
+        ]
+        return self.distill(trajectories)

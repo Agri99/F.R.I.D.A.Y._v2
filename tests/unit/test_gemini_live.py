@@ -176,6 +176,18 @@ class TestGeminiLiveSession(unittest.TestCase):
         self.assertEqual(res["status"], "cancelled")
         mock_tool.run.assert_not_called()
 
+    def test_barge_in_and_multilingual_configuration(self):
+        session = GeminiLiveSession(
+            api_key="fake-key-for-test",
+            barge_in_rms=1500.0,
+            bargein_min_frames=5,
+        )
+        self.assertEqual(session.barge_in_rms, 1500.0)
+        self.assertEqual(session.bargein_min_frames, 5)
+        # Verify Multilingual Language Recognition Priority Chain in prompt
+        self.assertIn("Multilingual Language Recognition Priority Chain", session.system_prompt)
+        self.assertIn("English > Indonesian > Sundanese", session.system_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

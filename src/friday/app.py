@@ -313,7 +313,10 @@ def run_voice(brain: str = "qwen") -> None:
             exaggeration=exaggeration,
         )
         # Faster-whisper is only needed for local offline brains (Qwen); skip in Gemini Live to cut boot time
-        recognizer = None if brain.lower() == "gemini" else SpeechRecognizer()
+        recognizer = None if brain.lower() == "gemini" else SpeechRecognizer(
+            language=getattr(orch.settings.voice, "language", "auto"),
+            language_chain=getattr(orch.settings.voice, "language_chain", ["en", "id", "su"]),
+        )
 
         # Speech Director - single shared instance for all voice paths
         sd_cfg = getattr(v_settings, "speech_director", None)
@@ -406,6 +409,9 @@ def run_voice(brain: str = "qwen") -> None:
                     speech_director=speech_director,
                     followup_timeout=getattr(orch.settings.voice, "followup_window_seconds", 10.0),
                     on_state_change=on_state,
+                    episodic_memory=orch.episodic_memory,
+                    barge_in_rms=getattr(orch.settings.voice, "barge_in_min_rms", 1200.0),
+                    bargein_min_frames=getattr(orch.settings.voice, "bargein_min_frames", 4),
                 )
                 print("FRIDAY [Boot]: Gemini Live Bidirectional Voice Engine active.")
 
@@ -433,7 +439,10 @@ def run_voice(brain: str = "qwen") -> None:
             except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as live_err:
                 print(f"FRIDAY [Boot]: Gemini Live session failed to start ({live_err}); falling back to standard pipeline.")
                 if recognizer is None:
-                    recognizer = SpeechRecognizer()
+                    recognizer = SpeechRecognizer(
+                        language=getattr(orch.settings.voice, "language", "auto"),
+                        language_chain=getattr(orch.settings.voice, "language_chain", ["en", "id", "su"]),
+                    )
 
         # Build the event-driven voice pipeline (M2). This routes audio
         # through AudioInputStream -> VAD -> StreamingTranscriber ->
@@ -470,6 +479,7 @@ def run_voice(brain: str = "qwen") -> None:
             voice_pipeline=voice_pipeline,
             speech_director=speech_director,
             bargein_min_frames=getattr(orch.settings.voice, "bargein_min_frames", 3),
+            barge_in_min_rms=getattr(orch.settings.voice, "barge_in_min_rms", 1200.0),
         )
 
         controls = {

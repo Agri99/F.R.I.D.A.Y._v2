@@ -8,10 +8,10 @@ A local-first, privacy-respecting personal AI computer assistant for Windows 11.
 
 F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs on Windows with flexible local and cloud hybrid intelligence:
 
-- **Speech Recognition:** `faster-whisper` with pre-roll ring buffer, domain vocabulary biasing, and confidence filtering (avg_logprob, no_speech_prob, compression_ratio) to reject noise and hallucinated transcripts.
+- **Speech Recognition & Multilingual Chain:** `faster-whisper` with prioritized language hierarchy (English > Indonesian > Sundanese > Other languages), pre-roll ring buffer, domain vocabulary biasing, and confidence filtering to reject noise and hallucinated transcripts.
 - **Wake Word Detection:** `openWakeWord` with real-time streaming audio detection and seamless re-arming.
-- **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, and local neural voice synthesis.
-- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen3:8b` / `qwen3:14b` / `qwen3:32b` by profile) or Google Gemini Cloud (`gemini-3.8-flash`, `gemini-3.5-flash-lite`) with multi-step replanning, fast/deep reasoning preferences, and hardware-aware routing.
+- **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, Chatterbox Turbo neural voice synthesis, and acoustic barge-in gating.
+- **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen2.5:3b` standardized for low latency and ~5.5GB VRAM footprint) or Google Gemini Cloud (`gemini-3.8-flash`, `gemini-3.5-flash-lite`) with multi-step replanning, fast/deep reasoning preferences, and autonomous distillation feedback.
 - **Speech Synthesis:** Resemble AI's `Chatterbox Turbo` neural TTS with custom speaker timbre cloning (`models/voice_reference.wav`), fine-tuned LoRA checkpoint support (`models/chatterbox-turbo`), automatic short-clip tiling, and expressive prosody.
 - **Multi-Tier Online Search:** Privacy-respecting real-time retrieval combining self-hosted SearXNG (`http://127.0.0.1:8080`) as the primary general web search layer, with Wikipedia API (instant authoritative encyclopedic summaries) and Google News RSS (current affairs and breaking events) as specialized fallbacks.
 - **Computer-Use Subsystem:** Target resolver (UIA -> Automation ID -> DOM -> Visual match -> Coordinates), foreground window validation, verified post-action state checking, safety checks, and native Windows automation.
@@ -68,36 +68,34 @@ guest_persona: |
 ---
 
 ### 2. Voice Biometrics (Speaker Recognition)
-FRIDAY uses SpeechBrain neural speaker verification to distinguish your voice from others:
-1. Ensure the folder `data/voice_enrollment/` exists.
-2. Record **3 short audio clips** (3-5 seconds each) of yourself speaking naturally (e.g. *"Hello Friday, this is my voice"*).
-3. Save them inside `data/voice_enrollment/` as:
-   - `voice_ref_0.wav`
-   - `voice_ref_1.wav`
-   - `voice_ref_2.wav`
-4. When audio is received, FRIDAY compares the speaker embedding against these reference files to identify you as the **Owner** (or a **Guest**).
+FRIDAY uses SpeechBrain neural speaker verification (ECAPA-TDNN) to distinguish your voice from others:
+1. Run the interactive voice enrollment utility while wearing your headset / normal mic:
+   ```powershell
+   python scripts/enroll_voice.py
+   ```
+2. The tool records **3 short audio clips** (4 seconds each), saves them to `data/voice_enrollment/`, extracts your reference speaker embedding, and verifies cross-consistency.
+3. When audio is received, FRIDAY compares the speaker embedding against these reference files to identify you as the **Owner** (or a **Guest**).
 
 ---
 
 ### 3. Setting Your Security Passphrase
-For critical [RED] tier actions (such as file deletions or system changes), FRIDAY requires a spoken passphrase verified via SHA-256:
-1. Generate the SHA-256 hash of your secret phrase (e.g. `"jarvis protocol"`):
+For critical [RED] tier actions (such as file deletions, code self-upgrades, or system shutdowns), FRIDAY requires a spoken passphrase verified via SHA-256:
+1. Run the security passphrase configuration utility:
    ```powershell
-   python -c "import hashlib; print(hashlib.sha256('jarvis protocol'.encode()).hexdigest())"
+   python scripts/set_passphrase.py
    ```
-2. Add the hash to your `.env` file:
-   ```env
-   PASSPHRASE_HASH=<your_sha256_hash_here>
-   ```
-3. When prompted during critical actions, speak your passphrase aloud.
+2. Enter and confirm your secret phrase (e.g. `"omega override"` or `"jarvis protocol"`).
+3. The utility hashes the phrase with SHA-256 and writes `PASSPHRASE_HASH=<hash>` to `.env`.
+4. When prompted during critical actions, speak your passphrase aloud.
 
 ---
 
-### 4. Neural Speech Synthesis (Chatterbox Turbo)
+### 4. Neural Speech Synthesis (Chatterbox Turbo) & Expression Bank
 FRIDAY uses Resemble AI's Chatterbox Turbo for expressive, natural voice output.
-- **Custom Timbre Reference:** Place a clean reference WAV in `models/voice_reference.wav` to clone the target speaker timbre.
-- **Custom Trained Models:** Place fine-tuned LoRA / merged model checkpoints in `models/chatterbox-turbo/`. FRIDAY automatically detects local checkpoints and initializes them on GPU.
-- **Speech Director Architecture:** Language model outputs remain clean and unpolluted by bracket tags. A dedicated, deterministic Speech Director evaluates conversational and task context (e.g. empathy, amusement, seriousness) and injects validated Chatterbox Turbo vocal tags (`[sigh]`, `[gasp]`, `[chuckle]`) strictly at the private TTS synthesis boundary.
+- **Master Centroid & 12 Precompiled Emotion Conditionals:** Uses `scripts/build_voice_profiles.py` to compile reference latents (`master.pt`, `neutral.pt`, `happy.pt`, `sigh.pt`, `chuckle.pt`, `sarcastic.pt`, `angry.pt`, `whispering.pt`, etc.) in `data/voices/conditionals/`.
+- **Continuous Latent Blending:** Dynamically interpolates speaker embeddings and style conditioning with 0ms disk overhead.
+- **Deterministic Speech Director:** A dedicated rule-based prosody director (`src/friday/interaction/speech_director.py`) injects calibrated vocal tags (`[sigh]`, `[gasp]`, `[chuckle]`) and selects emotional condition profiles.
+- **Multilingual Priority Recognition:** Fluently comprehends and converses across a prioritized hierarchy: **English > Indonesian > Sundanese > Other languages**, with tailored vocabulary biasing prompts.
 
 ---
 

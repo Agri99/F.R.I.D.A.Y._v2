@@ -11,11 +11,11 @@ network:
 models:
   fast:
     provider: "ollama"
-    model: "qwen2.5:1.5b"
+    model: "qwen2.5:3b"
     supports_tools: true
   reasoning:
     provider: "ollama"
-    model: "qwen3:8b"
+    model: "qwen2.5:3b"
   vision:
     provider: "ollama"
     model: "llava:latest"
@@ -36,9 +36,12 @@ voice:
   device: "cuda"
   model_path: "models/chatterbox-turbo"
   audio_prompt_path: "models/voice_reference.wav"
-  exaggeration: 0.5
+  exaggeration: 0.35
   barge_in: true
-  bargein_min_frames: 3      # consecutive speech frames needed before interrupting (~64ms each)
+  bargein_min_frames: 4      # consecutive speech frames needed before interrupting (~64ms each, ~250ms)
+  barge_in_min_rms: 1200.0   # minimum energy required to interrupt over speaker output
+  language: "auto"
+  language_chain: ["en", "id", "su"]
   followup_window_seconds: 10.0
   event_driven: true
   vad_threshold: 50.0
@@ -47,7 +50,7 @@ voice:
     mode: "rules"
     max_tags_per_sentence: 1
     allow_vocal_effects: true
-    allow_experimental_emotion_tags: false
+    allow_experimental_emotion_tags: true
     log_decisions: true
 
 search:

@@ -585,6 +585,20 @@ class AgentOrchestrator:
         task.last_message = reply
         self._remember("assistant", reply)
         self.trajectory_recorder.finish("SUCCESS")
+        if self.episodic_memory is not None and hasattr(self.episodic_memory, "record_episode"):
+            try:
+                duration = 1.0
+                if hasattr(task, "created_at") and isinstance(task.created_at, (int, float)):
+                    duration = max(0.1, time.time() - task.created_at)
+                steps_data = [
+                    {"action": a.get("step"), "arguments": a.get("arguments"), "result": a.get("result")}
+                    for a in task.actions
+                ]
+                self.episodic_memory.record_episode(
+                    task.id, task.goal, steps_data, "SUCCESS", duration=duration
+                )
+            except Exception:  # noqa: BLE001
+                pass
         return task
 
     def resume_with_voice(self, task_id: str, user_text: str, audio_path: str | None = None) -> Task | None:

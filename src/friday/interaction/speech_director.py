@@ -47,6 +47,8 @@ class SpeechDirector:
         allow_vocal_effects: bool = True,
         allow_experimental_emotion_tags: bool = False,
         log_decisions: bool = False,
+        format_prosody: bool = True,
+        min_sentences_between_effects: int = 0,
     ):
         self.enabled = enabled
         self.mode = mode
@@ -54,6 +56,9 @@ class SpeechDirector:
         self.allow_vocal_effects = allow_vocal_effects
         self.allow_experimental_emotion_tags = allow_experimental_emotion_tags
         self.log_decisions = log_decisions
+        self.enable_prosody_formatting = format_prosody
+        self.min_sentences_between_effects = min_sentences_between_effects
+        self._sentences_since_last_effect = 999
 
         # Build allowed tag set based on config
         self._allowed_tags = set()
@@ -76,6 +81,31 @@ class SpeechDirector:
 
         ctx = context or SpeechContext()
         text_lower = text.lower().strip()
+
+        # 0. Upstream In-Band Tag Detection (Native LLM Expression from Gemini / Qwen)
+        tag_match = re.search(r"\[([\w\s-]+)\]", text[:40])
+        if tag_match:
+            raw_tag = tag_match.group(1).lower().strip()
+            # Safety gate: block cheerful/laugh tags in failure states
+            if not (ctx.task_status in ("FAILED", "ERROR", "BLOCKED") and raw_tag in ("chuckle", "laugh", "happy")):
+                tag_to_emotion = {
+                    "chuckle": ("amused", 0.65, "playful"),
+                    "laugh": ("amused", 0.7, "playful"),
+                    "sigh": ("empathetic", 0.65, "soft"),
+                    "whispering": ("thoughtful", 0.5, "intimate"),
+                    "whisper": ("thoughtful", 0.5, "intimate"),
+                    "sarcastic": ("sarcastic", 0.7, "witty"),
+                    "happy": ("cheerful", 0.65, "upbeat"),
+                    "surprised": ("surprised", 0.65, "inquisitive"),
+                    "angry": ("serious", 0.7, "firm"),
+                    "crying": ("empathetic", 0.8, "soft"),
+                    "dramatic": ("dramatic", 0.7, "measured"),
+                    "fear": ("tentative", 0.6, "cautious"),
+                    "gasp": ("surprised", 0.7, "inquisitive"),
+                }
+                if raw_tag in tag_to_emotion:
+                    emo, inten, deliv = tag_to_emotion[raw_tag]
+                    return SpeechDecision(emotion=emo, intensity=inten, delivery=deliv, tags=(raw_tag,))
 
         # Rule order matters - more specific rules first
         tags: tuple[str, ...] = ()
@@ -161,6 +191,32 @@ class SpeechDirector:
         # Default: ordinary factual response
         return SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=())
 
+    @staticmethod
+    def format_prosody(text: str) -> str:
+        """
+        Enhance text with natural conversational prosody and breathing cadence.
+        Inserts smooth pauses after discourse markers and softens transitions
+        without altering the semantic meaning of the words.
+        """
+        if not text:
+            return text
+
+        # 1. Normalize excessive punctuation
+        res = re.sub(r"!{2,}", "!", text)
+        res = re.sub(r"\?{2,}", "?", res)
+
+        # 2. Add natural breathing pauses after common conversational starters if punctuation is missing
+        starters_comma = r"^(Right|Sure|Actually|Honestly|Naturally|Obviously|Indeed|Certainly|Alright)\s+([A-Za-z])"
+        res = re.sub(starters_comma, r"\1, \2", res)
+
+        starters_dash = r"^(Well|Now|So|Look)\s+([A-Za-z])"
+        res = re.sub(starters_dash, r"\1— \2", res)
+
+        starters_ellipsis = r"^(Let me check|Let's see|Looking into that)\s+([A-Za-z])"
+        res = re.sub(starters_ellipsis, r"\1... \2", res)
+
+        return res
+
     def render(self, text: str, context: SpeechContext | None = None) -> str:
         """
         Render the final TTS text by injecting allowed tags.
@@ -172,21 +228,48 @@ class SpeechDirector:
 
         # Strip existing leading bracket tags to guarantee idempotence
         clean_text = re.sub(r"^(?:\[[\w\s-]+\]\s*)+", "", text).strip()
+        if self.enable_prosody_formatting:
+            clean_text = self.format_prosody(clean_text)
+
+        # Check if the original text already carried allowed tags (do not replace existing tags)
+        existing_tags = tuple(
+            t for t in re.findall(r"\[([\w\s-]+)\]", text[:40])
+            if t in self._allowed_tags
+        )
+
         decision = self.decide(clean_text, context)
 
+        # Enforce safety: if failure or error state, never permit chuckle or laugh
+        if context and context.task_status in ("FAILED", "ERROR", "BLOCKED"):
+            existing_tags = tuple(t for t in existing_tags if t not in ("chuckle", "laugh"))
+
+        if existing_tags:
+            tags = existing_tags
+        else:
+            tags = decision.tags
+
+        # Enforce cooldown if configured
+        if tags and self.min_sentences_between_effects > 0:
+            if self._sentences_since_last_effect < self.min_sentences_between_effects:
+                tags = ()
+
         # No tags to inject
-        if not decision.tags:
-            return clean_text if clean_text != text and not any(t in self._allowed_tags for t in re.findall(r"\[([\w\s-]+)\]", text[:30])) else text
+        if not tags:
+            self._sentences_since_last_effect += 1
+            return clean_text
 
         # Enforce max_tags_per_sentence
-        tags_to_inject = decision.tags[:self.max_tags_per_sentence]
+        tags_to_inject = tags[:self.max_tags_per_sentence]
 
         # Validate all tags are allowed
         allowed = self._get_allowed_tags()
         tags_to_inject = tuple(t for t in tags_to_inject if t in allowed)
 
         if not tags_to_inject:
-            return text
+            self._sentences_since_last_effect += 1
+            return clean_text
+
+        self._sentences_since_last_effect = 0
 
         # Inject tags at the beginning of the text (Chatterbox expects prefix tags)
         tag_prefix = " ".join(f"[{t}]" for t in tags_to_inject)
@@ -194,6 +277,39 @@ class SpeechDirector:
         if self.log_decisions:
             print(f"FRIDAY [Speech Director]: {decision.emotion.upper()} {list(tags_to_inject)} -> \"{rendered[:50]}...\"")
         return rendered
+
+    @staticmethod
+    def get_condition_key(decision: SpeechDecision) -> str:
+        """Map SpeechDecision (emotion, tags) to the precompiled condition profile key."""
+        if decision.tags:
+            tag = decision.tags[0].lower().strip()
+            tag_map = {
+                "laugh": "chuckle",
+                "chuckles": "chuckle",
+                "gasp": "surprised",
+                "groan": "sigh",
+                "crying": "sigh",
+            }
+            return tag_map.get(tag, tag)
+
+        emo = decision.emotion.lower().strip()
+        emotion_map = {
+            "empathetic": "sigh",
+            "warm": "happy",
+            "cheerful": "happy",
+            "upbeat": "happy",
+            "positive": "happy",
+            "playful": "chuckle",
+            "amused": "chuckle",
+            "surprised": "surprised",
+            "thoughtful": "neutral",
+            "serious": "angry",
+            "restrained": "neutral",
+            "calm": "neutral",
+            "confident": "neutral",
+            "inquisitive": "neutral",
+        }
+        return emotion_map.get(emo, "neutral")
 
     def __call__(self, text: str, context: SpeechContext | None = None) -> str:
         """Convenience: render text directly."""

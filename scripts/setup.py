@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 scripts/setup.py
@@ -113,7 +114,8 @@ def setup_env_file() -> dict[str, str]:
     # security passphrase
     passphrase = input("    [?] Security passphrase for destructive operations (optional): ").strip()
     if passphrase:
-        config['SECURITY_PASSPHRASE'] = passphrase
+        import hashlib
+        config['PASSPHRASE_HASH'] = hashlib.sha256(passphrase.lower().encode()).hexdigest()
         
     # voice enrollment
     voice_en = input("    [?] Enable speaker verification (Voice Enrollment)? (y/N): ").strip().lower()

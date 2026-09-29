@@ -42,3 +42,62 @@ def test_confidence_score_is_bounded():
     rec = _recognizer([FakeSegment("hi", logprob=-0.3)])
     rec.transcribe("x.wav")
     assert 0.0 <= rec.context.last_confidence <= 1.0
+
+
+def test_language_chain_english_priority():
+    from friday.interaction.stt import resolve_language_chain
+    # English gets priority when its prob is >= 0.25 even if another language is slightly higher
+    probs = [("id", 0.40), ("en", 0.35), ("su", 0.10)]
+    assert resolve_language_chain(probs) == "en"
+
+    # English within 0.20 of top
+    probs_close = [("es", 0.45), ("en", 0.28)]
+    assert resolve_language_chain(probs_close) == "en"
+
+
+def test_language_chain_indonesian_fallback():
+    from friday.interaction.stt import resolve_language_chain
+    # When English is negligible, Indonesian is picked
+    probs = [("id", 0.60), ("en", 0.05), ("su", 0.15)]
+    assert resolve_language_chain(probs) == "id"
+
+
+def test_language_chain_sundanese_fallback():
+    from friday.interaction.stt import resolve_language_chain
+    # When English and Indonesian are low, Sundanese is picked
+    probs = [("su", 0.55), ("id", 0.10), ("en", 0.05)]
+    assert resolve_language_chain(probs) == "su"
+
+
+def test_language_chain_other_languages():
+    from friday.interaction.stt import resolve_language_chain
+    # Confident non-chain language
+    probs = [("ja", 0.85), ("en", 0.05)]
+    assert resolve_language_chain(probs) == "ja"
+
+    # Low confidence across the board defaults to English
+    probs_low = [("fr", 0.20), ("de", 0.15)]
+    assert resolve_language_chain(probs_low) == "en"
+
+
+def test_speech_recognizer_detects_language():
+    from friday.interaction.stt import SpeechRecognizer
+
+    calls = []
+
+    class MockModel:
+        def detect_language(self, audio):
+            return "id", 0.70, [("id", 0.70), ("en", 0.05)]
+
+        def transcribe(self, audio, language, initial_prompt, **kwargs):
+            calls.append((language, initial_prompt))
+            return iter([FakeSegment("Buka kalkulator")]), None
+
+    rec = SpeechRecognizer(language="auto")
+    rec._model = MockModel()
+    text = rec.transcribe("dummy.wav")
+    assert text == "Buka kalkulator"
+    assert len(calls) == 1
+    assert calls[0][0] == "id"
+    assert "asisten komputer" in calls[0][1]
+

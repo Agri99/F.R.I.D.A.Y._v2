@@ -32,6 +32,7 @@ class PrimedContext:
     relevant_preferences: list[dict] = field(default_factory=list)
     relevant_skills: list[dict] = field(default_factory=list)
     known_failures: list[dict] = field(default_factory=list)
+    successful_demonstrations: list[dict] = field(default_factory=list)
     required_capabilities: list[str] = field(default_factory=list)
     summary: str = ""
     task_type: TaskType = TaskType.UNKNOWN
@@ -73,11 +74,12 @@ class ContextPrimingEngine:
         items.extend(self._preference_items(keywords))
         items.extend(self._skill_items(user_goal, task_type))
         items.extend(self._known_failure_items(user_goal))
+        items.extend(self._successful_demonstration_items(user_goal))
 
         selected = self.selector.select(items)
 
         sections: dict[str, list[ContextItem]] = {name: [] for name in
-            ("memories", "projects", "preferences", "skills", "failures")}
+            ("memories", "projects", "preferences", "skills", "failures", "demonstrations")}
         for item in selected:
             kind = item.metadata.get("kind", "memory")
             sections.setdefault(kind, []).append(item)
@@ -88,6 +90,7 @@ class ContextPrimingEngine:
             relevant_preferences=[item.metadata.get("raw", item.content) for item in sections["preferences"]],
             relevant_skills=[item.content for item in sections["skills"]],
             known_failures=[item.content for item in sections["failures"]],
+            successful_demonstrations=[item.metadata.get("raw", item.content) for item in sections["demonstrations"]],
             task_type=task_type,
         )
         context.required_capabilities = self._determine_capabilities(user_goal, context.relevant_skills, task_type)
@@ -219,6 +222,34 @@ class ContextPrimingEngine:
                 relevance=0.7,
                 confidence=0.6,
                 metadata={"kind": "failures"},
+            ))
+        return items
+
+    def _successful_demonstration_items(self, goal: str) -> list[ContextItem]:
+        if self.episodic_memory is None or not hasattr(self.episodic_memory, "recall_similar"):
+            return []
+        items: list[ContextItem] = []
+        try:
+            episodes = self.episodic_memory.recall_similar(goal, limit=5)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            return []
+        for episode in episodes:
+            if str(episode.outcome).upper() not in {"SUCCESS", "COMPLETED"}:
+                continue
+            actions_summary = ", ".join(
+                s.get("action", "") for s in episode.steps if isinstance(s, dict) and s.get("action")
+            )
+            raw_data = {
+                "goal": episode.goal,
+                "actions_summary": actions_summary or "executed successfully",
+                "steps": episode.steps[:3],
+            }
+            items.append(ContextItem(
+                content=f"Demonstration: Goal '{episode.goal}' -> Actions [{actions_summary}]",
+                source="memory.episodic",
+                relevance=0.85,
+                confidence=0.9,
+                metadata={"kind": "demonstrations", "raw": raw_data},
             ))
         return items
 

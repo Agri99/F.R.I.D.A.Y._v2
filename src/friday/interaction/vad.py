@@ -165,6 +165,7 @@ class SileroVoiceActivityDetector:
         
     def reset(self) -> None:
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._context = np.zeros((1, 64), dtype=np.float32)
         self._buffer = np.array([], dtype=np.float32)
         self._speech_streak = 0
         self._silence_streak = 0
@@ -184,13 +185,16 @@ class SileroVoiceActivityDetector:
             frame = self._buffer[:512]
             self._buffer = self._buffer[512:]
             
-            # Run inference
+            # Run inference with 64-sample context buffer (required by Silero v5)
+            frame_2d = frame.reshape(1, 512)
+            x = np.concatenate([self._context, frame_2d], axis=1)
             inputs = {
-                'input': frame.reshape(1, 512),
+                'input': x,
                 'sr': np.array(16000, dtype=np.int64),
                 'state': self._state
             }
             out, self._state = self.session.run(None, inputs)
+            self._context = x[:, -64:]
             prob = float(out[0][0])
             frame_rms = float(np.sqrt(np.mean(frame ** 2)) * 32768.0)
             

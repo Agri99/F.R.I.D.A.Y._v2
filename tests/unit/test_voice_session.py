@@ -141,3 +141,18 @@ def test_announce_callback_speaks_for_control():
     session.run_once()
 
     assert announcements and "fast" in announcements[0].lower()
+
+
+def test_voice_session_barge_in_min_rms_config():
+    stt = FakeSTT([], [])
+    session = VoiceSession(
+        stt,
+        FakeTTS(),
+        FakeWake(),
+        lambda text: "ok",
+        barge_in_min_rms=1500.0,
+        bargein_min_frames=5,
+    )
+    assert session.barge_in_min_rms == 1500.0
+    assert session.bargein_min_frames == 5
+

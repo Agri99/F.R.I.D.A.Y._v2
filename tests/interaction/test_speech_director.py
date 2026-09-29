@@ -124,3 +124,47 @@ def test_director_never_changes_semantic_words():
     import re
     cleaned = re.sub(r"^(?:\[[\w\s-]+\]\s*)+", "", rendered).strip()
     assert cleaned == original
+
+
+def test_prosody_formatting_rules():
+    assert SpeechDirector.format_prosody("Sure I will check that now.") == "Sure, I will check that now."
+    assert SpeechDirector.format_prosody("Well that sounds good.") == "Well— that sounds good."
+    assert SpeechDirector.format_prosody("Let's see what happens next.") == "Let's see... what happens next."
+    assert SpeechDirector.format_prosody("Really??? That is awesome!!!!") == "Really? That is awesome!"
+
+
+def test_prosody_preserves_existing_tags():
+    director = SpeechDirector(allow_vocal_effects=True)
+    rendered = director.render("[chuckle] Well that was unexpected.")
+    assert rendered == "[chuckle] Well— that was unexpected."
+
+
+def test_get_condition_key_mapping():
+    from friday.interaction.speech_director import SpeechDecision, SpeechDirector
+
+    # 1. Tags take precedence
+    dec_laugh = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("laugh",))
+    assert SpeechDirector.get_condition_key(dec_laugh) == "chuckle"
+
+    dec_gasp = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("gasp",))
+    assert SpeechDirector.get_condition_key(dec_gasp) == "surprised"
+
+    dec_sigh = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("sigh",))
+    assert SpeechDirector.get_condition_key(dec_sigh) == "sigh"
+
+    # 2. Emotion mappings when no tags
+    dec_empath = SpeechDecision(emotion="empathetic", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_empath) == "sigh"
+
+    dec_warm = SpeechDecision(emotion="warm", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_warm) == "happy"
+
+    dec_playful = SpeechDecision(emotion="playful", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_playful) == "chuckle"
+
+    dec_serious = SpeechDecision(emotion="serious", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_serious) == "angry"
+
+    dec_unknown = SpeechDecision(emotion="unknown_emotion", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_unknown) == "neutral"
+

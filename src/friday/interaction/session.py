@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import logging
 import queue
-import time
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -106,6 +106,7 @@ class VoiceSession:
         voice_pipeline: Any | None = None,
         speech_director: Any | None = None,
         bargein_min_frames: int = 3,
+        barge_in_min_rms: float = 1200.0,
     ) -> None:
         self.stt = stt
         self.tts = tts
@@ -121,6 +122,7 @@ class VoiceSession:
         # Minimum consecutive speech frames before barge-in triggers (noise gate)
         # Each frame ≈ 64ms at 16kHz/1024-sample blocksize; default 3 ≈ 192ms
         self.bargein_min_frames = max(1, int(bargein_min_frames))
+        self.barge_in_min_rms = float(barge_in_min_rms)
         self.state = SessionState.IDLE
         self.cancelled = False
         self._turn_generation = 0
@@ -643,9 +645,20 @@ class VoiceSession:
                         latency.audio_stop_at = time.time()
                     return True
 
-                # Check mic for speech (barge-in) with duration gate
+                # Check mic for speech (barge-in) with duration gate and energy floor
                 try:
                     mic_chunk = audio_in.queue.get(timeout=0.02)
+                    chunk_data = mic_chunk.data
+                    if hasattr(chunk_data, "astype"):
+                        chunk_f32 = chunk_data.astype(np.float32)
+                        chunk_rms = float(np.sqrt(np.mean(np.square(chunk_f32))))
+                    else:
+                        chunk_rms = 0.0
+
+                    if chunk_rms < self.barge_in_min_rms:
+                        _speech_frame_count = 0
+                        continue
+
                     vad_event = vad.process(mic_chunk.data, mic_chunk.timestamp)
 
                     if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):

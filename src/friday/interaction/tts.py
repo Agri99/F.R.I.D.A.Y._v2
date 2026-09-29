@@ -75,6 +75,82 @@ def _strip_markdown(text: str) -> str:
     return clean_tts_text(text, preserve_emotion_tags=True)
 
 
+def blend_conditionals(
+    base_cond: Any,
+    target_cond: Any,
+    weight: float = 0.65,
+) -> Any:
+    """
+    Interpolate continuous latent condition vectors between baseline and target emotion.
+    weight=0.0 -> 100% baseline (master)
+    weight=1.0 -> 100% target emotion
+    weight=0.65 -> 65% emotional inflection grounded in 35% baseline stability
+    """
+    w = max(0.0, min(1.0, float(weight)))
+    if base_cond is None:
+        return target_cond
+    if target_cond is None or base_cond is target_cond or w <= 0.001:
+        return base_cond
+    if w >= 0.999:
+        return target_cond
+
+    try:
+        from chatterbox.models.t3.modules.cond_enc import T3Cond
+        from chatterbox.tts_turbo import Conditionals
+        import torch
+    except ImportError:
+        return target_cond if w >= 0.5 else base_cond
+
+    # 1. T3Cond interpolation:
+    t3_base = getattr(base_cond, "t3", None)
+    t3_target = getattr(target_cond, "t3", None)
+
+    if t3_base is not None and t3_target is not None:
+        # Blended speaker embedding (anchored by master centroid)
+        blended_spk = (1.0 - w) * t3_base.speaker_emb + w * t3_target.speaker_emb
+        # Blended emotion exaggeration / advancement
+        blended_adv = (1.0 - w) * t3_base.emotion_adv + w * t3_target.emotion_adv
+        # Discrete speech prompt tokens (select target if w >= 0.5, else base)
+        blended_tokens = (
+            t3_target.cond_prompt_speech_tokens
+            if w >= 0.5
+            else t3_base.cond_prompt_speech_tokens
+        )
+        blended_t3 = T3Cond(
+            speaker_emb=blended_spk,
+            cond_prompt_speech_tokens=blended_tokens,
+            emotion_adv=blended_adv,
+        )
+    else:
+        blended_t3 = getattr(target_cond, "t3", None) if w >= 0.5 else getattr(base_cond, "t3", None)
+
+    # 2. Generator dict (s3gen_ref_dict):
+    gen_base = getattr(base_cond, "gen", None)
+    gen_target = getattr(target_cond, "gen", None)
+
+    blended_gen: Any = {}
+    if isinstance(gen_base, dict) and isinstance(gen_target, dict):
+        for k in gen_target:
+            if k in gen_base:
+                vb = gen_base[k]
+                vt = gen_target[k]
+                if (
+                    isinstance(vb, torch.Tensor)
+                    and isinstance(vt, torch.Tensor)
+                    and vb.shape == vt.shape
+                    and vb.is_floating_point()
+                ):
+                    blended_gen[k] = (1.0 - w) * vb + w * vt
+                else:
+                    blended_gen[k] = vt if w >= 0.5 else vb
+            else:
+                blended_gen[k] = gen_target[k]
+    else:
+        blended_gen = gen_target if w >= 0.5 else gen_base
+
+    return Conditionals(t3=blended_t3, gen=blended_gen)
+
+
 @dataclass
 class TTSResult:
     """Result of TTS synthesis and playback."""
@@ -150,6 +226,7 @@ class ChatterboxTurboSynthesizer:
         self.exaggeration = float(exaggeration)
         self.model: Any = None
         self.sample_rate = 24000
+        self._conditionals_bank: dict[str, Any] = {}
         self._state_callback: Callable[[VoiceState], None] | None = None
         self._interrupt_event = threading.Event()
         self._current_audio: np.ndarray | None = None
@@ -282,16 +359,82 @@ class ChatterboxTurboSynthesizer:
                     self.device = dev
                     if hasattr(self.model, "sr"):
                         self.sample_rate = int(self.model.sr)
-                    if self.audio_prompt_path and Path(self.audio_prompt_path).exists():
+
+                    # 1. Discover and load precompiled Multi-Emotion Condition Bank if available
+                    cond_dir = _PROJECT_ROOT / "data" / "voices" / "conditionals"
+                    if cond_dir.exists():
+                        from chatterbox.tts_turbo import Conditionals
+                        for pt_file in cond_dir.glob("*.pt"):
+                            try:
+                                cond = Conditionals.load(str(pt_file), map_location=dev).to(dev)
+                                self._conditionals_bank[pt_file.stem.lower()] = cond
+                            except Exception as cond_err:  # noqa: BLE001
+                                logger.warning("Could not load condition profile %s: %s", pt_file.name, cond_err)
+                        if self._conditionals_bank:
+                            print(f"FRIDAY [Voice]: Loaded {len(self._conditionals_bank)} precompiled emotion conditionals ({', '.join(sorted(self._conditionals_bank.keys()))})")
+                            default_cond = self._conditionals_bank.get("master") or self._conditionals_bank.get("neutral")
+                            if default_cond is not None:
+                                self.model.conds = default_cond
+
+                    # 2. Fallback to single voice reference if condition bank is not present
+                    if not self._conditionals_bank and self.audio_prompt_path and Path(self.audio_prompt_path).exists():
                         logger.info("Preparing reference conditionals from %s...", self.audio_prompt_path)
                         print(f"FRIDAY [Voice]: Applied custom voice timbre reference from {self.audio_prompt_path}")
                         self.model.prepare_conditionals(str(self.audio_prompt_path), exaggeration=self.exaggeration)
 
-    def _build_audio(self, text: str) -> np.ndarray:
+    def _build_audio(
+        self,
+        text: str,
+        emotion: str | None = None,
+        blend_weight: float | None = None,
+    ) -> np.ndarray:
         self._ensure_model()
         cleaned = clean_tts_text(text, preserve_emotion_tags=True)
         if not cleaned:
             return np.zeros(0, dtype=np.float32)
+
+        # Dynamic Emotion Condition Selection
+        target_conds = None
+        if self._conditionals_bank:
+            # A. Check explicit emotion argument
+            if emotion and emotion.lower() in self._conditionals_bank:
+                target_conds = self._conditionals_bank[emotion.lower()]
+            else:
+                # B. Detect emotion tags in text prefix
+                tag_match = re.search(r"\[([\w\s-]+)\]", text[:35])
+                if tag_match:
+                    raw_tag = tag_match.group(1).lower().strip()
+                    tag_map = {
+                        "laugh": "chuckle",
+                        "chuckles": "chuckle",
+                        "gasp": "surprised",
+                        "groan": "sigh",
+                        "crying": "sigh",
+                        "empathetic": "sigh",
+                        "warm": "happy",
+                        "cheerful": "happy",
+                        "playful": "chuckle",
+                        "amused": "chuckle",
+                    }
+                    resolved_tag = tag_map.get(raw_tag, raw_tag)
+                    target_conds = self._conditionals_bank.get(resolved_tag)
+
+            base_cond = self._conditionals_bank.get("master") or self._conditionals_bank.get("neutral")
+            if target_conds is None:
+                target_conds = base_cond
+
+            # Continuous Latent Blending: interpolate target condition with base master
+            active_conds = target_conds
+            if base_cond is not None and target_conds is not None and target_conds is not base_cond:
+                eff_weight = blend_weight if blend_weight is not None else 0.65
+                active_conds = blend_conditionals(base_cond, target_conds, weight=eff_weight)
+        else:
+            active_conds = None
+
+        # Temporarily activate target condition for this generation
+        orig_conds = getattr(self.model, "conds", None)
+        if active_conds is not None:
+            self.model.conds = active_conds
 
         prompt_path = str(self.audio_prompt_path) if (self.audio_prompt_path and Path(self.audio_prompt_path).exists()) else None
         # If conditionals have already been prepared/cached in the model, pass None to avoid recomputing every turn
@@ -299,23 +442,34 @@ class ChatterboxTurboSynthesizer:
 
         import contextlib
         import io
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            wav_tensor = self.model.generate(
-                cleaned,
-                audio_prompt_path=prompt_to_pass,
-                exaggeration=self.exaggeration,
-            )
-        wav = wav_tensor.squeeze().detach().cpu().numpy().astype(np.float32)
-        # Gentle padding for natural cadence
-        padding_start = np.zeros(int(0.06 * self.sample_rate), dtype=np.float32)
-        padding_end = np.zeros(int(0.12 * self.sample_rate), dtype=np.float32)
-        return np.concatenate([padding_start, wav, padding_end])
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                wav_tensor = self.model.generate(
+                    cleaned,
+                    audio_prompt_path=prompt_to_pass,
+                    exaggeration=self.exaggeration,
+                )
+            wav = wav_tensor.squeeze().detach().cpu().numpy().astype(np.float32)
+            # Gentle padding for natural cadence
+            padding_start = np.zeros(int(0.06 * self.sample_rate), dtype=np.float32)
+            padding_end = np.zeros(int(0.12 * self.sample_rate), dtype=np.float32)
+            return np.concatenate([padding_start, wav, padding_end])
+        finally:
+            if orig_conds is not None:
+                self.model.conds = orig_conds
 
-    def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
+    def speak(
+        self,
+        text: str,
+        save_path: str | Path | None = None,
+        play_audio: bool = True,
+        emotion: str | None = None,
+        blend_weight: float | None = None,
+    ) -> TTSResult:
         if self._interrupt_event.is_set():
             return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
         try:
-            audio = self._build_audio(text)
+            audio = self._build_audio(text, emotion=emotion, blend_weight=blend_weight)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as synth_err:
             logger.exception("Chatterbox Turbo synthesis failed: %s", synth_err)
             return TTSResult(success=False, error=str(synth_err))

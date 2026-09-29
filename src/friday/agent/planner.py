@@ -94,6 +94,15 @@ class Planner:
                 context_parts.append("Known failure patterns:\n" + "\n".join(
                     f"- {f.get('step', '')}: {f.get('error', '')}" for f in primed_context.known_failures[:3]
                 ))
+            if getattr(primed_context, "successful_demonstrations", None):
+                demo_lines = []
+                for d in primed_context.successful_demonstrations[:3]:
+                    if isinstance(d, dict):
+                        g = d.get("goal", "")
+                        acts = d.get("actions_summary", "")
+                        demo_lines.append(f"- Goal: \"{g}\" -> Actions: {acts}")
+                if demo_lines:
+                    context_parts.append("Proven strategy demonstrations (from previous successful executions):\n" + "\n".join(demo_lines))
 
             if context_parts:
                 sys_prompt += "\n\n--- PRIMED CONTEXT ---\n" + "\n\n".join(context_parts) + "\n--- END CONTEXT ---"
