@@ -8,9 +8,9 @@ A local-first, privacy-respecting personal AI computer assistant for Windows 11.
 
 F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth) runs on Windows with flexible local and cloud hybrid intelligence:
 
-- **Speech Recognition & Multilingual Chain:** `faster-whisper` with prioritized language hierarchy (English > Indonesian > Sundanese > Other languages), pre-roll ring buffer, domain vocabulary biasing, and confidence filtering to reject noise and hallucinated transcripts.
+- **Speech Recognition & Multilingual Chain:** Real-time neural Silero VAD stream gating and `faster-whisper` with prioritized language comprehension hierarchy (English > Indonesian > Sundanese > Other languages), rolling pre-speech ring buffer preventing word-onset clipping, domain vocabulary biasing, and an English-first spoken response policy.
 - **Wake Word Detection:** `openWakeWord` with real-time streaming audio detection and seamless re-arming.
-- **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, Chatterbox Turbo neural voice synthesis, and acoustic barge-in gating.
+- **Bidirectional Conversational Voice Engine:** Google Gemini Live API (`gemini-3.1-flash-live-preview`) over WebSockets with full-duplex conversational streaming, native tool calling, 100% local Chatterbox Turbo neural voice synthesis (Lune's voice), neural Silero VAD stream gating, pre-speech ring buffer, and acoustic echo suppression with barge-in interruption.
 - **Reasoning & Planning:** Local LLM via [Ollama](https://ollama.com) (`qwen2.5:3b` standardized for low latency and ~5.5GB VRAM footprint) or Google Gemini Cloud (`gemini-3.8-flash`, `gemini-3.5-flash-lite`) with multi-step replanning, fast/deep reasoning preferences, and autonomous distillation feedback.
 - **Speech Synthesis:** Resemble AI's `Chatterbox Turbo` neural TTS with custom speaker timbre cloning (`models/voice_reference.wav`), fine-tuned LoRA checkpoint support (`models/chatterbox-turbo`), automatic short-clip tiling, and expressive prosody.
 - **Multi-Tier Online Search:** Privacy-respecting real-time retrieval combining self-hosted SearXNG (`http://127.0.0.1:8080`) as the primary general web search layer, with Wikipedia API (instant authoritative encyclopedic summaries) and Google News RSS (current affairs and breaking events) as specialized fallbacks.
@@ -91,11 +91,14 @@ For critical [RED] tier actions (such as file deletions, code self-upgrades, or 
 ---
 
 ### 4. Neural Speech Synthesis (Chatterbox Turbo) & Expression Bank
-FRIDAY uses Resemble AI's Chatterbox Turbo for expressive, natural voice output.
+FRIDAY uses Resemble AI's Chatterbox Turbo for expressive, natural voice output:
+- **Consistent Lune Voice Model:** Generates 100% of spoken responses using local Chatterbox Turbo on CUDA (`models/voice_reference.wav`), providing zero network latency, zero cloud API limits, and a consistent vocal profile across all interactions.
+- **Multilingual Comprehension & English Spoken Output:** Comprehends speech across a prioritized chain: **English > Indonesian > Sundanese > Other languages**. Whatever language is spoken to her, Friday formulates and delivers her spoken replies in English, maintaining her signature British wit and persona while addressing you as "Boss".
+- **Neural Silero VAD Stream Gating & Pre-Speech Ring Buffer:** A rolling 3-chunk pre-speech ring buffer (~192ms) captures leading soft consonants ('th', 's', 'p', 'f', 'h') and flushes them to the recognition stream upon speech detection, while neural Silero VAD suppresses ambient room noise, fan hums, and keyboard clicks.
+- **Anti-Interruption & Audio Queue Stability:** Pre-playback synthesis is protected from premature cancellation by ambient sounds, and asynchronous transcription race conditions are eliminated so generated responses reliably play through the speakers.
 - **Master Centroid & 12 Precompiled Emotion Conditionals:** Uses `scripts/build_voice_profiles.py` to compile reference latents (`master.pt`, `neutral.pt`, `happy.pt`, `sigh.pt`, `chuckle.pt`, `sarcastic.pt`, `angry.pt`, `whispering.pt`, etc.) in `data/voices/conditionals/`.
 - **Continuous Latent Blending:** Dynamically interpolates speaker embeddings and style conditioning with 0ms disk overhead.
 - **Deterministic Speech Director:** A dedicated rule-based prosody director (`src/friday/interaction/speech_director.py`) injects calibrated vocal tags (`[sigh]`, `[gasp]`, `[chuckle]`) and selects emotional condition profiles.
-- **Multilingual Priority Recognition:** Fluently comprehends and converses across a prioritized hierarchy: **English > Indonesian > Sundanese > Other languages**, with tailored vocabulary biasing prompts.
 
 ---
 

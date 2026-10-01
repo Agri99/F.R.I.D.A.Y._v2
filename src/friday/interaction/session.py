@@ -260,6 +260,9 @@ class VoiceSession:
 
                 # Store transcript for speech context
                 self._last_user_transcript = transcript
+                if self.tts and hasattr(self.tts, "set_turn_language"):
+                    from friday.interaction.tts import detect_language
+                    self.tts.set_turn_language(detect_language(transcript))
 
                 time.time()
                 fastpath_match = getattr(self, "_fastpath", None).match(transcript) if getattr(self, "_fastpath", None) else None

@@ -1,11 +1,19 @@
 """Window management logic."""
 from __future__ import annotations
-import win32gui
-import win32con
-import win32process
+import sys
+
+if sys.platform == "win32":
+    import win32gui
+    import win32con
+    import win32process
+else:
+    # Placeholder for non-Windows systems
+    win32gui = None  # type: ignore
+    win32con = None  # type: ignore
+    win32process = None  # type: ignore
+
 import psutil
 import os
-import sys
 from dataclasses import dataclass
 
 
@@ -33,6 +41,8 @@ class WindowManager:
     
     def get_active_window(self) -> WindowInfo:
         """Get the active window information."""
+        if not win32gui:
+            raise RuntimeError("WindowManager is only available on Windows")
         hwnd = win32gui.GetForegroundWindow()
         if not hwnd:
             return WindowInfo("", "", (0,0,0,0), False)

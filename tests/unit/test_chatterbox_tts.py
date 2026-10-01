@@ -126,6 +126,83 @@ class TestChatterboxTTS(unittest.TestCase):
         synth.reset_interrupt()
         self.assertFalse(synth._active_backend._interrupt_event.is_set())
 
+    def test_blend_conditionals_weight_clamping(self):
+        from friday.interaction.tts import blend_conditionals
+
+        base = "base_marker"
+        target = "target_marker"
+
+        # Negative weight clamps to 0.0 -> returns base
+        res_neg = blend_conditionals(base, target, weight=-0.5)
+        self.assertEqual(res_neg, base)
+
+        # Weight > 1.0 clamps to 1.0 -> returns target
+        res_over = blend_conditionals(base, target, weight=1.5)
+        self.assertEqual(res_over, target)
+
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
+    def test_crying_never_resolves_to_sigh_in_tts(self, mock_from_pretrained, mock_from_local):
+        mock_model = MagicMock()
+        mock_model.sr = 24000
+        mock_model.generate.return_value = torch.zeros((1, 24000), dtype=torch.float32)
+        mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
+
+        synth = ChatterboxTurboSynthesizer(device="cuda")
+        # Populate condition bank with distinct mock objects
+        mock_master = MagicMock(name="master")
+        mock_sigh = MagicMock(name="sigh")
+        synth._conditionals_bank = {
+            "master": mock_master,
+            "neutral": mock_master,
+            "sigh": mock_sigh,
+        }
+        synth.model = mock_model
+        mock_model.conds = mock_master
+
+        # 1. Via tag: [crying]
+        synth._build_audio("[crying] We will work through this.")
+        # Target condition must be master/neutral, NEVER sigh!
+        self.assertIsNot(mock_model.conds, mock_sigh)
+        self.assertIs(mock_model.conds, mock_master)
+
+        # 2. Via explicit emotion="crying"
+        synth._build_audio("We will work through this.", emotion="crying")
+        self.assertIsNot(mock_model.conds, mock_sigh)
+        self.assertIs(mock_model.conds, mock_master)
+
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_local")
+    @patch("chatterbox.tts_turbo.ChatterboxTurboTTS.from_pretrained")
+    def test_condition_restored_after_generation_and_on_failure(self, mock_from_pretrained, mock_from_local):
+        mock_model = MagicMock()
+        mock_model.sr = 24000
+        mock_model.generate.return_value = torch.zeros((1, 24000), dtype=torch.float32)
+        mock_from_pretrained.return_value = mock_model
+        mock_from_local.return_value = mock_model
+
+        synth = ChatterboxTurboSynthesizer(device="cuda")
+        mock_master = MagicMock(name="master")
+        mock_happy = MagicMock(name="happy")
+        synth._conditionals_bank = {
+            "master": mock_master,
+            "neutral": mock_master,
+            "happy": mock_happy,
+        }
+        synth.model = mock_model
+        mock_model.conds = mock_master
+
+        # Normal successful generation restores conds
+        audio = synth._build_audio("[happy] Good morning, Boss.")
+        self.assertEqual(mock_model.conds, mock_master)
+        self.assertEqual(audio.dtype, np.float32)
+
+        # Failure during generate() also restores conds in finally block
+        mock_model.generate.side_effect = RuntimeError("GPU OOM")
+        with self.assertRaises(RuntimeError):
+            synth._build_audio("[happy] Good morning, Boss.")
+        self.assertEqual(mock_model.conds, mock_master)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,15 @@ except (ImportError, OSError):
     sd = None  # type: ignore[assignment]
     _SOUNDDEVICE_AVAILABLE = False
 
+try:
+    from google import genai
+    from google.genai import types
+    _GENAI_AVAILABLE = True
+except ImportError:
+    _GENAI_AVAILABLE = False
+    genai = None  # type: ignore[assignment]
+    types = None  # type: ignore[assignment]
+
 from friday.interaction.stt import VoiceState
 
 logger = logging.getLogger(__name__)
@@ -396,30 +405,44 @@ class ChatterboxTurboSynthesizer:
         # Dynamic Emotion Condition Selection
         target_conds = None
         if self._conditionals_bank:
+            base_cond = self._conditionals_bank.get("master") or self._conditionals_bank.get("neutral")
+            canonical_condition_map = {
+                "laugh": "chuckle",
+                "chuckles": "chuckle",
+                "happy": "happy",
+                "dramatic": "dramatic",
+                "whispering": "whispering",
+                "whisper": "whispering",
+                # Phase 6: Disabled/pending expressions resolve to neutral/master
+                "crying": "neutral",
+                "empathetic": "neutral",
+                "serious": "neutral",
+                "sigh": "neutral",
+                "gasp": "neutral",
+                "surprised": "neutral",
+                "angry": "neutral",
+                "sarcastic": "neutral",
+                "fear": "neutral",
+                "chuckle": "neutral",
+                "groan": "neutral",
+                "warm": "happy",
+                "cheerful": "happy",
+                "upbeat": "happy",
+                "positive": "happy",
+            }
+
             # A. Check explicit emotion argument
-            if emotion and emotion.lower() in self._conditionals_bank:
-                target_conds = self._conditionals_bank[emotion.lower()]
+            if emotion:
+                resolved_emo = canonical_condition_map.get(emotion.lower().strip(), emotion.lower().strip())
+                target_conds = self._conditionals_bank.get(resolved_emo, base_cond)
             else:
                 # B. Detect emotion tags in text prefix
                 tag_match = re.search(r"\[([\w\s-]+)\]", text[:35])
                 if tag_match:
                     raw_tag = tag_match.group(1).lower().strip()
-                    tag_map = {
-                        "laugh": "chuckle",
-                        "chuckles": "chuckle",
-                        "gasp": "surprised",
-                        "groan": "sigh",
-                        "crying": "sigh",
-                        "empathetic": "sigh",
-                        "warm": "happy",
-                        "cheerful": "happy",
-                        "playful": "chuckle",
-                        "amused": "chuckle",
-                    }
-                    resolved_tag = tag_map.get(raw_tag, raw_tag)
-                    target_conds = self._conditionals_bank.get(resolved_tag)
+                    resolved_tag = canonical_condition_map.get(raw_tag, "neutral")
+                    target_conds = self._conditionals_bank.get(resolved_tag, base_cond)
 
-            base_cond = self._conditionals_bank.get("master") or self._conditionals_bank.get("neutral")
             if target_conds is None:
                 target_conds = base_cond
 
@@ -609,8 +632,535 @@ class ChatterboxTurboSynthesizer:
         return VoiceState.IDLE
 
 
+ID_SU_MARKERS: set[str] = {
+    "yang", "dan", "di", "ini", "itu", "sudah", "belum", "tidak", "tak", "bisa",
+    "saya", "aku", "kamu", "anda", "dia", "mereka", "kita", "kami", "apa", "kenapa",
+    "mengapa", "bagaimana", "kapan", "siapa", "dimana", "kemana", "dari", "ke",
+    "pada", "untuk", "dengan", "akan", "telah", "sedang", "lagi", "selamat", "pagi",
+    "siang", "sore", "malam", "terima", "kasih", "sama", "ada", "banyak", "sedikit",
+    "semua", "harus", "boleh", "tolong", "maaf", "silakan", "mohon", "coba",
+    "cepat", "cukup", "tapi", "atau", "juga", "hanya", "tentang", "mungkin", "pasti",
+    "bukan", "kabar", "baik", "bagus", "rusak", "selesai", "berhasil", "gagal",
+    "tugas", "jalan", "kerja", "hari", "waktu", "siap", "cuaca", "membantu",
+    # Sundanese markers
+    "wilujeng", "enjing", "wengi", "damang", "kumaha", "hatur", "nuhun", "sawangsulna",
+    "punten", "mangga", "tiasa", "sae", "abdi", "anjeun", "pisan", "oge", "enya",
+}
+
+EN_INDICATORS: set[str] = {
+    "the", "is", "are", "was", "were", "this", "that", "these", "those", "there",
+    "here", "have", "has", "had", "would", "could", "should", "you", "your",
+    "they", "their", "them", "we", "our", "my", "i", "he", "she", "it", "its",
+    "good", "morning", "afternoon", "evening", "hello", "running", "operational",
+    "system", "systems", "how", "what", "where", "when", "why", "who", "which",
+    "will", "shall", "can", "may", "please", "thank", "thanks", "ready", "done",
+}
+
+
+def detect_language(text: str) -> str:
+    """Fast language detector identifying whether text is English or a non-English language.
+
+    Returns:
+        'en' for English
+        'id' for Indonesian / Sundanese
+        'other' for other non-English languages
+    """
+    clean = re.sub(r"\[[\w\s-]+\]", "", text).lower().strip()
+    if not clean:
+        return "en"
+
+    # Non-Latin script detection (CJK, Arabic, Cyrillic, etc.)
+    if re.search(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\u0600-\u06ff\u0400-\u04ff]", clean):
+        return "other"
+
+    words = re.findall(r"\b[a-z-]+\b", clean)
+    if not words:
+        return "en"
+
+    id_cnt = sum(1 for w in words if w in ID_SU_MARKERS)
+    en_cnt = sum(1 for w in words if w in EN_INDICATORS)
+
+    if id_cnt > 0 and id_cnt >= en_cnt:
+        return "id"
+    if en_cnt > 0:
+        return "en"
+    return "en"
+
+
+class GeminiTTSSynthesizer:
+    """Expressive cloud-native Gemini neural TTS synthesizer for multilingual speech.
+
+    Uses gemini-3.1-flash-tts-preview via Google GenAI SDK (Interactions API),
+    outputting 24kHz 16-bit PCM for natural multilingual speech (Indonesian, etc.).
+    """
+
+    def __init__(
+        self,
+        voice: str = "Aoede",
+        model: str = "gemini-3.1-flash-tts-preview",
+        api_key: str | None = None,
+        sample_rate: int = 24000,
+    ) -> None:
+        self.voice = voice
+        self.model = model
+        self.sample_rate = sample_rate
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not self.api_key:
+            try:
+                from friday.security.secrets import SecretsManager
+                self.api_key = SecretsManager().get("gemini_api_key")
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                pass
+        self._client: Any = None
+        self._interrupt_event = threading.Event()
+        self._current_audio: np.ndarray | None = None
+        self._state_callback: Callable[[VoiceState], None] | None = None
+        self._lock = threading.Lock()
+
+    def _ensure_client(self) -> Any:
+        if self._client is None:
+            if not _GENAI_AVAILABLE:
+                raise RuntimeError("The google-genai library is not installed.")
+            if not self.api_key:
+                raise ValueError("GEMINI_API_KEY is not configured.")
+            self._client = genai.Client(api_key=self.api_key.strip())
+        return self._client
+
+    def set_state_callback(self, callback: Callable[[VoiceState], None]):
+        self._state_callback = callback
+
+    def _set_state(self, state: VoiceState):
+        if self._state_callback:
+            self._state_callback(state)
+
+    def _build_audio(
+        self,
+        text: str,
+        emotion: str | None = None,
+        blend_weight: float | None = None,
+    ) -> np.ndarray:
+        import base64
+
+        # Detect emotion if not explicitly passed
+        target_emotion = emotion
+        if not target_emotion:
+            tag_match = re.search(r"\[([\w\s-]+)\]", text[:35])
+            if tag_match:
+                target_emotion = tag_match.group(1).lower().strip()
+
+        cleaned = clean_tts_text(text, preserve_emotion_tags=False)
+        if not cleaned:
+            return np.zeros(0, dtype=np.float32)
+
+        prompt = cleaned
+        if target_emotion:
+            emo_directive_map = {
+                "happy": "Say cheerfully: ",
+                "cheerful": "Say cheerfully: ",
+                "upbeat": "Say cheerfully: ",
+                "warm": "Say warmly: ",
+                "positive": "Say cheerfully: ",
+                "dramatic": "Say dramatically: ",
+                "whispering": "Say in a whisper: ",
+                "whisper": "Say in a whisper: ",
+                "laugh": "Say with a chuckle: ",
+                "chuckle": "Say with a chuckle: ",
+                "serious": "Say in a serious tone: ",
+                "sad": "Say softly with sadness: ",
+                "crying": "Say softly with sadness: ",
+                "groan": "Say with a groan: ",
+            }
+            directive = emo_directive_map.get(target_emotion.lower().strip())
+            if directive:
+                prompt = f"{directive}{cleaned}"
+
+        try:
+            client = self._ensure_client()
+            # Fast timeout (3.0s) so Friday never freezes on network or quota errors
+            interaction = client.interactions.create(
+                model=self.model,
+                input=prompt,
+                response_format={"type": "audio"},
+                generation_config={
+                    "speech_config": [
+                        {"voice": self.voice}
+                    ]
+                },
+                http_options={"timeout": 3.0},
+            )
+            audio_content = interaction.output_audio
+            if audio_content and getattr(audio_content, "data", None):
+                raw_bytes = audio_content.data
+                if isinstance(raw_bytes, str):
+                    raw_bytes = base64.b64decode(raw_bytes)
+                data = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                sr = getattr(audio_content, "sample_rate", None) or 24000
+                if sr != self.sample_rate and len(data) > 0:
+                    import scipy.signal
+                    num_samples = int(len(data) * self.sample_rate / sr)
+                    data = scipy.signal.resample(data, num_samples).astype(np.float32)
+
+                padding_start = np.zeros(int(0.06 * self.sample_rate), dtype=np.float32)
+                padding_end = np.zeros(int(0.12 * self.sample_rate), dtype=np.float32)
+                return np.concatenate([padding_start, data, padding_end])
+            raise RuntimeError("Gemini TTS returned no audio data")
+        except Exception as exc:
+            logger.warning("Gemini TTS synthesis failed (%s), falling back to Chatterbox Turbo", exc)
+            raise
+
+    def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
+        import sounddevice as sd
+
+        self._interrupt_event.clear()
+        try:
+            audio = self._build_audio(text)
+        except Exception as exc:
+            logger.exception("Gemini TTS synthesis failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+
+        if len(audio) == 0:
+            return TTSResult(success=True, duration_seconds=0.0)
+
+        if save_path:
+            import soundfile as sf
+            sf.write(str(save_path), audio, self.sample_rate)
+
+        if not play_audio:
+            duration = len(audio) / self.sample_rate
+            return TTSResult(success=True, interrupted=False, duration_seconds=duration)
+
+        if self._interrupt_event.is_set():
+            return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
+
+        self._set_state(VoiceState.SPEAKING)
+        self._current_audio = audio
+
+        try:
+            sd.play(audio, samplerate=self.sample_rate)
+            start_time = time.time()
+            sd.wait()
+            interrupted = self._interrupt_event.is_set()
+            duration = time.time() - start_time
+            return TTSResult(success=True, interrupted=interrupted, duration_seconds=duration)
+        except Exception as exc:
+            logger.exception("Gemini TTS playback failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+        finally:
+            self._current_audio = None
+            if self._interrupt_event.is_set():
+                self._set_state(VoiceState.INTERRUPTED)
+            else:
+                self._set_state(VoiceState.IDLE)
+
+    def speak_interruptible(
+        self,
+        text: str,
+        wakeword_listener: Any = None,
+        playback_gain: float = 0.8,
+        on_interrupt: Callable[[], None] | None = None,
+    ) -> TTSResult:
+        import sounddevice as sd
+
+        self._interrupt_event.clear()
+        try:
+            audio = self._build_audio(text)
+        except Exception as exc:
+            logger.exception("Gemini TTS synthesis failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+
+        if len(audio) == 0:
+            return TTSResult(success=True, duration_seconds=0.0)
+
+        self._set_state(VoiceState.SPEAKING)
+        self._current_audio = audio
+
+        audio = (audio * playback_gain).astype(np.float32)
+        duration = len(audio) / self.sample_rate
+
+        if wakeword_listener and hasattr(wakeword_listener, "model") and hasattr(wakeword_listener.model, "reset"):
+            wakeword_listener.model.reset()
+
+        sd.play(audio, samplerate=self.sample_rate)
+        start_time = time.time()
+        interrupted = False
+
+        try:
+            with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as stream:
+                warmup_frames = 5
+                frame_count = 0
+
+                while time.time() - start_time < duration:
+                    if self._interrupt_event.is_set():
+                        interrupted = True
+                        break
+
+                    frame_count += 1
+                    if frame_count <= warmup_frames:
+                        stream.read(1280)
+                        continue
+
+                    if wakeword_listener and hasattr(wakeword_listener, "check_frame"):
+                        try:
+                            if wakeword_listener.check_frame(stream, debug=False):
+                                interrupted = True
+                                self.cancel()
+                                break
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                            pass
+                    time.sleep(0.01)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+            logger.exception("Gemini TTS interruptible playback failed: %s", exc)
+        finally:
+            if interrupted:
+                try:
+                    sd.stop()
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                    pass
+            self._current_audio = None
+            if interrupted:
+                self._set_state(VoiceState.INTERRUPTED)
+                if on_interrupt:
+                    on_interrupt()
+            else:
+                self._set_state(VoiceState.IDLE)
+
+        return TTSResult(success=True, interrupted=interrupted, duration_seconds=time.time() - start_time)
+
+    def reset_interrupt(self):
+        self._interrupt_event.clear()
+
+    def cancel(self):
+        import sounddevice as sd
+        self._interrupt_event.set()
+        try:
+            sd.stop()
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            pass
+        self._current_audio = None
+        self._set_state(VoiceState.INTERRUPTED)
+
+    def get_state(self) -> VoiceState:
+        if self._current_audio is not None:
+            return VoiceState.SPEAKING
+        return VoiceState.IDLE
+
+
+class EdgeTTSSynthesizer:
+    """Fast, human-like neural Edge-TTS synthesizer for Indonesian and Sundanese speech."""
+
+    def __init__(
+        self,
+        voice: str = "id-ID-GadisNeural",
+        sample_rate: int = 24000,
+    ) -> None:
+        self.voice = voice
+        self.sample_rate = sample_rate
+        self._interrupt_event = threading.Event()
+        self._current_audio: np.ndarray | None = None
+        self._state_callback: Callable[[VoiceState], None] | None = None
+        self._lock = threading.Lock()
+
+    def set_state_callback(self, callback: Callable[[VoiceState], None]):
+        self._state_callback = callback
+
+    def _set_state(self, state: VoiceState):
+        if self._state_callback:
+            self._state_callback(state)
+
+    def _build_audio(
+        self,
+        text: str,
+        emotion: str | None = None,
+        blend_weight: float | None = None,
+    ) -> np.ndarray:
+        import asyncio
+        import concurrent.futures
+        import io
+        import edge_tts
+        import soundfile as sf
+
+        cleaned = clean_tts_text(text, preserve_emotion_tags=False)
+        if not cleaned:
+            return np.zeros(0, dtype=np.float32)
+
+        async def _synth_coro() -> tuple[np.ndarray, int]:
+            comm = edge_tts.Communicate(cleaned, self.voice)
+            buf = io.BytesIO()
+            async for chunk in comm.stream():
+                if chunk["type"] == "audio":
+                    buf.write(chunk["data"])
+            buf.seek(0)
+            data, sr = sf.read(buf, dtype="float32")
+            return data, sr
+
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    data, sr = pool.submit(asyncio.run, _synth_coro()).result()
+            else:
+                data, sr = asyncio.run(_synth_coro())
+
+            if data.ndim > 1:
+                data = data.mean(axis=1)
+
+            if sr != self.sample_rate:
+                import scipy.signal
+                num_samples = int(len(data) * self.sample_rate / sr)
+                data = scipy.signal.resample(data, num_samples).astype(np.float32)
+
+            padding_start = np.zeros(int(0.06 * self.sample_rate), dtype=np.float32)
+            padding_end = np.zeros(int(0.12 * self.sample_rate), dtype=np.float32)
+            return np.concatenate([padding_start, data, padding_end])
+        except Exception as exc:
+            logger.exception("Edge-TTS synthesis error: %s", exc)
+            return np.zeros(0, dtype=np.float32)
+
+    def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
+        import sounddevice as sd
+
+        self._interrupt_event.clear()
+        try:
+            audio = self._build_audio(text)
+        except Exception as exc:
+            logger.exception("Edge-TTS synthesis failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+
+        if len(audio) == 0:
+            return TTSResult(success=True, duration_seconds=0.0)
+
+        if save_path:
+            import soundfile as sf
+            sf.write(str(save_path), audio, self.sample_rate)
+
+        if not play_audio:
+            duration = len(audio) / self.sample_rate
+            return TTSResult(success=True, interrupted=False, duration_seconds=duration)
+
+        if self._interrupt_event.is_set():
+            return TTSResult(success=True, interrupted=True, duration_seconds=0.0)
+
+        self._set_state(VoiceState.SPEAKING)
+        self._current_audio = audio
+
+        try:
+            sd.play(audio, samplerate=self.sample_rate)
+            start_time = time.time()
+            sd.wait()
+            interrupted = self._interrupt_event.is_set()
+            duration = time.time() - start_time
+            return TTSResult(success=True, interrupted=interrupted, duration_seconds=duration)
+        except Exception as exc:
+            logger.exception("Edge-TTS playback failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+        finally:
+            self._current_audio = None
+            if self._interrupt_event.is_set():
+                self._set_state(VoiceState.INTERRUPTED)
+            else:
+                self._set_state(VoiceState.IDLE)
+
+    def speak_interruptible(
+        self,
+        text: str,
+        wakeword_listener: Any = None,
+        playback_gain: float = 0.8,
+        on_interrupt: Callable[[], None] | None = None,
+    ) -> TTSResult:
+        import sounddevice as sd
+
+        self._interrupt_event.clear()
+        try:
+            audio = self._build_audio(text)
+        except Exception as exc:
+            logger.exception("Edge-TTS synthesis failed: %s", exc)
+            return TTSResult(success=False, error=str(exc))
+
+        if len(audio) == 0:
+            return TTSResult(success=True, duration_seconds=0.0)
+
+        self._set_state(VoiceState.SPEAKING)
+        self._current_audio = audio
+
+        audio = (audio * playback_gain).astype(np.float32)
+        duration = len(audio) / self.sample_rate
+
+        if wakeword_listener and hasattr(wakeword_listener, "model") and hasattr(wakeword_listener.model, "reset"):
+            wakeword_listener.model.reset()
+
+        sd.play(audio, samplerate=self.sample_rate)
+        start_time = time.time()
+        interrupted = False
+
+        try:
+            with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as stream:
+                warmup_frames = 5
+                frame_count = 0
+
+                while time.time() - start_time < duration:
+                    if self._interrupt_event.is_set():
+                        interrupted = True
+                        break
+
+                    frame_count += 1
+                    if frame_count <= warmup_frames:
+                        stream.read(1280)
+                        continue
+
+                    if wakeword_listener and hasattr(wakeword_listener, "check_frame"):
+                        try:
+                            if wakeword_listener.check_frame(stream, debug=False):
+                                interrupted = True
+                                self.cancel()
+                                break
+                        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                            pass
+                    time.sleep(0.01)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+            logger.exception("Edge-TTS interruptible playback failed: %s", exc)
+        finally:
+            if interrupted:
+                try:
+                    sd.stop()
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                    pass
+            self._current_audio = None
+            if interrupted:
+                self._set_state(VoiceState.INTERRUPTED)
+                if on_interrupt:
+                    on_interrupt()
+            else:
+                self._set_state(VoiceState.IDLE)
+
+        return TTSResult(success=True, interrupted=interrupted, duration_seconds=time.time() - start_time)
+
+    def reset_interrupt(self):
+        self._interrupt_event.clear()
+
+    def cancel(self):
+        import sounddevice as sd
+        self._interrupt_event.set()
+        try:
+            sd.stop()
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+            pass
+        self._current_audio = None
+        self._set_state(VoiceState.INTERRUPTED)
+
+    def get_state(self) -> VoiceState:
+        if self._current_audio is not None:
+            return VoiceState.SPEAKING
+        return VoiceState.IDLE
+
+
 class SpeechSynthesizer:
-    """Master SpeechSynthesizer powered exclusively by Chatterbox Turbo."""
+    """Master SpeechSynthesizer with Chatterbox Turbo primary engine and
+    dynamic multilingual neural routing for non-English turns (Gemini Voice).
+    """
 
     def __init__(
         self,
@@ -619,6 +1169,10 @@ class SpeechSynthesizer:
         audio_prompt_path: str | None = None,
         model_path: str | None = None,
         exaggeration: float = 0.5,
+        multilingual_routing: bool = True,
+        multilingual_engine: str = "gemini",
+        gemini_voice: str = "Aoede",
+        indonesian_voice: str = "Aoede",
         **kwargs: Any,
     ):
         self.engine_name = "chatterbox_turbo"
@@ -626,21 +1180,71 @@ class SpeechSynthesizer:
         self.audio_prompt_path = audio_prompt_path
         self.model_path = model_path
         self.exaggeration = exaggeration
+        self.multilingual_routing = bool(multilingual_routing)
+        self.multilingual_engine = multilingual_engine
+        self.gemini_voice = gemini_voice or "Aoede"
+        self.indonesian_voice = indonesian_voice or self.gemini_voice
         self._state_callback: Callable[[VoiceState], None] | None = None
+        self._turn_language: str | None = None
 
-        self._active_backend = ChatterboxTurboSynthesizer(
+        self._chatterbox_backend = ChatterboxTurboSynthesizer(
             device=self.device,
             audio_prompt_path=self.audio_prompt_path,
             model_path=self.model_path,
             exaggeration=self.exaggeration,
             **kwargs,
         )
+        self._active_backend = self._chatterbox_backend
+
+        self._multilingual_backend: Any = None
+        if self.multilingual_routing:
+            try:
+                if self.multilingual_engine.lower() in ("gemini", "gemini_tts", "gemini_voice"):
+                    self._multilingual_backend = GeminiTTSSynthesizer(
+                        voice=self.gemini_voice,
+                        sample_rate=self.sample_rate,
+                    )
+                    logger.info("Initialized Gemini TTS multilingual backend (%s)", self.gemini_voice)
+                elif self.multilingual_engine.lower() == "edge_tts":
+                    self._multilingual_backend = EdgeTTSSynthesizer(
+                        voice=self.indonesian_voice,
+                        sample_rate=self.sample_rate,
+                    )
+                    logger.info("Initialized Edge-TTS multilingual backend (%s)", self.indonesian_voice)
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as ml_err:
+                logger.warning("Failed to initialize multilingual backend (%s): %s", self.multilingual_engine, ml_err)
+
         try:
-            self._active_backend._ensure_model()
-            timbre_info = f" (timbre: {Path(self._active_backend.audio_prompt_path).name})" if self._active_backend.audio_prompt_path else ""
-            print(f"FRIDAY [Voice]: Initialized Chatterbox Turbo TTS engine on {self._active_backend.device.upper()}{timbre_info}.")
+            self._chatterbox_backend._ensure_model()
+            timbre_info = f" (timbre: {Path(self._chatterbox_backend.audio_prompt_path).name})" if self._chatterbox_backend.audio_prompt_path else ""
+            print(f"FRIDAY [Voice]: Initialized Chatterbox Turbo TTS engine on {self._chatterbox_backend.device.upper()}{timbre_info}.")
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             logger.warning("Chatterbox Turbo lazy-load deferred or warning: %s", e)
+
+    def set_turn_language(self, lang: str | None) -> None:
+        """Lock the TTS engine for the current conversation turn.
+
+        When set from user speech transcription:
+        - 'en': entire turn synthesizes with Chatterbox Turbo (Lune's voice)
+        - non-'en' (e.g. 'id', 'su'): entire turn synthesizes with Gemini Voice
+        - None: unlocks turn-level lock, falling back to per-sentence detection
+        """
+        self._turn_language = lang
+
+    def get_turn_language(self) -> str | None:
+        return self._turn_language
+
+    def _select_backend(self, text: str) -> Any:
+        if self.multilingual_routing and self._multilingual_backend is not None:
+            # 1. Respect turn-level language lock from transcribed user speech
+            if self._turn_language is not None:
+                if self._turn_language != "en":
+                    return self._multilingual_backend
+                return self._chatterbox_backend
+            # 2. Fall back to sentence-level detection if no turn lock active
+            if detect_language(text) != "en":
+                return self._multilingual_backend
+        return self._chatterbox_backend
 
     @property
     def engine(self) -> str:
@@ -648,49 +1252,105 @@ class SpeechSynthesizer:
 
     @property
     def sample_rate(self) -> int:
-        return getattr(self._active_backend, "sample_rate", 24000)
+        return getattr(self._chatterbox_backend, "sample_rate", 24000)
 
-    def _build_audio(self, text: str) -> np.ndarray:
-        return self._active_backend._build_audio(text)
+    def _build_audio(
+        self,
+        text: str,
+        emotion: str | None = None,
+        blend_weight: float | None = None,
+    ) -> np.ndarray:
+        backend = self._select_backend(text)
+        if backend is self._multilingual_backend:
+            try:
+                audio = backend._build_audio(text, emotion=emotion, blend_weight=blend_weight)
+                if len(audio) > 0:
+                    return audio
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+                logger.warning("Multilingual synthesis failed, falling back to Chatterbox: %s", exc)
+        return self._chatterbox_backend._build_audio(text, emotion=emotion, blend_weight=blend_weight)
 
     def set_state_callback(self, callback: Callable[[VoiceState], None]):
         self._state_callback = callback
-        if hasattr(self._active_backend, "set_state_callback"):
-            self._active_backend.set_state_callback(callback)
+        if hasattr(self._chatterbox_backend, "set_state_callback"):
+            self._chatterbox_backend.set_state_callback(callback)
+        if self._multilingual_backend and hasattr(self._multilingual_backend, "set_state_callback"):
+            self._multilingual_backend.set_state_callback(callback)
 
     def speak(self, text: str, save_path: str | Path | None = None, play_audio: bool = True) -> TTSResult:
+        backend = self._select_backend(text)
+        if backend is self._multilingual_backend:
+            try:
+                res = backend.speak(text, save_path=save_path, play_audio=play_audio)
+                if res.success:
+                    return res
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+                logger.warning("Multilingual speak failed, falling back to Chatterbox: %s", exc)
         try:
-            return self._active_backend.speak(text, save_path=save_path, play_audio=play_audio)
+            return self._chatterbox_backend.speak(text, save_path=save_path, play_audio=play_audio)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo speak failed: %s", exc)
             return TTSResult(success=False, error=str(exc))
 
-    def speak_interruptible(self, text: str, wakeword_listener: Any = None,
-                            playback_gain: float = 0.8, on_interrupt: Callable[[], None] | None = None) -> TTSResult:
+    def speak_interruptible(
+        self,
+        text: str,
+        wakeword_listener: Any = None,
+        playback_gain: float = 0.8,
+        on_interrupt: Callable[[], None] | None = None,
+    ) -> TTSResult:
+        backend = self._select_backend(text)
+        if backend is self._multilingual_backend:
+            try:
+                res = backend.speak_interruptible(
+                    text,
+                    wakeword_listener=wakeword_listener,
+                    playback_gain=playback_gain,
+                    on_interrupt=on_interrupt,
+                )
+                if res.success:
+                    return res
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
+                logger.warning("Multilingual speak_interruptible failed, falling back to Chatterbox: %s", exc)
         try:
-            return self._active_backend.speak_interruptible(
-                text, wakeword_listener=wakeword_listener,
-                playback_gain=playback_gain, on_interrupt=on_interrupt
+            return self._chatterbox_backend.speak_interruptible(
+                text,
+                wakeword_listener=wakeword_listener,
+                playback_gain=playback_gain,
+                on_interrupt=on_interrupt,
             )
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
             logger.exception("Chatterbox Turbo speak_interruptible failed: %s", exc)
             return TTSResult(success=False, error=str(exc))
 
     def reset_interrupt(self):
-        if hasattr(self._active_backend, "reset_interrupt"):
-            self._active_backend.reset_interrupt()
+        if hasattr(self._chatterbox_backend, "reset_interrupt"):
+            self._chatterbox_backend.reset_interrupt()
+        if self._multilingual_backend and hasattr(self._multilingual_backend, "reset_interrupt"):
+            self._multilingual_backend.reset_interrupt()
 
     def cancel(self):
-        if hasattr(self._active_backend, "cancel"):
-            self._active_backend.cancel()
+        if hasattr(self._chatterbox_backend, "cancel"):
+            self._chatterbox_backend.cancel()
+        if self._multilingual_backend and hasattr(self._multilingual_backend, "cancel"):
+            self._multilingual_backend.cancel()
 
     def get_state(self) -> VoiceState:
-        return self._active_backend.get_state()
+        cb_state = self._chatterbox_backend.get_state()
+        if cb_state == VoiceState.SPEAKING:
+            return VoiceState.SPEAKING
+        if self._multilingual_backend and hasattr(self._multilingual_backend, "get_state"):
+            if self._multilingual_backend.get_state() == VoiceState.SPEAKING:
+                return VoiceState.SPEAKING
+        return cb_state
 
 
 __all__ = [
     "SpeechSynthesizer",
     "ChatterboxTurboSynthesizer",
+    "GeminiTTSSynthesizer",
+    "EdgeTTSSynthesizer",
+    "detect_language",
     "TTSResult",
     "clean_tts_text",
     "CHATTERBOX_TAGS",

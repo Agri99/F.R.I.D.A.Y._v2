@@ -6,7 +6,7 @@ Unit tests for SpeechDirector policy engine, tag injection, and idempotence.
 
 from __future__ import annotations
 
-from friday.interaction.speech_director import SpeechContext, SpeechDirector
+from friday.interaction.speech_director import SpeechContext, SpeechDecision, SpeechDirector
 
 
 def test_default_text_gets_neutral_decision_and_no_tags():
@@ -44,34 +44,43 @@ def test_failure_error_context_never_receives_laugh_or_chuckle():
     assert "[laugh]" not in rendered
 
 
-def test_empathy_rule_emits_sigh_when_allowed():
-    director_enabled = SpeechDirector(allow_vocal_effects=True)
+def test_empathy_rule_emits_soft_delivery_and_no_disabled_sigh():
+    # Phase 6 default: sigh is disabled; empathy uses soft delivery and neutral condition
+    director_default = SpeechDirector(allow_vocal_effects=True)
     ctx_failed = SpeechContext(task_status="FAILED")
 
-    dec = director_enabled.decide("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
+    dec = director_default.decide("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
     assert dec.emotion == "empathetic"
-    assert "sigh" in dec.tags
+    assert dec.delivery == "soft"
+    assert dec.tags == ()
+    assert SpeechDirector.get_condition_key(dec) == "neutral"
 
-    rendered = director_enabled.render("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
-    assert rendered.startswith("[sigh] ")
+    rendered = director_default.render("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
+    assert not rendered.startswith("[sigh]")
     assert "I'm sorry, I couldn't find any results for that." in rendered
 
-    # When vocal effects disabled:
-    director_disabled = SpeechDirector(allow_vocal_effects=False)
-    dec_disabled = director_disabled.decide("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
-    assert dec_disabled.tags == ()
-    assert not director_disabled.render("I'm sorry, I couldn't find any results for that.", context=ctx_failed).startswith("[sigh]")
+    # When sigh is explicitly allowed in production_tags and removed from disabled_tags
+    director_custom = SpeechDirector(
+        allow_vocal_effects=True,
+        production_tags=["sigh"],
+        disabled_tags=[],
+    )
+    dec_custom = director_custom.decide("I'm sorry, I couldn't find any results for that.", context=ctx_failed)
+    assert "sigh" in dec_custom.tags
+    assert director_custom.render("I'm sorry, I couldn't find any results for that.", context=ctx_failed).startswith("[sigh] ")
 
 
-def test_playful_rule_emits_chuckle_when_appropriate():
+def test_playful_rule_emits_laugh_when_appropriate():
     director = SpeechDirector(allow_vocal_effects=True)
     dec = director.decide("Haha, that is definitely funny.")
 
     assert dec.emotion == "amused"
-    assert "chuckle" in dec.tags
+    # Phase 6: chuckle is disabled, laugh is in limited_tags
+    assert "laugh" in dec.tags
+    assert "chuckle" not in dec.tags
 
     rendered = director.render("Haha, that is definitely funny.")
-    assert rendered.startswith("[chuckle] ")
+    assert rendered.startswith("[laugh] ")
 
 
 def test_experimental_emotion_tags_blocked_by_default():
@@ -84,8 +93,11 @@ def test_experimental_emotion_tags_blocked_by_default():
     rendered = director_default.render("Task completed successfully.", context=ctx_done)
     assert "[happy]" not in rendered
 
-    # Allowed when explicitly enabled
-    director_experimental = SpeechDirector(allow_experimental_emotion_tags=True)
+    # Allowed when explicitly enabled and in production_tags
+    director_experimental = SpeechDirector(
+        allow_experimental_emotion_tags=True,
+        production_tags=["happy"],
+    )
     dec_exp = director_experimental.decide("Task completed successfully.", context=ctx_done)
     assert "happy" in dec_exp.tags
 
@@ -102,16 +114,15 @@ def test_maximum_tags_per_sentence_enforced():
 
 
 def test_repeated_rendering_does_not_duplicate_tags():
-    director = SpeechDirector(allow_vocal_effects=True)
-    original = "I apologize, but that operation failed."
-    ctx = SpeechContext(task_status="FAILED")
+    director = SpeechDirector(allow_experimental_emotion_tags=True, production_tags=["happy"])
+    original = "Good morning, Boss. Everything is ready."
 
-    once = director.render(original, context=ctx)
-    twice = director.render(once, context=ctx)
-    thrice = director.render(twice, context=ctx)
+    once = director.render(original)
+    twice = director.render(once)
+    thrice = director.render(twice)
 
     assert once == twice == thrice
-    assert once.count("[sigh]") == 1
+    assert once.count("[happy]") == 1
 
 
 def test_director_never_changes_semantic_words():
@@ -134,37 +145,122 @@ def test_prosody_formatting_rules():
 
 
 def test_prosody_preserves_existing_tags():
-    director = SpeechDirector(allow_vocal_effects=True)
-    rendered = director.render("[chuckle] Well that was unexpected.")
-    assert rendered == "[chuckle] Well— that was unexpected."
+    director = SpeechDirector(allow_experimental_emotion_tags=True, production_tags=["happy"])
+    rendered = director.render("[happy] Well that was unexpected.")
+    assert rendered == "[happy] Well— that was unexpected."
 
 
 def test_get_condition_key_mapping():
     from friday.interaction.speech_director import SpeechDecision, SpeechDirector
 
-    # 1. Tags take precedence
+    # 1. Tags take precedence for approved production / limited expressions
     dec_laugh = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("laugh",))
     assert SpeechDirector.get_condition_key(dec_laugh) == "chuckle"
 
-    dec_gasp = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("gasp",))
-    assert SpeechDirector.get_condition_key(dec_gasp) == "surprised"
+    dec_happy = SpeechDecision(emotion="warm", intensity=0.6, delivery="cheerful", tags=("happy",))
+    assert SpeechDirector.get_condition_key(dec_happy) == "happy"
 
-    dec_sigh = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=("sigh",))
-    assert SpeechDirector.get_condition_key(dec_sigh) == "sigh"
+    dec_dramatic = SpeechDecision(emotion="dramatic", intensity=0.7, delivery="measured", tags=("dramatic",))
+    assert SpeechDirector.get_condition_key(dec_dramatic) == "dramatic"
 
-    # 2. Emotion mappings when no tags
+    dec_whisper = SpeechDecision(emotion="thoughtful", intensity=0.5, delivery="intimate", tags=("whispering",))
+    assert SpeechDirector.get_condition_key(dec_whisper) == "whispering"
+
+    # 2. Disabled tags must resolve to neutral, NEVER to an unrelated profile
+    dec_crying_tag = SpeechDecision(emotion="empathetic", intensity=0.8, delivery="soft", tags=("crying",))
+    assert SpeechDirector.get_condition_key(dec_crying_tag) == "neutral"  # NEVER sigh
+
+    dec_gasp = SpeechDecision(emotion="surprised", intensity=0.5, delivery="conversational", tags=("gasp",))
+    assert SpeechDirector.get_condition_key(dec_gasp) == "neutral"  # Disabled gasp resolves to neutral
+
+    dec_sigh = SpeechDecision(emotion="empathetic", intensity=0.5, delivery="conversational", tags=("sigh",))
+    assert SpeechDirector.get_condition_key(dec_sigh) == "neutral"  # Disabled sigh resolves to neutral
+
+    dec_angry = SpeechDecision(emotion="serious", intensity=0.7, delivery="firm", tags=("angry",))
+    assert SpeechDirector.get_condition_key(dec_angry) == "neutral"  # Disabled angry resolves to neutral
+
+    # 3. Emotion mappings when no tags
     dec_empath = SpeechDecision(emotion="empathetic", intensity=0.5, delivery="conversational", tags=())
-    assert SpeechDirector.get_condition_key(dec_empath) == "sigh"
+    assert SpeechDirector.get_condition_key(dec_empath) == "neutral"  # Corrected: no longer sigh
+
+    dec_serious = SpeechDecision(emotion="serious", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_serious) == "neutral"  # Corrected: no longer angry
+
+    dec_surprised = SpeechDecision(emotion="surprised", intensity=0.5, delivery="conversational", tags=())
+    assert SpeechDirector.get_condition_key(dec_surprised) == "neutral"  # Corrected: no longer surprised profile
 
     dec_warm = SpeechDecision(emotion="warm", intensity=0.5, delivery="conversational", tags=())
     assert SpeechDirector.get_condition_key(dec_warm) == "happy"
 
     dec_playful = SpeechDecision(emotion="playful", intensity=0.5, delivery="conversational", tags=())
-    assert SpeechDirector.get_condition_key(dec_playful) == "chuckle"
-
-    dec_serious = SpeechDecision(emotion="serious", intensity=0.5, delivery="conversational", tags=())
-    assert SpeechDirector.get_condition_key(dec_serious) == "angry"
+    assert SpeechDirector.get_condition_key(dec_playful) == "neutral"
 
     dec_unknown = SpeechDecision(emotion="unknown_emotion", intensity=0.5, delivery="conversational", tags=())
     assert SpeechDirector.get_condition_key(dec_unknown) == "neutral"
+
+
+def test_disabled_upstream_tags_cannot_bypass_policy():
+    director = SpeechDirector(allow_vocal_effects=True, allow_experimental_emotion_tags=True)
+
+    # An upstream prompt with [crying] or [sigh] or [angry] should have tag stripped from decision
+    dec_crying = director.decide("[crying] Please listen to me.")
+    assert "crying" not in dec_crying.tags
+    assert dec_crying.tags == ()
+    rendered_crying = director.render("[crying] Please listen to me.")
+    assert not rendered_crying.startswith("[crying]")
+
+    dec_sigh = director.decide("[sigh] That is frustrating.")
+    assert "sigh" not in dec_sigh.tags
+    assert dec_sigh.tags == ()
+    rendered_sigh = director.render("[sigh] That is frustrating.")
+    assert not rendered_sigh.startswith("[sigh]")
+
+    dec_angry = director.decide("[angry] Stop right now.")
+    assert "angry" not in dec_angry.tags
+    assert dec_angry.tags == ()
+    rendered_angry = director.render("[angry] Stop right now.")
+    assert not rendered_angry.startswith("[angry]")
+
+
+def test_per_expression_blend_weights():
+    director = SpeechDirector(
+        expression_blend_weights={
+            "happy": 0.65,
+            "dramatic": 0.60,
+            "whispering": 0.70,
+            "laugh": 0.50,
+        }
+    )
+
+    dec_happy = SpeechDecision(emotion="warm", intensity=0.6, delivery="cheerful", tags=("happy",))
+    assert director.get_blend_weight(dec_happy) == 0.65
+
+    dec_dramatic = SpeechDecision(emotion="dramatic", intensity=0.7, delivery="measured", tags=("dramatic",))
+    assert director.get_blend_weight(dec_dramatic) == 0.60
+
+    dec_whisper = SpeechDecision(emotion="thoughtful", intensity=0.5, delivery="intimate", tags=("whispering",))
+    assert director.get_blend_weight(dec_whisper) == 0.70
+
+    dec_laugh = SpeechDecision(emotion="amused", intensity=0.5, delivery="playful", tags=("laugh",))
+    assert director.get_blend_weight(dec_laugh) == 0.50
+
+    dec_neutral = SpeechDecision(emotion="neutral", intensity=0.5, delivery="conversational", tags=())
+    assert director.get_blend_weight(dec_neutral) == 0.65  # Default fallback
+
+
+def test_from_config_factory():
+    from friday.config import SpeechDirectorConfig
+
+    cfg = SpeechDirectorConfig(
+        production_tags=["happy", "dramatic"],
+        limited_tags=["laugh"],
+        disabled_tags=["sigh", "chuckle", "crying"],
+        expression_blend_weights={"happy": 0.62, "laugh": 0.48},
+    )
+    director = SpeechDirector.from_config(cfg)
+    assert director.production_tags == {"happy", "dramatic"}
+    assert director.limited_tags == {"laugh"}
+    assert "sigh" in director.disabled_tags
+    assert director.expression_blend_weights["happy"] == 0.62
+    assert director.expression_blend_weights["laugh"] == 0.48
 

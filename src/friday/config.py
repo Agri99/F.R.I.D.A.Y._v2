@@ -57,13 +57,18 @@ class VoiceConfig(BaseModel):
     model_path: str | None = None
     exaggeration: float = 0.5
     barge_in: bool = True
-    bargein_min_frames: int = 4
+    bargein_min_frames: int = 3
     barge_in_min_rms: float = 1200.0
+    barge_in_vad_threshold: float = 0.65
     language: str = "auto"
     language_chain: List[str] = Field(default_factory=lambda: ["en", "id", "su"])
     followup_window_seconds: float = 10.0
     event_driven: bool = True
     vad_threshold: float = 50.0
+    multilingual_routing: bool = False
+    multilingual_engine: str = "edge_tts"
+    gemini_voice: str = "Aoede"
+    indonesian_voice: str = "id-ID-GadisNeural"
     speech_director: "SpeechDirectorConfig" = Field(default_factory=lambda: SpeechDirectorConfig())
 
 
@@ -85,6 +90,17 @@ class SpeechDirectorConfig(BaseModel):
     max_tags_per_sentence: int = 1
     allow_vocal_effects: bool = True
     allow_experimental_emotion_tags: bool = False
+    production_tags: List[str] = Field(default_factory=lambda: ["happy", "dramatic", "whispering"])
+    limited_tags: List[str] = Field(default_factory=lambda: ["laugh"])
+    disabled_tags: List[str] = Field(default_factory=lambda: [
+        "chuckle", "sigh", "gasp", "sarcastic", "angry", "crying", "fear", "surprised"
+    ])
+    expression_blend_weights: Dict[str, float] = Field(default_factory=lambda: {
+        "happy": 0.65,
+        "dramatic": 0.60,
+        "whispering": 0.70,
+        "laugh": 0.50,
+    })
     log_decisions: bool = False
 
 class SecurityConfig(BaseModel):

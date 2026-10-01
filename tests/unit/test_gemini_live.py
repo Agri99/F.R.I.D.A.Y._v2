@@ -179,13 +179,15 @@ class TestGeminiLiveSession(unittest.TestCase):
     def test_barge_in_and_multilingual_configuration(self):
         session = GeminiLiveSession(
             api_key="fake-key-for-test",
-            barge_in_rms=1500.0,
-            bargein_min_frames=5,
+            barge_in_rms=2400.0,
+            bargein_min_frames=6,
+            barge_in_vad_threshold=0.85,
         )
-        self.assertEqual(session.barge_in_rms, 1500.0)
-        self.assertEqual(session.bargein_min_frames, 5)
-        # Verify Multilingual Language Recognition Priority Chain in prompt
-        self.assertIn("Multilingual Language Recognition Priority Chain", session.system_prompt)
+        self.assertEqual(session.barge_in_rms, 2400.0)
+        self.assertEqual(session.bargein_min_frames, 6)
+        self.assertEqual(session.barge_in_vad_threshold, 0.85)
+        # Verify Multilingual Language Recognition and Persona Consistency in prompt
+        self.assertIn("Multilingual Language Recognition and Persona Consistency", session.system_prompt)
         self.assertIn("English > Indonesian > Sundanese", session.system_prompt)
 
 

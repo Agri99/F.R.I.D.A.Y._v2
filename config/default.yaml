@@ -38,19 +38,44 @@ voice:
   audio_prompt_path: "models/voice_reference.wav"
   exaggeration: 0.35
   barge_in: true
-  bargein_min_frames: 4      # consecutive speech frames needed before interrupting (~64ms each, ~250ms)
+  bargein_min_frames: 3      # consecutive speech frames needed before interrupting (~64ms each, ~190ms)
   barge_in_min_rms: 1200.0   # minimum energy required to interrupt over speaker output
+  barge_in_vad_threshold: 0.65 # neural silero speech confidence floor
   language: "auto"
   language_chain: ["en", "id", "su"]
   followup_window_seconds: 10.0
   event_driven: true
   vad_threshold: 50.0
+  multilingual_routing: false
+  multilingual_engine: "edge_tts"  # 'edge_tts' (unlimited/fast) or 'gemini' (10 req/day quota on free tier) or set multilingual_routing: false for 100% Chatterbox Lune
+  gemini_voice: "Aoede"
+  indonesian_voice: "id-ID-GadisNeural"
   speech_director:
     enabled: true
     mode: "rules"
     max_tags_per_sentence: 1
     allow_vocal_effects: true
     allow_experimental_emotion_tags: true
+    production_tags:
+      - happy
+      - dramatic
+      - whispering
+    limited_tags:
+      - laugh
+    disabled_tags:
+      - chuckle
+      - sigh
+      - gasp
+      - sarcastic
+      - angry
+      - crying
+      - fear
+      - surprised
+    expression_blend_weights:
+      happy: 0.65
+      dramatic: 0.60
+      whispering: 0.70
+      laugh: 0.50
     log_decisions: true
 
 search:

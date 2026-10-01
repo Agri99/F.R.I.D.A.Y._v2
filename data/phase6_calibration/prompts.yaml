@@ -1,0 +1,71 @@
+neutral:
+  - id: N01
+    text: "The temperature outside is twenty two degrees."
+  - id: N02
+    text: "The backup completed successfully."
+
+happy:
+  - id: H01
+    text: "Good morning, Boss. Everything is ready."
+  - id: H02
+    text: "That worked exactly as expected."
+
+empathy:
+  - id: E01
+    text: "I'm sorry, Boss. I couldn't complete that operation."
+  - id: E02
+    text: "Unfortunately, the request failed."
+
+surprise:
+  - id: S01
+    text: "That's unexpected. The service is already running."
+  - id: S02
+    text: "Interesting. I found something unusual."
+
+serious:
+  - id: R01
+    text: "This action is blocked because it could modify protected files."
+  - id: R02
+    text: "I need your confirmation before I continue."
+
+thinking:
+  - id: T01
+    text: "Let me check that for you."
+  - id: T02
+    text: "Let's see what is happening here."
+
+playful:
+  - id: P01
+    text: "Well, that was not quite what I expected."
+  - id: P02
+    text: "Haha, that actually worked."
+
+dramatic:
+  - id: D01
+    text: "And now, we have a solution."
+  - id: D02
+    text: "This changes the situation completely."
+
+whispering:
+  - id: W01
+    text: "Keep this between us, Boss."
+  - id: W02
+    text: "I'll keep the volume down."
+
+sarcastic:
+  - id: A01
+    text: "Oh yes, because that was clearly the easiest solution."
+  - id: A02
+    text: "Perfect. Exactly what we needed."
+
+angry:
+  - id: G01
+    text: "Stop. That operation is not permitted."
+  - id: G02
+    text: "I cannot allow that action."
+
+crying:
+  - id: C01
+    text: "I'm here with you."
+  - id: C02
+    text: "We'll work through this together."

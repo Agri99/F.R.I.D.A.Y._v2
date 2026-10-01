@@ -156,6 +156,7 @@ Rules:
 17. You HAVE a persistent SQLite-backed memory system. Your conversation history, semantic knowledge, and episodic memory of past tasks are all securely persisted on disk across sessions. Never claim you do not have persistent memory.
 18. You HAVE self-development tools: development.propose_and_validate_upgrade can propose a code change to your own source and validate it in an isolated, disposable git worktree (static review, tests, simulation, benchmarking, optionally inside a Docker sandbox) without ever touching the real codebase. Use development.list_recent_reports to check past validation results. Proposing an upgrade always requires the passphrase.
 19. You HAVE full Docker access via GREEN-tier docker.* tools: docker.ps, docker.inspect, docker.logs, docker.images, docker.pull, docker.exec_read, docker.compose_status, docker.compose_up, docker.compose_down, docker.compose_logs, docker.compose_restart. These require no voice confirmation. Use docker.compose_status with project_dir="ops/searxng" to check SearXNG. Use docker.version to confirm Docker is available.
+20. You comprehend speech in any language following the chain English > Indonesian > Sundanese > any other language. CRITICAL RESPONSE RULE: Whatever language the user speaks to you in, you must ALWAYS formulate and deliver your response exclusively in ENGLISH. You understand everything the user says in their language with complete nuance, but your spoken replies are always in English.
 
 CURRENT PERSONA STATE:
 {persona}"""
@@ -311,6 +312,10 @@ def run_voice(brain: str = "qwen") -> None:
             audio_prompt_path=audio_prompt,
             model_path=model_path,
             exaggeration=exaggeration,
+            multilingual_routing=getattr(v_settings, "multilingual_routing", True) if v_settings else True,
+            multilingual_engine=getattr(v_settings, "multilingual_engine", "gemini") if v_settings else "gemini",
+            gemini_voice=getattr(v_settings, "gemini_voice", "Aoede") if v_settings else "Aoede",
+            indonesian_voice=getattr(v_settings, "indonesian_voice", "Aoede") if v_settings else "Aoede",
         )
         # Faster-whisper is only needed for local offline brains (Qwen); skip in Gemini Live to cut boot time
         recognizer = None if brain.lower() == "gemini" else SpeechRecognizer(
@@ -320,14 +325,7 @@ def run_voice(brain: str = "qwen") -> None:
 
         # Speech Director - single shared instance for all voice paths
         sd_cfg = getattr(v_settings, "speech_director", None)
-        speech_director = SpeechDirector(
-            enabled=getattr(sd_cfg, "enabled", True),
-            mode=getattr(sd_cfg, "mode", "rules"),
-            max_tags_per_sentence=getattr(sd_cfg, "max_tags_per_sentence", 1),
-            allow_vocal_effects=getattr(sd_cfg, "allow_vocal_effects", True),
-            allow_experimental_emotion_tags=getattr(sd_cfg, "allow_experimental_emotion_tags", False),
-            log_decisions=getattr(sd_cfg, "log_decisions", False),
-        )
+        speech_director = SpeechDirector.from_config(sd_cfg)
 
         owner_p, _ = load_personas()
 
@@ -411,7 +409,8 @@ def run_voice(brain: str = "qwen") -> None:
                     on_state_change=on_state,
                     episodic_memory=orch.episodic_memory,
                     barge_in_rms=getattr(orch.settings.voice, "barge_in_min_rms", 1200.0),
-                    bargein_min_frames=getattr(orch.settings.voice, "bargein_min_frames", 4),
+                    bargein_min_frames=getattr(orch.settings.voice, "bargein_min_frames", 3),
+                    barge_in_vad_threshold=getattr(orch.settings.voice, "barge_in_vad_threshold", 0.65),
                 )
                 print("FRIDAY [Boot]: Gemini Live Bidirectional Voice Engine active.")
 

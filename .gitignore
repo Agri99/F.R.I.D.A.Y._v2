@@ -40,7 +40,9 @@ audio.wav
 !models/**/*.wav
 
 # ── Runtime data ────────────────────────────────────────────────
-data/
+data/*
+!data/phase6_calibration/
+data/phase6_calibration/raw/
 workspace/
 audit_log.jsonl
 conversation_history.json

@@ -24,6 +24,7 @@ import os
 import queue
 import threading
 import time
+import collections
 from datetime import datetime
 from typing import Any, Callable
 
@@ -66,7 +67,8 @@ class GeminiLiveSession:
         on_state_change: Callable[[SessionState], None] | None = None,
         episodic_memory: Any = None,
         barge_in_rms: float = 1200.0,
-        bargein_min_frames: int = 4,
+        bargein_min_frames: int = 3,
+        barge_in_vad_threshold: float = 0.65,
     ) -> None:
         if not _GENAI_AVAILABLE:
             raise RuntimeError("The google-genai library is not installed.")
@@ -89,6 +91,7 @@ class GeminiLiveSession:
         self.speech_director = speech_director
         self.barge_in_rms = float(barge_in_rms)
         self.bargein_min_frames = max(2, int(bargein_min_frames))
+        self.barge_in_vad_threshold = float(barge_in_vad_threshold)
         self._last_user_text = ""
 
         base_prompt = system_prompt or "You are FRIDAY, an elite personal AI assistant."
@@ -110,14 +113,13 @@ class GeminiLiveSession:
             "When tone authentically calls for emotional expression, you may naturally prefix sentences with supported vocal tags: "
             "[chuckle] (for light amusement or witty banter), [sigh] (for genuine empathy or thoughtful pause), [whispering] (for confidential or quiet observations), or [sarcastic] (for dry humor). "
             "Never use tags during critical errors, confirmations, or routine factual readouts. Use at most one tag per sentence.\n"
-            "8. Multilingual Language Recognition Priority Chain: "
-            "You fluently comprehend and converse in English, Indonesian (Bahasa Indonesia), and Sundanese (Basa Sunda). "
-            "Priority order: English > Indonesian > Sundanese > Any other languages. "
-            "If the user speaks English, respond in English. "
-            "If the user speaks Indonesian, converse naturally and fluently in Indonesian. "
-            "If the user speaks Sundanese, converse naturally and warmly in Sundanese. "
-            "If speech is ambiguous or mixed, prioritize English first, then Indonesian, then Sundanese. "
-            "Always maintain Friday's signature witty, loyal, and capable personality across all languages."
+            "8. Multilingual Language Recognition and Persona Consistency: "
+            "You fluently comprehend and transcribe speech in any language, following the priority order: English > Indonesian > Sundanese > Any other languages. "
+            "CRITICAL LANGUAGE RESPONSE DIRECTIVE: Regardless of what language the user speaks to you in (whether English, Indonesian, Sundanese, or any other language), you must ALWAYS formulate and speak your response exclusively in ENGLISH. "
+            "You understand everything the user says in their language with complete nuance, but your spoken replies are always in English. "
+            "CRITICAL PERSONA AND MANNERISM RULES: "
+            "Never sound like a generic customer-service agent, corporate robot, or reading a script. "
+            "Always embody Friday: sophisticated, refined, loyal, poised, and quietly witty, addressing the user warmly as 'Boss'."
         )
         self.system_prompt = base_prompt + operational_rules
         self.tool_registry = tool_registry
@@ -403,8 +405,8 @@ class GeminiLiveSession:
         last_playback_ended_at = [0.0]
 
         BARGE_IN_RMS_THRESHOLD = getattr(self, "barge_in_rms", 1200.0)
-        BARGE_IN_GRACE_PERIOD_S = 0.60
-        BARGE_IN_MIN_STREAK = max(2, int(getattr(self, "bargein_min_frames", 4)))
+        BARGE_IN_GRACE_PERIOD_S = 0.25
+        BARGE_IN_MIN_STREAK = max(2, int(getattr(self, "bargein_min_frames", 3)))
 
         def enqueue_audio_chunk(chunk: bytes) -> None:
             if audio_in_q.full():
@@ -417,25 +419,25 @@ class GeminiLiveSession:
             except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
 
-        # Neural Silero VAD for intelligent barge-in:
+        # Neural Silero VAD for intelligent voice activity detection & barge-in:
         # Detects real human vocal cords while completely ignoring keyboard typing,
         # mouse clicks, chair squeaks, and environmental room noise.
-        silero_barge_in_vad = None
+        silero_vad = None
         try:
             from friday.interaction.vad import SileroVoiceActivityDetector, VadEventKind
-            silero_barge_in_vad = SileroVoiceActivityDetector(
+            silero_vad = SileroVoiceActivityDetector(
                 model_path="data/silero_vad.onnx",
-                speech_threshold=0.60,
+                speech_threshold=0.38,  # Sensitive to soft human speech while rejecting fan/typing noise
                 speech_chunks_to_start=2,
             )
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-            silero_barge_in_vad = None
+            silero_vad = None
 
         vocal_streak = [0]
-
-        # Intelligent noise gate: filters quiet background hiss/hum, streams active sound to Gemini Live
         speech_hangover = [0]
-        NOISE_GATE_RMS = 250.0       # Ambient room noise / fan hum below this is gated
+        # Pre-speech ring buffer (stores last 3 chunks ≈ 192ms)
+        # Ensures initial soft consonants ('f', 's', 'th', 'p') are never cut off when speech starts
+        pre_speech_ring: collections.deque[bytes] = collections.deque(maxlen=3)
 
         # Input audio callback (from microphone)
         def mic_callback(indata, frames, time_info, status):
@@ -447,19 +449,32 @@ class GeminiLiveSession:
             rms = float(np.sqrt(np.mean(np.square(audio_data))))
             now = time.time()
 
-            is_active_playback = is_playing_audio.is_set() or pending_count[0] > 0
-            is_recent_tail = (now - last_playback_ended_at[0]) < 0.25
+            is_active_playback = is_playing_audio.is_set()
+            is_recent_tail = (now - last_playback_ended_at[0]) < 0.20
 
-            # 1. If Friday is actively speaking or in room reverb tail:
+            # Run neural Silero VAD on microphone chunk
+            is_human_speech = False
+            vad_confidence = 0.0
+            if silero_vad is not None:
+                try:
+                    vad_event = silero_vad.process(raw_int16, now)
+                    is_human_speech = vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED)
+                    vad_confidence = getattr(vad_event, "confidence", 0.0)
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                    is_human_speech = rms >= 300.0
+            else:
+                is_human_speech = rms >= 300.0
+                vad_confidence = 1.0 if is_human_speech else 0.0
+
+            # 1. If Friday is physically outputting sound through speakers:
             if is_active_playback or is_recent_tail:
                 is_barge_in = False
                 in_grace_period = (now - playback_started_at[0]) < BARGE_IN_GRACE_PERIOD_S
 
                 # Barge-in requires deliberate human speech louder than speaker bleed and outside grace period
                 if not in_grace_period and rms >= BARGE_IN_RMS_THRESHOLD:
-                    if silero_barge_in_vad is not None:
-                        event = silero_barge_in_vad.process(raw_int16, now)
-                        if event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
+                    if silero_vad is not None:
+                        if is_human_speech and vad_confidence >= getattr(self, "barge_in_vad_threshold", 0.65):
                             vocal_streak[0] += 1
                             if vocal_streak[0] >= BARGE_IN_MIN_STREAK:
                                 is_barge_in = True
@@ -491,21 +506,44 @@ class GeminiLiveSession:
                     loop.call_soon_threadsafe(enqueue_audio_chunk, silence_chunk)
                     return
             else:
-                vocal_streak[0] = 0
+                # 2. Friday is NOT playing sound (idle, listening, or synthesizing in background)
+                # If Friday is synthesizing/queued and user deliberately speaks loud & clear:
+                # ONLY interrupt if Silero VAD confirms real human speech (never ambient room noise or fan hum!)
+                if pending_count[0] > 0 or not tts_queue.empty() or not audio_play_queue.empty():
+                    if is_human_speech and rms >= 800.0:
+                        vocal_streak[0] += 1
+                        if vocal_streak[0] >= 3:
+                            vocal_streak[0] = 0
+                            print("\n[FRIDAY: Interrupted before audio playback started]")
+                            self._interrupted.set()
+                            if self.speech_synthesizer and hasattr(self.speech_synthesizer, "cancel"):
+                                self.speech_synthesizer.cancel()
+                            drain_tts_and_audio()
+                            is_playing_audio.clear()
+                            self.set_state(SessionState.LISTENING)
+                    else:
+                        vocal_streak[0] = 0
+                else:
+                    vocal_streak[0] = 0
 
-            # 2. Stream audio to Gemini Live using ambient noise gate
-            if rms >= NOISE_GATE_RMS:
-                # Active human speech detected — keep 4 frames (~320ms) hangover
-                speech_hangover[0] = 4
+            # 3. Stream audio to Gemini Live using neural Silero VAD & pre-speech buffer:
+            # - Real speech detected: flush pre-speech buffer (saving word starts) and stream audio
+            # - Hangover (8 frames ≈ 512ms): smoothly bridges natural pauses between words
+            # - Idle / Room noise: stream clean silence so fans and keyboard clicks do not trigger false turns
+            if is_human_speech or rms >= 550.0:
+                if speech_hangover[0] == 0:
+                    while pre_speech_ring:
+                        lead_chunk = pre_speech_ring.popleft()
+                        loop.call_soon_threadsafe(enqueue_audio_chunk, lead_chunk)
+                speech_hangover[0] = 8
                 loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
                 if followup_deadline[0] is not None:
                     followup_deadline[0] = max(followup_deadline[0], time.time() + 3.0)
             elif speech_hangover[0] > 0:
-                # Trailing word endings / soft consonants preserved
                 speech_hangover[0] -= 1
                 loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
             else:
-                # Quiet ambient noise replaced with silence to prevent Gemini cloud false triggers
+                pre_speech_ring.append(chunk_bytes)
                 silence_chunk = b"\x00" * len(chunk_bytes)
                 loop.call_soon_threadsafe(enqueue_audio_chunk, silence_chunk)
 
@@ -604,17 +642,20 @@ class GeminiLiveSession:
                                         initial_deadline[0] = None
                                         self.set_state(SessionState.LISTENING)
 
-                                        # If Friday is still speaking or has queued audio from previous response,
-                                        # cut it off immediately now that user speech has been transcribed!
-                                        if is_playing_audio.is_set() or pending_count[0] > 0 or not tts_queue.empty() or not audio_play_queue.empty():
-                                            self._interrupted.set()
+                                        # Turn-level language routing:
+                                        # Decide engine immediately from Boss's transcribed speech!
+                                        # English -> Chatterbox Turbo (Lune's voice)
+                                        # Non-English (Indonesian, etc.) -> Gemini Voice
+                                        if self.speech_synthesizer and hasattr(self.speech_synthesizer, "set_turn_language"):
+                                            from friday.interaction.tts import detect_language
+                                            user_lang = detect_language(text)
+                                            self.speech_synthesizer.set_turn_language(user_lang)
+
+                                        # If Friday was still physically playing audio from an earlier turn, cut speaker output
+                                        if is_playing_audio.is_set():
                                             sd.stop()
-                                            if self.speech_synthesizer and hasattr(self.speech_synthesizer, "cancel"):
-                                                self.speech_synthesizer.cancel()
-                                            drain_tts_and_audio()
                                             is_playing_audio.clear()
-                                            sentence_buffer = ""
-                                        elif hasattr(self.speech_synthesizer, "reset_interrupt"):
+                                        if hasattr(self.speech_synthesizer, "reset_interrupt"):
                                             self.speech_synthesizer.reset_interrupt()
 
                                 # 4. Model output transcription -> streamed into Chatterbox Turbo TTS
@@ -649,17 +690,17 @@ class GeminiLiveSession:
                                         for s in ready:
                                             tts_text = s
                                             emotion_key = None
-                                            intensity = None
+                                            blend_weight = None
                                             if self.speech_director is not None:
                                                 from friday.interaction.speech_director import SpeechContext
                                                 ctx = SpeechContext(user_text=self._last_user_text)
                                                 decision = self.speech_director.decide(s, ctx)
                                                 emotion_key = self.speech_director.get_condition_key(decision)
-                                                intensity = getattr(decision, "intensity", None)
+                                                blend_weight = self.speech_director.get_blend_weight(decision) if hasattr(self.speech_director, "get_blend_weight") else getattr(decision, "intensity", None)
                                                 tts_text = self.speech_director.render(s, ctx)
                                             with tts_lock:
                                                 pending_count[0] += 1
-                                            tts_queue.put((tts_text, emotion_key, intensity))
+                                            tts_queue.put((tts_text, emotion_key, blend_weight))
 
                                 # 5. Turn Complete (Gemini finished emitting tokens for this turn)
                                 if getattr(server_content, "turn_complete", False):
@@ -670,17 +711,17 @@ class GeminiLiveSession:
                                     if leftover:
                                         tts_text = leftover
                                         emotion_key = None
-                                        intensity = None
+                                        blend_weight = None
                                         if self.speech_director is not None:
                                             from friday.interaction.speech_director import SpeechContext
                                             ctx = SpeechContext(user_text=self._last_user_text)
                                             decision = self.speech_director.decide(leftover, ctx)
                                             emotion_key = self.speech_director.get_condition_key(decision)
-                                            intensity = getattr(decision, "intensity", None)
+                                            blend_weight = self.speech_director.get_blend_weight(decision) if hasattr(self.speech_director, "get_blend_weight") else getattr(decision, "intensity", None)
                                             tts_text = self.speech_director.render(leftover, ctx)
                                         with tts_lock:
                                             pending_count[0] += 1
-                                        tts_queue.put((tts_text, emotion_key, intensity))
+                                        tts_queue.put((tts_text, emotion_key, blend_weight))
 
                                     if self._shutdown_pending:
                                         # Allow farewell speech to finish playing completely before closing session

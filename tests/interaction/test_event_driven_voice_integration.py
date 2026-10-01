@@ -408,7 +408,11 @@ class TestEventDrivenVoiceSession:
         pipeline.audio_input.start = lambda: None  # type: ignore[assignment]
         pipeline.audio_input.stop = lambda: None  # type: ignore[assignment]
 
-        director = SpeechDirector(allow_vocal_effects=True)
+        director = SpeechDirector(
+            allow_vocal_effects=True,
+            production_tags=["sigh"],
+            disabled_tags=[],
+        )
         agent = FakeAgent(responses=["I'm sorry, I couldn't find that."])
         session = VoiceSession(
             stt=None,
