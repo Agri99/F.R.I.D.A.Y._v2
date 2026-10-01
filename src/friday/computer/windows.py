@@ -1,13 +1,16 @@
 """Window management logic."""
 from __future__ import annotations
 import sys
+import os
+from dataclasses import dataclass
 
+# Windows-specific imports
 if sys.platform == "win32":
     import win32gui
     import win32con
     import win32process
 else:
-    # Placeholder for non-Windows systems
+    # Provide stub implementations or skip on non-Windows
     win32gui = None  # type: ignore
     win32con = None  # type: ignore
     win32process = None  # type: ignore
