@@ -8,9 +8,14 @@ using SpeechBrain ECAPA-TDNN, and establishes your biometric voiceprint.
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
+import warnings
 from pathlib import Path
+
+warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub")
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))

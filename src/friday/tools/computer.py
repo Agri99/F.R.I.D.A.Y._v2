@@ -101,7 +101,7 @@ def _capture_screen(filename: str = "screenshot.png") -> dict[str, Any]:
 
 
 def _describe(question: str = "Describe what is on screen.") -> dict[str, Any]:
-    """Use Ollama vision model (llava/gemma3/qwen3-vl) to describe the screen."""
+    """Use Ollama vision model (llava/gemma3) to describe the screen."""
     return describe_screen(question=question)
 
 

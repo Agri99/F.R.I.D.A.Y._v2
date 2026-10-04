@@ -115,23 +115,39 @@ from friday.tools.terminal import register_all_tools as register_terminal_tools
 
 
 def load_personas() -> tuple[str, str]:
-    """Load owner and guest personas from config."""
-    persona_path = Path(__file__).parent.parent.parent / "config" / "personas.yaml"
+    """Load owner and guest personas from config, preferring local uncommitted overrides."""
+    config_dir = Path(__file__).parent.parent.parent / "config"
+    default_path = config_dir / "personas.yaml"
+    local_path = config_dir / "personas.local.yaml"
+
     owner_p = "You are speaking to your primary Owner. Address them as 'Boss'."
     guest_p = "You are speaking to an unauthorized Guest. Do not execute commands."
-    
-    if persona_path.exists():
-        import yaml
+
+    import yaml
+
+    # 1. Load default tracked template if present
+    if default_path.exists():
         try:
-            with open(persona_path, "r") as f:
+            with open(default_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-            if data:
+            if data and isinstance(data, dict):
                 owner_p = data.get("owner_persona", owner_p)
                 guest_p = data.get("guest_persona", guest_p)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
             print(f"Warning: Could not load personas.yaml: {e}")
-            
-    return owner_p.strip(), guest_p.strip()
+
+    # 2. Overlay local uncommitted overrides if present (git-ignored)
+    if local_path.exists():
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                local_data = yaml.safe_load(f)
+            if local_data and isinstance(local_data, dict):
+                owner_p = local_data.get("owner_persona", owner_p)
+                guest_p = local_data.get("guest_persona", guest_p)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
+            print(f"Warning: Could not load personas.local.yaml: {e}")
+
+    return str(owner_p).strip(), str(guest_p).strip()
 
 BASE_SYSTEM_PROMPT = """You are F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth), a local-first personal AI computer assistant running on the user's computer. You are concise, intelligent, calm and technically precise.
 
@@ -181,8 +197,8 @@ def build_orchestrator(config_path: str | None = None, brain: str = "qwen") -> A
         settings.models.reasoning = ModelDef(provider="gemini", model="gemini-3.8-flash", supports_tools=True, supports_vision=True)
         settings.models.vision = ModelDef(provider="gemini", model="gemini-3.8-flash", supports_tools=True, supports_vision=True)
     elif brain.lower() == "qwen":
-        settings.models.fast = ModelDef(provider="ollama", model="qwen2.5:1.5b", supports_tools=True)
-        settings.models.reasoning = ModelDef(provider="ollama", model="qwen3:8b", supports_tools=True)
+        settings.models.fast = ModelDef(provider="ollama", model="qwen2.5:3b", supports_tools=True)
+        settings.models.reasoning = ModelDef(provider="ollama", model="qwen2.5:3b", supports_tools=True)
         settings.models.vision = ModelDef(provider="ollama", model="llava:latest", supports_vision=True)
 
     model_router = ModelRouter(settings)
@@ -479,6 +495,8 @@ def run_voice(brain: str = "qwen") -> None:
             speech_director=speech_director,
             bargein_min_frames=getattr(orch.settings.voice, "bargein_min_frames", 3),
             barge_in_min_rms=getattr(orch.settings.voice, "barge_in_min_rms", 1200.0),
+            speculative_ack_timeout=getattr(orch.settings.voice, "speculative_ack_timeout_seconds", 3.5),
+            enable_speculative_ack=getattr(orch.settings.voice, "enable_speculative_ack", True),
         )
 
         controls = {

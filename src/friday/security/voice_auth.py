@@ -60,12 +60,20 @@ class VoiceAuthProvider:
             return
         self._initialized = True
         try:
+            import warnings
+            warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub")
+            logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+
+            import torch
             from speechbrain.inference.speaker import SpeakerRecognition
             from speechbrain.utils.fetching import LocalStrategy
+
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
             self._verification = SpeakerRecognition.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb",
                 savedir="models/spkrec-ecapa-voxceleb",
+                run_opts={"device": device},
                 local_strategy=LocalStrategy.COPY_SKIP_CACHE,
             )
             self._reference_embedding = self._build_reference_embedding()

@@ -69,6 +69,8 @@ class VoiceConfig(BaseModel):
     multilingual_engine: str = "edge_tts"
     gemini_voice: str = "Aoede"
     indonesian_voice: str = "id-ID-GadisNeural"
+    speculative_ack_timeout_seconds: float = 3.5
+    enable_speculative_ack: bool = True
     speech_director: "SpeechDirectorConfig" = Field(default_factory=lambda: SpeechDirectorConfig())
 
 
@@ -141,9 +143,9 @@ class FridayConfig(BaseModel):
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     models: ModelsConfig = Field(
         default_factory=lambda: ModelsConfig(
-            fast=ModelDef(provider="ollama", model="qwen3:4b"),
-            reasoning=ModelDef(provider="ollama", model="qwen3:8b"),
-            vision=ModelDef(provider="ollama", model="qwen3-vl:8b"),
+            fast=ModelDef(provider="ollama", model="qwen2.5:3b"),
+            reasoning=ModelDef(provider="ollama", model="qwen2.5:3b"),
+            vision=ModelDef(provider="ollama", model="llava:latest"),
         )
     )
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)

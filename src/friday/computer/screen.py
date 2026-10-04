@@ -3,7 +3,7 @@ src/friday/computer/screen.py
 
 WHAT THIS IS FOR:
 Handles screen capture, OCR text extraction, and local vision model perception
-using Ollama (defaulting to llava / gemma3 / qwen3-vl) per blueprint §10, §46.
+using Ollama (defaulting to llava / gemma3) per blueprint §10, §46.
 
 Adds progressive observation and screen change detection for observe-act-verify loop.
 """
@@ -62,7 +62,7 @@ def describe_screen(
     model: str | None = None,
     host: str | None = None,
 ) -> dict[str, Any]:
-    """Ask a local Ollama vision model (llava/gemma3/qwen3-vl) to describe the screen."""
+    """Ask a local Ollama vision model (llava/gemma3) to describe the screen."""
     vision_model = (
         model
         or os.environ.get("SCREEN_VISION_MODEL")

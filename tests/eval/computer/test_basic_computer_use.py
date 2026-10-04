@@ -109,6 +109,10 @@ class BasicComputerUseBenchmarks:
         # First open notepad
         self._execute("applications.open", {"app_id": "notepad"})
         time.sleep(1)
+        # Ensure Notepad document area is focused and clean before typing benchmark
+        self._execute("computer.press", {"key": "ctrl+a"})
+        self._execute("computer.press", {"key": "backspace"})
+        time.sleep(0.2)
 
         return self.run_benchmark(
             "type_text",
@@ -139,10 +143,14 @@ class BasicComputerUseBenchmarks:
         """Test UI navigation via keyboard shortcut in Notepad."""
         self._execute("applications.open", {"app_id": "notepad"})
         time.sleep(1)
-        return self.run_benchmark(
+        res = self.run_benchmark(
             "navigate_ui",
             lambda: self._execute("computer.press", {"key": "alt+f"})
         )
+        # Dismiss opened menu to avoid lingering UI state
+        time.sleep(0.3)
+        self._execute("computer.press", {"key": "esc"})
+        return res
 
     def run_all(self) -> list[BenchmarkResult]:
         """Run all basic computer use benchmarks."""

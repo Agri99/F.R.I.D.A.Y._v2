@@ -115,15 +115,15 @@ class ModelRegistry:
 
 def _default_entries():
     return [
-        ModelEntry(id="qwen3:4b-q4_k_m", provider="ollama", role="fast",
-                   model="qwen3:4b", tools=True, streaming=True,
+        ModelEntry(id="qwen2.5:3b-q4_k_m", provider="ollama", role="fast",
+                   model="qwen2.5:3b", tools=True, streaming=True,
                    quantization="Q4_K_M", context_length=32768, ram_estimate_gb=3.5, license="Apache-2.0"),
-        ModelEntry(id="qwen3:8b-q4_k_m", provider="ollama", role="reasoning",
-                   model="qwen3:8b", tools=True, streaming=True,
-                   quantization="Q4_K_M", context_length=32768, ram_estimate_gb=6.0, license="Apache-2.0"),
-        ModelEntry(id="qwen3-vl:8b-q4_k_m", provider="ollama", role="vision",
-                   model="qwen3-vl:8b", tools=True, vision=True, streaming=True,
-                   quantization="Q4_K_M", context_length=32768, ram_estimate_gb=8.0, license="Apache-2.0"),
+        ModelEntry(id="qwen2.5:3b-reasoning", provider="ollama", role="reasoning",
+                   model="qwen2.5:3b", tools=True, streaming=True,
+                   quantization="Q4_K_M", context_length=32768, ram_estimate_gb=3.5, license="Apache-2.0"),
+        ModelEntry(id="llava:latest-vision", provider="ollama", role="vision",
+                   model="llava:latest", tools=True, vision=True, streaming=True,
+                   quantization="Q4_K_M", context_length=32768, ram_estimate_gb=5.0, license="Apache-2.0"),
     ]
 
 

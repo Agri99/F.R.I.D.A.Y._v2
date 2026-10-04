@@ -26,6 +26,8 @@ ENV/
 # ── Secrets & credentials (NEVER commit) ────────────────────────
 .env
 secrets/
+config/*.local.yaml
+config/personas.local.yaml
 *.pem
 *.key
 token.json

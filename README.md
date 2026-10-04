@@ -46,7 +46,7 @@ FRIDAY separates intelligence from execution and fails closed:
 ## Configuration & Personalization
 
 ### 1. Customizing Personas (Owner vs. Guest)
-FRIDAY adjusts her personality dynamically based on who is speaking. You can customize her responses in [`config/personas.yaml`](config/personas.yaml) without touching code:
+FRIDAY adjusts her personality dynamically based on who is speaking. You can customize her responses in [`config/personas.yaml`](config/personas.yaml) or safely add private personal context in `config/personas.local.yaml` (automatically ignored by Git):
 
 ```yaml
 owner_persona: |
@@ -64,6 +64,8 @@ guest_persona: |
   - Do not reveal private personal facts, search histories, or private files.
   - If the guest asks you to execute computer commands, state: "I'm sorry, I am only authorized to perform computer actions for my primary user."
 ```
+
+> **Note:** To keep personal facts, private file paths, or family details confidential without committing them to Git, create `config/personas.local.yaml`. FRIDAY automatically overlays it on top of `config/personas.yaml`.
 
 ---
 
@@ -206,7 +208,7 @@ The floating visualizer displays real-time system states:
 - **Audio:** Working microphone and speaker output
 - **AI Backend:**
   - For Gemini Live mode: A Google Gemini API key
-  - For Local mode: [Ollama](https://ollama.com) installed and running locally (`ollama pull qwen3:8b`)
+  - For Local mode: [Ollama](https://ollama.com) installed and running locally (`ollama pull qwen2.5:3b`)
 
 ### 2. Installation & First-Run Setup
 ```powershell
@@ -244,7 +246,7 @@ python -m friday --gemini
 - Barge-in interruption allows cutting off speech naturally by speaking over playback.
 
 ### 2. Local Ollama Voice Mode
-Runs fully on-device using local Ollama models (`qwen3:8b`) and local speech recognition:
+Runs fully on-device using local Ollama models (`qwen2.5:3b`) and local speech recognition:
 ```powershell
 python -m friday
 ```

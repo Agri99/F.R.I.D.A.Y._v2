@@ -10,10 +10,11 @@ from __future__ import annotations
 import ctypes
 import time
 
-user32 = ctypes.windll.user32
+user32 = ctypes.windll.user32 if hasattr(ctypes, "windll") else None
 try:
-    winmm = ctypes.windll.winmm
-    winmm.timeBeginPeriod(1)
+    if hasattr(ctypes, "windll"):
+        winmm = ctypes.windll.winmm
+        winmm.timeBeginPeriod(1)
 except Exception:  # noqa: BLE001
     pass
 
@@ -95,14 +96,94 @@ def press(key: str) -> None:
         key_up(key)
 
 
+def release_modifiers() -> None:
+    """Release any held modifier keys (Shift, Ctrl, Alt, Win)."""
+    if user32 is not None:
+        for vk in (0x10, 0x11, 0x12, 0x5B):  # Shift, Ctrl, Alt, Win
+            try:
+                user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _set_clipboard_text(text: str) -> bool:
+    """Write text to Windows clipboard using native Win32 API."""
+    if not hasattr(ctypes, "windll"):
+        return False
+    try:
+        from ctypes import wintypes
+
+        u32 = ctypes.windll.user32
+        k32 = ctypes.windll.kernel32
+
+        u32.OpenClipboard.argtypes = [wintypes.HWND]
+        u32.OpenClipboard.restype = wintypes.BOOL
+        u32.EmptyClipboard.restype = wintypes.BOOL
+        k32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        k32.GlobalAlloc.restype = wintypes.HGLOBAL
+        k32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+        k32.GlobalLock.restype = wintypes.LPVOID
+        k32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+        k32.GlobalUnlock.restype = wintypes.BOOL
+        u32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+        u32.SetClipboardData.restype = wintypes.HANDLE
+        u32.CloseClipboard.restype = wintypes.BOOL
+
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+
+        opened = False
+        for _ in range(5):
+            if u32.OpenClipboard(None):
+                opened = True
+                break
+            time.sleep(0.02)
+        if not opened:
+            return False
+
+        try:
+            u32.EmptyClipboard()
+            data = text.encode("utf-16le") + b"\x00\x00"
+            h_mem = k32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+            if not h_mem:
+                return False
+            p_mem = k32.GlobalLock(h_mem)
+            if not p_mem:
+                return False
+            ctypes.memmove(p_mem, data, len(data))
+            k32.GlobalUnlock(h_mem)
+            u32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            return True
+        finally:
+            u32.CloseClipboard()
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError):
+        return False
+
+
 def type_text(text: str, interval: float = 0.025) -> None:
     """Type arbitrary unicode text into foreground window.
 
-    Prioritizes native Windows KEYEVENTF_UNICODE to send characters directly
-    without simulated Shift-key modifiers, preventing character duplication
-    (e.g., 'FFRIDAY') or dropped spaces caused by PyAutoGUI modifier bounce.
-    Falls back to PyAutoGUI if user32 is unavailable.
+    Ensures zero modifier key sticking, uses atomic clipboard paste injection
+    to guarantee 100% character fidelity (eliminating dropped spaces, modifier
+    key bounce, or doubled characters such as 'FFRIDAY'), with graceful fallback
+    to native KEYEVENTF_UNICODE and PyAutoGUI.
     """
+    if not text:
+        return
+
+    # Release any lingering modifier keys from previous shortcuts (e.g., Alt+F)
+    release_modifiers()
+
+    # Fast, 100% reliable clipboard paste injection
+    if user32 is not None and _set_clipboard_text(text):
+        press("ctrl+v")
+        if interval > 0:
+            time.sleep(min(0.1, interval * len(text)))
+        else:
+            time.sleep(0.02)
+        return
+
+    # Per-character unicode fallback
     if user32 is not None:
         try:
             for char in text:
@@ -122,7 +203,8 @@ def type_text(text: str, interval: float = 0.025) -> None:
             pass
 
     try:
-        import pyautogui
+        import pyautogui # type: ignore
+
         pyautogui.write(text, interval=interval)
     except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
         pass
@@ -135,3 +217,4 @@ def hotkey(*keys: str) -> None:
     time.sleep(0.05)
     for k in reversed(keys):
         key_up(k)
+

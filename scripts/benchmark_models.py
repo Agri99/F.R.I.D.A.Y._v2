@@ -12,9 +12,9 @@ def main():
         from friday.models.ollama_backend import OllamaProvider
         from friday.models.benchmark import ModelBenchmark
         
-        provider = OllamaProvider(model="qwen3:8b")
+        provider = OllamaProvider(model="qwen2.5:3b")
         bench = ModelBenchmark(provider)
-        res = bench.run_full_benchmark("qwen3:8b", "reasoning")
+        res = bench.run_full_benchmark("qwen2.5:3b", "reasoning")
         print(f"Results: {res}")
     except ImportError:
         print("friday module missing.")

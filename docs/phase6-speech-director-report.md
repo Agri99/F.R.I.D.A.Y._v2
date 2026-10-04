@@ -21,18 +21,18 @@ Based on human listening evaluation across the 12-category fixed calibration cor
 | Expression | Status | Condition Profile | Blend Weight | Naturalness | Emotion Clarity | Voice Identity | Artifact Score | Context Fit | Qualitative Notes |
 |---|---|---|---|---|---|---|---|---|---|
 | `neutral` | **Production** | `master`/`neutral` | 1.00 (base) | 5 | 5 | 5 | 5 | 5 | Clean, natural Lune voice identity; perfect factual baseline. |
-| `happy` | **Production** | `happy` | 0.65 | 5 | 4 | 5 | 5 | 5 | Sounds cheerful and upbeat; maintains consistent speaker identity without overacting. |
-| `dramatic` | **Production** | `dramatic` | 0.60 | 4 | 4 | 4 | 4 | 4 | Measured pacing and gravity; natural transitions for solution and turning-point statements. |
-| `whispering` | **Production** | `whispering` | 0.70 | 4 | 4 | 5 | 5 | 4 | Intimate, low-volume cadence; smooth consonant onset without hiss artifacts. |
-| `laugh` | **Limited** | `chuckle` | 0.50 | 4 | 4 | 4 | 4 | 4 | Works well in explicitly humorous contexts; blocked in failure/error/blocked states to avoid mocking tone. |
-| `chuckle` | **Disabled** | `neutral` | 0.65 (pending) | 3 | 2 | 4 | 4 | 3 | Sounds slightly weak and unconvincing; disabled until recalibration passes. |
-| `sigh` | **Disabled** | `neutral` | 0.65 (pending) | 3 | 3 | 3 | 3 | 2 | Resembles a sigh mechanically, but produces awkward conversational phrasing. Empathy delivers soft neutral speech instead. |
-| `gasp` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 2 | 4 | 4 | 2 | Almost unnoticeable, very weak acoustic delta. Surprise delivers measured prosody instead. |
-| `sarcastic` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 2 | 4 | 4 | 2 | Almost imperceptible difference from neutral; doesn't sound sarcastic. |
-| `angry` | **Disabled** | `neutral` | 0.65 (pending) | 3 | 2 | 3 | 3 | 2 | Modifies timbre but doesn't convey anger convincingly. Serious blocks use firm restrained neutral delivery. |
-| `crying` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 2 | 3 | 3 | 2 | Modifies voice but doesn't convey genuine crying. Strictly routes to neutral fallback; NEVER routes to sigh. |
-| `fear` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 2 | 3 | 3 | 2 | Altered timbre without convincing fear emotion. |
-| `surprised` | **Disabled** | `neutral` | 0.65 (pending) | 3 | 3 | 4 | 4 | 3 | Noticeable pitch movement, but not convincingly surprised. |
+| `happy` | **Limited** | `happy` | 0.65 | 2 | 3 | 4 | 5 | 4 | Very weak almost doesn't sounds like happy; maintains consistent speaker identity. |
+| `dramatic` | **Limited** | `dramatic` | 0.60 | 4 | 4 | 5 | 4 | 4 | Noticeable but need more emotion; natural transitions for solution and turning-point statements. |
+| `whispering` | **Disabled** | `whispering` | 0.70 | 1 | 1 | 4 | 5 | 1 | Doesn't whisper at all; just natural voice. |
+| `laugh` | **Disabled** | `chuckle` | 0.50 | 1 | 2 | 3 | 3 | 3 | More like chuckle instead of laugh; not useable for laugh. |
+| `chuckle` | **Limited** | `neutral` | 0.65 (pending) | 3 | 4 | 4 | 4 | 3 | Sounds not bad but unnatural. |
+| `sigh` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 1 | 3 | 3 | 1 | Sounds like chuckle; Missing emphatic. |
+| `gasp` | **Limited** | `neutral` | 0.65 (pending) | 3 | 4 | 4 | 4 | 4 | Almost unnoticeable, but feel pretty natural; Feel surprised just too weak. |
+| `sarcastic` | **Production** | `neutral` | 0.65 (pending) | 5 | 4 | 5 | 5 | 4 | Not bad; sound sarcastic. |
+| `angry` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 1 | 4 | 4 | 2 | Too weak doesn't convincing; need to deliver more emotion. |
+| `crying` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 2 | 3 | 4 | 2 | Unnoticeable and too weak; the emotion doesn't delivered. |
+| `fear` | **Disabled** | `neutral` | 0.65 (pending) | 2 | 1 | 3 | 4 | 2 | Doesn't feel the fear at all. |
+| `surprised` | **Limited** | `neutral` | 0.65 (pending) | 3 | 3 | 4 | 4 | 3 | Noticeable pitch movement, but not convincingly surprised. |
 
 ---
 

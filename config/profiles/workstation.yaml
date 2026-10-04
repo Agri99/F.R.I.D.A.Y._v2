@@ -4,13 +4,13 @@
 models:
   fast:
     provider: "ollama"
-    model: "qwen3:8b"
+    model: "qwen2.5:7b"
   reasoning:
     provider: "ollama"
-    model: "qwen3:32b"
+    model: "qwen2.5:32b"
   vision:
     provider: "ollama"
-    model: "qwen3-vl:32b"
+    model: "llava:34b"
   embedding:
     provider: "ollama"
     model: "nomic-embed-text"

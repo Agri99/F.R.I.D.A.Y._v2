@@ -66,6 +66,11 @@ class WakeWordListener:
         what handles the Windows WASAPI "device busy" case.
         """
         print("Listening for wake word...")
+        if hasattr(self.model, "reset"):
+            try:
+                self.model.reset()
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                pass
         deadline = time.time() + max_seconds
         stream = None
         try:
@@ -91,6 +96,11 @@ class WakeWordListener:
             print("Wake word timeout.")
             return False
         finally:
+            if hasattr(self.model, "reset"):
+                try:
+                    self.model.reset()
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                    pass
             if stream is not None:
                 try:
                     stream.stop()

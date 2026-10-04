@@ -153,7 +153,7 @@ class ModelProvisioner:
             import ollama
             models = ollama.list()
             names = [m.model for m in getattr(models, "models", [])]
-            # Accept exact match or prefix match (e.g. "qwen3:8b" matches "qwen3:8b-q4_k_m")
+            # Accept exact match or prefix match (e.g. "qwen2.5:3b" matches "qwen2.5:3b-q4_k_m")
             return any(n == model_name or n.startswith(model_name.split(":")[0]) for n in names)
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             return False

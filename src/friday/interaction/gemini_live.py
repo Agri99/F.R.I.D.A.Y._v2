@@ -530,7 +530,7 @@ class GeminiLiveSession:
             # - Real speech detected: flush pre-speech buffer (saving word starts) and stream audio
             # - Hangover (8 frames ≈ 512ms): smoothly bridges natural pauses between words
             # - Idle / Room noise: stream clean silence so fans and keyboard clicks do not trigger false turns
-            if is_human_speech or rms >= 550.0:
+            if is_human_speech or rms >= 200.0:
                 if speech_hangover[0] == 0:
                     while pre_speech_ring:
                         lead_chunk = pre_speech_ring.popleft()
@@ -538,10 +538,16 @@ class GeminiLiveSession:
                 speech_hangover[0] = 8
                 loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
                 if followup_deadline[0] is not None:
-                    followup_deadline[0] = max(followup_deadline[0], time.time() + 3.0)
+                    followup_deadline[0] = max(followup_deadline[0], time.time() + self.followup_timeout)
+                if initial_deadline[0] is not None:
+                    initial_deadline[0] = max(initial_deadline[0], time.time() + 15.0)
             elif speech_hangover[0] > 0:
                 speech_hangover[0] -= 1
                 loop.call_soon_threadsafe(enqueue_audio_chunk, chunk_bytes)
+                if followup_deadline[0] is not None:
+                    followup_deadline[0] = max(followup_deadline[0], time.time() + self.followup_timeout)
+                if initial_deadline[0] is not None:
+                    initial_deadline[0] = max(initial_deadline[0], time.time() + 15.0)
             else:
                 pre_speech_ring.append(chunk_bytes)
                 silence_chunk = b"\x00" * len(chunk_bytes)

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 import queue
+import random
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -107,6 +109,8 @@ class VoiceSession:
         speech_director: Any | None = None,
         bargein_min_frames: int = 3,
         barge_in_min_rms: float = 1200.0,
+        speculative_ack_timeout: float = 3.5,
+        enable_speculative_ack: bool = True,
     ) -> None:
         self.stt = stt
         self.tts = tts
@@ -119,6 +123,9 @@ class VoiceSession:
         self.on_state_change = on_state_change
         self.voice_pipeline = voice_pipeline
         self.speech_director = speech_director
+        self.speculative_ack_timeout = float(speculative_ack_timeout)
+        self.enable_speculative_ack = bool(enable_speculative_ack)
+        self._last_ack_phrase = ""
         # Minimum consecutive speech frames before barge-in triggers (noise gate)
         # Each frame ≈ 64ms at 16kHz/1024-sample blocksize; default 3 ≈ 192ms
         self.bargein_min_frames = max(1, int(bargein_min_frames))
@@ -163,6 +170,82 @@ class VoiceSession:
         """Ask ``run_loop`` to exit after the current turn."""
         self._stop_requested = True
         self.cancel()
+
+    def _should_speculative_ack(self, transcript: str) -> bool:
+        """Determine whether an acknowledgment should be spoken for long execution."""
+        if not getattr(self, "enable_speculative_ack", True):
+            return False
+        if not transcript or not transcript.strip():
+            return False
+
+        clean = transcript.strip().lower()
+        clean = re.sub(r"[^\w\s]", "", clean).strip()
+
+        # Conversational greetings, pleasantries, and chitchat should never be acknowledged
+        chitchat_phrases = {
+            "hi", "hello", "hey", "friday", "hey friday", "hi friday", "hello friday",
+            "good morning", "good afternoon", "good evening", "good night",
+            "how are you", "how are you doing", "hows it going", "how is it going",
+            "who are you", "what is your name", "whats your name",
+            "thank you", "thanks", "thank you friday", "thanks friday",
+            "tell me a joke", "tell a joke", "joke", "tell me another joke",
+            "are you there", "you there", "can you hear me", "goodbye", "bye",
+            "whats up", "what is up", "sup", "testing", "test",
+        }
+        if clean in chitchat_phrases:
+            return False
+
+        return True
+
+    def _generate_acknowledgment_phrase(self, transcript: str) -> str:
+        """Select a natural, varied, context-aware acknowledgment matching Friday's persona."""
+        text = transcript.lower()
+
+        # Categorize by intent keywords
+        is_search = any(w in text for w in ("search", "find", "look up", "lookup", "google", "news", "weather", "browse", "website", "online"))
+        is_action = any(w in text for w in ("open", "close", "type", "click", "run", "execute", "start", "launch", "press", "scroll", "minimize", "maximize", "move", "window", "app", "application"))
+        is_technical = any(w in text for w in ("code", "python", "file", "read", "write", "script", "test", "debug", "analyze", "explain", "docker", "git", "calculate", "solve", "inspect", "diff"))
+
+        if is_search:
+            candidates = [
+                "Looking into that now, Boss.",
+                "Searching for that now, Boss.",
+                "Checking on that for you.",
+                "Let me look that up, Boss.",
+                "Gathering that information now, Boss.",
+            ]
+        elif is_action:
+            candidates = [
+                "Right away, Boss.",
+                "On it, handling that now.",
+                "Executing that for you now.",
+                "Taking care of that, Boss.",
+                "Right on it, Boss.",
+            ]
+        elif is_technical:
+            candidates = [
+                "Analyzing that now, Boss.",
+                "Working through the details, one moment.",
+                "Processing the request, Boss.",
+                "Working out the solution for you, Boss.",
+                "Crunching that now, Boss.",
+            ]
+        else:
+            candidates = [
+                "On it, Boss.",
+                "Working on that for you now.",
+                "Give me just a moment, Boss.",
+                "Looking into that for you, Boss.",
+                "Sorting that out for you now.",
+                "Right away, Boss.",
+            ]
+
+        # Prevent repeating the exact same phrase consecutively
+        last = getattr(self, "_last_ack_phrase", "")
+        choices = [c for c in candidates if c != last] or candidates
+        chosen = random.choice(choices)
+        self._last_ack_phrase = chosen
+        return chosen
 
     def run_once(self, require_wake: bool = True) -> str | None:
         """Run one wake plus conversational exchange, including bounded follow-ups."""
@@ -277,20 +360,21 @@ class VoiceSession:
                     self._pending_task_id = None
                     latency.first_llm_token_at = time.time()
                     response_text = self._response_text(response)
-                else:
+                elif self._should_speculative_ack(transcript):
                     ack_event = threading.Event()
                     ack_speaking = threading.Event()
 
                     def _maybe_speculative_ack():
-                        # Delay before acknowledging (1.8s). If task completes quickly (FastPath/simple query), abort.
-                        if ack_event.wait(timeout=1.8):
+                        # Delay before acknowledging (default 3.5s). If task completes quickly (FastPath/simple query), abort.
+                        if ack_event.wait(timeout=self.speculative_ack_timeout):
                             return
                         if self.cancelled or self._stop_requested:
                             return
                         ack_speaking.set()
                         try:
-                            print("FRIDAY [Voice]: Long task detected, providing acknowledgment...")
-                            self.tts.speak_interruptible("On it, working on that now.", self.wakeword)
+                            ack_phrase = self._generate_acknowledgment_phrase(transcript)
+                            print(f"FRIDAY [Voice]: Long task detected ({self.speculative_ack_timeout}s), providing acknowledgment: \"{ack_phrase}\"")
+                            self.tts.speak_interruptible(ack_phrase, self.wakeword)
                         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
                             print(f"FRIDAY [Voice]: speculative ack failed: {e}")
                         finally:
@@ -306,8 +390,12 @@ class VoiceSession:
 
                     # If ack is currently speaking, wait for it to finish before main response playback
                     if ack_speaking.is_set():
-                        ack_thread.join(timeout=2.0)
+                        ack_thread.join(timeout=2.5)
 
+                    latency.first_llm_token_at = time.time()
+                    response_text = self._response_text(response)
+                else:
+                    response = self.agent(transcript)
                     latency.first_llm_token_at = time.time()
                     response_text = self._response_text(response)
 
