@@ -90,6 +90,91 @@ class FastPathRouter:
         "google ",
     )
 
+    INSPECT_PAGE_EXACT = {
+        "inspect a webpage",
+        "inspect the webpage",
+        "inspect this webpage",
+        "inspect webpage",
+        "inspect web page",
+        "inspect this page",
+        "inspect the page",
+        "inspect page",
+        "inspect this website",
+        "inspect the website",
+        "inspect website",
+        "inspect the whole webpage",
+        "inspect the whole webpage without using ocr",
+        "can friday inspect the whole webpage",
+        "can friday inspect the whole webpage without using ocr",
+        "can you inspect the whole webpage",
+        "can you inspect the whole webpage without using ocr",
+        "read this webpage",
+        "read the webpage",
+        "read webpage",
+        "read this page",
+        "read the page",
+        "read page",
+        "read this website",
+        "read the website",
+        "read website",
+        "check this webpage",
+        "check the webpage",
+        "check webpage",
+        "check this page",
+        "check the page",
+        "check page",
+        "summarize this webpage",
+        "summarize the webpage",
+        "summarize webpage",
+        "summarize this page",
+        "summarize the page",
+        "summarize page",
+        "what is on this webpage",
+        "what's on this webpage",
+        "what is on this page",
+        "what's on this page",
+        "what is on the webpage",
+        "what's on the webpage",
+    }
+
+    INSPECT_PAGE_TRIGGERS = (
+        "inspect webpage ",
+        "inspect the webpage ",
+        "inspect this webpage ",
+        "inspect a webpage ",
+        "inspect website ",
+        "inspect the website ",
+        "inspect this website ",
+        "inspect page ",
+        "inspect the page ",
+        "inspect this page ",
+        "read webpage ",
+        "read the webpage ",
+        "read this webpage ",
+        "check webpage ",
+        "check the webpage ",
+        "check this webpage ",
+        "summarize webpage ",
+        "summarize the webpage ",
+        "summarize this webpage ",
+    )
+
+    INSPECT_SCREEN_EXACT = {
+        "inspect this app",
+        "inspect active app",
+        "inspect the active app",
+        "inspect this window",
+        "inspect the window",
+        "read the screen",
+        "read screen",
+        "read screen text",
+        "read the screen text",
+        "what's on my screen",
+        "what is on my screen",
+        "inspect my screen",
+        "inspect the screen",
+    }
+
     APP_ALIASES = {
         "notepad": "notepad",
         "text editor": "notepad",
@@ -111,6 +196,10 @@ class FastPathRouter:
 
     def _normalize(self, text: str) -> str:
         return _SPACES.sub(" ", _NON_ALNUM.sub(" ", (text or "").lower())).strip()
+
+    def __init__(self) -> None:
+        self._inspect_page_exact_norm = {self._normalize(p) for p in self.INSPECT_PAGE_EXACT}
+        self._inspect_screen_exact_norm = {self._normalize(p) for p in self.INSPECT_SCREEN_EXACT}
 
     def _negated(self, text: str) -> bool:
         return text.startswith("do not ") or text.startswith("dont ") or " never " in f" {text} "
@@ -172,6 +261,45 @@ class FastPathRouter:
                         arguments={"query": query},
                         success_reply="Let me look that up.",
                     )
+
+        # 4b. Webpage inspection fastpath (Structured DOM & Playwright, auto-detecting active browser tab)
+        if text in self._inspect_page_exact_norm or any(text.startswith(p) and not any(neg in text for neg in ("not", "don't", "dont")) for p in (
+            "can friday inspect the whole webpage",
+            "can you inspect the whole webpage",
+            "inspect the whole webpage",
+            "inspect this webpage",
+            "inspect the webpage",
+            "inspect a webpage",
+        )):
+            return FastPathResult(
+                tool_name="browser.observe",
+                arguments={},
+                success_reply="Inspecting the webpage.",
+                risk_tier="GREEN",
+                capability="BROWSER",
+            )
+
+        for trigger in self.INSPECT_PAGE_TRIGGERS:
+            if lower_text.startswith(trigger):
+                target = user_text.strip()[len(trigger):].strip().rstrip("?.!")
+                if target:
+                    return FastPathResult(
+                        tool_name="browser.observe",
+                        arguments={"url": target},
+                        success_reply="Inspecting the webpage.",
+                        risk_tier="GREEN",
+                        capability="BROWSER",
+                    )
+
+        # 4c. Screen / Desktop app inspection fastpaths (native UIA -> vision -> OCR last resort)
+        if text in self._inspect_screen_exact_norm:
+            return FastPathResult(
+                tool_name="computer.read_screen_text",
+                arguments={},
+                success_reply="Inspecting your screen.",
+                risk_tier="GREEN",
+                capability="COMPUTER",
+            )
 
         # 5. Time queries - with timezone or without
         m = self.TIME_IN_PATTERNS.search(text)

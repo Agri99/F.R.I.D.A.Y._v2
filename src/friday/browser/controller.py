@@ -102,7 +102,7 @@ class BrowserController:
         raise ValueError(f"Search failed: {result.error}")
 
     def fetch_text_content(self, url: str) -> str:
-        """Fetch and extract clean plain text from a URL."""
+        """Fetch and extract clean plain text from a URL using Playwright DOM/a11y tree or requests PageExtractor."""
         if not self._is_safe_url(url):
             raise ValueError("Only http:// and https:// URLs allowed.")
 
@@ -110,6 +110,48 @@ class BrowserController:
         if not result.success:
             raise ValueError(f"Fetch failed: {result.error}")
 
+        self._current_url = url
+
+        # Try Playwright DOM & aria snapshot first if configured or available
+        if self.config.engine == "playwright" or getattr(self, "_use_playwright_fetch", True):
+            try:
+                import asyncio
+                from friday.browser.playwright_controller import PlaywrightController, PlaywrightConfig
+                
+                async def _pw_fetch() -> str:
+                    pc = PlaywrightController(PlaywrightConfig(headless=self.config.headless, timeout_seconds=self.config.timeout_seconds))
+                    await pc.launch()
+                    try:
+                        await pc.navigate(url)
+                        # Extract DOM text first
+                        text = await pc.get_page_content()
+                        # If DOM text is thin (e.g. JS-heavy app), also check accessibility tree / aria snapshot
+                        if len(text.strip()) < 100:
+                            a11y = await pc.get_accessibility_tree()
+                            if isinstance(a11y, dict) and a11y.get("snapshot"):
+                                text = f"{text}\n\nAccessibility Structure:\n{a11y['snapshot']}"
+                        return text
+                    finally:
+                        try:
+                            await pc.close()
+                        except Exception:
+                            pass
+                        try:
+                            await asyncio.sleep(0.05)
+                        except Exception:
+                            pass
+
+                try:
+                    pw_text = asyncio.run(_pw_fetch())
+                    if pw_text and len(pw_text.strip()) > 0:
+                        sanitized = self.safety.sanitize_for_llm(pw_text)
+                        return sanitized[:4000]
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        # Fast HTTP / PageExtractor fallback
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 FRIDAY/3.0"
         }
@@ -117,20 +159,21 @@ class BrowserController:
         resp.raise_for_status()
 
         html = resp.text
-        # Strip script, style, SVG, and noscript tags
-        cleaned = re.sub(
-            r"<(script|style|svg|noscript).*?>.*?</\1>",
-            "",
-            html,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        # Strip HTML tags
-        text = re.sub(r"<[^>]+>", " ", cleaned)
-        # Clean extra whitespace
-        text = re.sub(r"\s+", " ", text).strip()
+        # Use PageExtractor for clean text extraction
+        extracted = self.extractor.extract_text(html)
+        if not extracted:
+            # Fallback cleaning regex
+            cleaned = re.sub(
+                r"<(script|style|svg|noscript).*?>.*?</\1>",
+                "",
+                html,
+                flags=re.DOTALL | re.IGNORECASE,
+            )
+            text = re.sub(r"<[^>]+>", " ", cleaned)
+            extracted = re.sub(r"\s+", " ", text).strip()
 
         # Sanitize for LLM consumption
-        sanitized = self.safety.sanitize_for_llm(text)
+        sanitized = self.safety.sanitize_for_llm(extracted)
         return sanitized[:4000]
 
     def get_page_content(self) -> str:

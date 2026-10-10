@@ -174,6 +174,31 @@ def _format_natural_reply(action: str, result: Any) -> str:
             cond = result.get("conditions", "")
             return f"It's {temp} degrees and {cond} in {loc}."
 
+        if action == "browser.observe":
+            content = result.get("content", "").strip()
+            title = result.get("title", "").strip()
+            url = result.get("url", "").strip()
+            if not content or content.startswith("No active webpage could be detected"):
+                return "I couldn't detect an active webpage in your browser. Please ensure your browser has a webpage open."
+
+            lines = [line.strip() for line in content.split("\n") if line.strip() and not line.strip().startswith(("#", "//", "/*"))]
+            preview = " ".join(lines[:6])
+            if len(preview) > 350:
+                preview = preview[:350].rsplit(" ", 1)[0] + "..."
+
+            target_desc = f"'{title}'" if title else (f"the page at {url}" if url else "the current webpage")
+            return f"I've inspected {target_desc}. Here is what's on the page: {preview}"
+
+        if action == "computer.read_screen_text":
+            text = result.get("text", "").strip()
+            if not text:
+                return "I inspected your screen, but could not detect any readable text."
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            preview = " ".join(lines[:6])
+            if len(preview) > 350:
+                preview = preview[:350].rsplit(" ", 1)[0] + "..."
+            return f"Here is what's visible on your screen: {preview}"
+
         if "message" in result:
             return str(result["message"])
 

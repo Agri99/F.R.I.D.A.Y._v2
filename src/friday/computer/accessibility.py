@@ -50,6 +50,15 @@ class AccessibilityProvider:
         if sys.platform != "win32":
             return None, None, "Windows UI Automation is only available on Windows."
 
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            h_def = user32.OpenDesktopW("default", 0, False, 0x01FF)
+            if h_def:
+                user32.SetThreadDesktop(h_def)
+        except Exception:
+            pass
+
         hwnd = win32gui.GetForegroundWindow()
         if hwnd:
             try:
@@ -63,17 +72,18 @@ class AccessibilityProvider:
 
         candidates: list[tuple[str, int]] = []
 
-        def _enum_handler(candidate_hwnd: int, _: Any) -> None:
+        def _enum_handler(candidate_hwnd: int, _: Any) -> bool:
             if not win32gui.IsWindowVisible(candidate_hwnd) or not win32gui.GetWindowText(candidate_hwnd):
-                return
+                return True
             try:
                 _, pid = win32process.GetWindowThreadProcessId(candidate_hwnd)
                 exe_name = psutil.Process(pid).name().lower()
             except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-                return
+                return True
             for app_id, exe_names in AUTOMATION_ALLOWLIST.items():
                 if exe_name in exe_names:
                     candidates.append((app_id, candidate_hwnd))
+            return True
 
         win32gui.EnumWindows(_enum_handler, None)
 
@@ -83,10 +93,14 @@ class AccessibilityProvider:
         return None, None, "No allowlisted application window is open (notepad, calculator, vscode)."
 
     def get_controls(self, hwnd: int | None = None) -> list[UIElement]:
-        """Get interactable UI elements for an allowlisted window."""
+        """Get interactable UI elements for an allowlisted window or active foreground window."""
         if hwnd is None:
-            _, hwnd, err = self.find_allowlisted_window()
-            if not hwnd or err:
+            _, hwnd, _ = self.find_allowlisted_window()
+            if not hwnd and win32gui:
+                fg = win32gui.GetForegroundWindow()
+                if fg and win32gui.IsWindowVisible(fg):
+                    hwnd = fg
+            if not hwnd:
                 return []
 
         try:

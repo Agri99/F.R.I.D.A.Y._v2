@@ -38,10 +38,23 @@ class PlaywrightController:
         try:
             from playwright.async_api import async_playwright
             playwright = await async_playwright().start()
-            self._browser = await playwright.chromium.launch(headless=self.config.headless)
+            # Try default bundled chromium, then system-installed channels (chrome, msedge)
+            browser = None
+            for channel in (None, "chrome", "msedge"):
+                try:
+                    kwargs = {"headless": self.config.headless}
+                    if channel:
+                        kwargs["channel"] = channel
+                    browser = await playwright.chromium.launch(**kwargs)
+                    break
+                except Exception:
+                    continue
+            if not browser:
+                raise RuntimeError("Could not launch Playwright browser (chromium, chrome, or msedge).")
+            self._browser = browser
             self._page = await self._browser.new_page()
         except ImportError:
-            raise RuntimeError("Playwright not installed. Run: pip install playwright && playwright install chromium")
+            raise RuntimeError("Playwright not installed. Run: pip install playwright")
 
     async def close(self) -> None:
         if self._page:
@@ -93,10 +106,22 @@ class PlaywrightController:
             return await element.inner_text()
         return ""
 
-    async def get_accessibility_tree(self) -> dict[str, Any]:
+    async def get_accessibility_tree(self) -> dict[str, Any] | str:
         """Extract accessibility tree for target resolution and verification."""
-        tree = await self._page.accessibility.snapshot()
-        return tree
+        if hasattr(self._page, "accessibility") and hasattr(self._page.accessibility, "snapshot"):
+            try:
+                tree = await self._page.accessibility.snapshot()
+                if tree:
+                    return tree
+            except Exception:
+                pass
+        if hasattr(self._page, "aria_snapshot"):
+            try:
+                snapshot = await self._page.aria_snapshot()
+                return {"role": "root", "snapshot": snapshot}
+            except Exception:
+                pass
+        return {}
 
     async def get_page_content(self) -> str:
         if not self._current_url:

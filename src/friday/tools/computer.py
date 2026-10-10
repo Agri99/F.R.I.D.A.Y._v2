@@ -105,10 +105,52 @@ def _describe(question: str = "Describe what is on screen.") -> dict[str, Any]:
     return describe_screen(question=question)
 
 
-def _read_text() -> dict[str, Any]:
-    """Read visible text on screen using OCR."""
-    text = ocr()
-    return {"status": "ok", "text": text}
+def _read_text(force_ocr: bool = False) -> dict[str, Any]:
+    """Read visible text on screen, prioritizing fast UIA/vision inspection before falling back to OCR as last resort."""
+    if force_ocr:
+        try:
+            text = ocr()
+            if text and not text.startswith("OCR error:"):
+                return {"status": "ok", "source": "ocr", "text": text}
+        except Exception:
+            pass
+
+    # 1. First attempt: inspect application controls via Windows UI Automation
+    try:
+        from friday.computer.accessibility import AccessibilityProvider
+        acc = AccessibilityProvider()
+        elements = acc.get_controls()
+        if elements:
+            texts = [f"{e.control_type}: {e.name}" for e in elements if e.name]
+            combined = "\n".join(texts[:50])
+            if len(combined.strip()) > 20:
+                return {
+                    "status": "ok",
+                    "source": "accessibility_tree",
+                    "text": combined,
+                }
+    except Exception:
+        pass
+
+    # 2. Second attempt: vision model description
+    try:
+        vis = describe_screen(question="Transcribe and list the readable text and window contents on screen.")
+        if isinstance(vis, dict) and vis.get("status") == "ok":
+            desc = vis.get("description", "")
+            if desc and len(desc.strip()) > 20:
+                return {"status": "ok", "source": "vision_model", "text": desc}
+    except Exception:
+        pass
+
+    # 3. Third attempt: OCR as last resort
+    try:
+        text = ocr()
+        if text and not text.startswith("OCR error:"):
+            return {"status": "ok", "source": "ocr", "text": text}
+    except Exception:
+        pass
+
+    return {"status": "ok", "text": "", "message": "No readable text could be extracted."}
 
 
 def _click(
@@ -292,7 +334,7 @@ def register_all_tools(registry) -> None:
     ))
     registry.register(Tool(
         name="computer.read_screen_text",
-        description="Read verbatim text on screen using OCR (for documents, code, errors).",
+        description="Inspect and read visible text from desktop application windows or screen. Prioritizes native UI accessibility trees and vision models, using OCR as a last resort.",
         tier="GREEN",
         capability_scope="windows.observe",
         input_schema=build_schema({}),

@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import os
 import queue
+import re
 import threading
 import time
 import collections
@@ -45,6 +46,24 @@ from friday.security.secrets import SecretsManager
 
 SAMPLE_RATE_IN = 16000     # Gemini Live expects 16kHz PCM input
 CHUNK_SIZE_IN = 1024       # ~64ms chunks for low-latency streaming
+
+_RAW_TOOL_LEAK_PATTERN = re.compile(
+    r"(?:terminal_run_host\s*\{[^}]*\}|"
+    r"terminal_run_host\s*\{[^\[]*|"
+    r"(?:tool_?call|ollcall|call):[a-zA-Z0-9_.\-]+(?:\([^)]*\))?|"
+    r"\[(?:tool_?code|call|function_call)[^\]]*\])",
+    re.IGNORECASE,
+)
+
+
+def clean_live_speech_text(text: str) -> str:
+    """Strip raw tool calling syntax or internal runtime leakage from spoken speech."""
+    if not text:
+        return ""
+    cleaned = _RAW_TOOL_LEAK_PATTERN.sub("", text)
+    # Normalize leftover spaces
+    cleaned = re.sub(r"[ \t]+", " ", cleaned).strip()
+    return cleaned
 
 
 class GeminiLiveSession:
@@ -119,7 +138,10 @@ class GeminiLiveSession:
             "You understand everything the user says in their language with complete nuance, but your spoken replies are always in English. "
             "CRITICAL PERSONA AND MANNERISM RULES: "
             "Never sound like a generic customer-service agent, corporate robot, or reading a script. "
-            "Always embody Friday: sophisticated, refined, loyal, poised, and quietly witty, addressing the user warmly as 'Boss'."
+            "Always embody Friday: sophisticated, refined, loyal, poised, and quietly witty, addressing the user warmly as 'Boss'.\n"
+            "9. Webpage & Browser Inspection Directive: "
+            "When the user asks you to inspect, read, check, or summarize the active webpage or open browser tab (e.g. 'inspect this webpage I have open', 'summarize this page'), "
+            "immediately call browser_observe with NO arguments ({}) or url=''. Never ask the user to paste or provide the URL, and never invoke online search when asked about an active page."
         )
         self.system_prompt = base_prompt + operational_rules
         self.tool_registry = tool_registry
@@ -694,16 +716,19 @@ class GeminiLiveSession:
                                     if sentences:
                                         *ready, sentence_buffer = sentences
                                         for s in ready:
-                                            tts_text = s
+                                            cleaned_s = clean_live_speech_text(s)
+                                            if not cleaned_s:
+                                                continue
+                                            tts_text = cleaned_s
                                             emotion_key = None
                                             blend_weight = None
                                             if self.speech_director is not None:
                                                 from friday.interaction.speech_director import SpeechContext
                                                 ctx = SpeechContext(user_text=self._last_user_text)
-                                                decision = self.speech_director.decide(s, ctx)
+                                                decision = self.speech_director.decide(cleaned_s, ctx)
                                                 emotion_key = self.speech_director.get_condition_key(decision)
                                                 blend_weight = self.speech_director.get_blend_weight(decision) if hasattr(self.speech_director, "get_blend_weight") else getattr(decision, "intensity", None)
-                                                tts_text = self.speech_director.render(s, ctx)
+                                                tts_text = self.speech_director.render(cleaned_s, ctx)
                                             with tts_lock:
                                                 pending_count[0] += 1
                                             tts_queue.put((tts_text, emotion_key, blend_weight))
@@ -712,7 +737,7 @@ class GeminiLiveSession:
                                 if getattr(server_content, "turn_complete", False):
                                     print()
                                     turn_in_progress[0] = False
-                                    leftover = sentence_buffer.strip()
+                                    leftover = clean_live_speech_text(sentence_buffer)
                                     sentence_buffer = ""
                                     if leftover:
                                         tts_text = leftover
