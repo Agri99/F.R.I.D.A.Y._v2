@@ -237,13 +237,13 @@ class FastPathRouter:
         if text in ("mute", "mute volume", "silence"):
             return FastPathResult(
                 tool_name="audio.set_volume",
-                arguments={"volume": 0},
+                arguments={"level": 0},
                 success_reply="Muted audio.",
             )
         if text in ("unmute", "restore volume"):
             return FastPathResult(
                 tool_name="audio.set_volume",
-                arguments={"volume": 50},
+                arguments={"level": 50},
                 success_reply="Volume set to 50%.",
             )
 

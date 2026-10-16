@@ -190,6 +190,51 @@ class TestGeminiLiveSession(unittest.TestCase):
         self.assertIn("Multilingual Language Recognition and Persona Consistency", session.system_prompt)
         self.assertIn("English > Indonesian > Sundanese", session.system_prompt)
 
+    def test_fastpath_router_initialized(self):
+        session = GeminiLiveSession(
+            api_key="fake-key-for-test",
+            tool_registry=self.registry,
+        )
+        self.assertIsNotNone(session._fastpath)
+        match = session._fastpath.match("what time is it")
+        self.assertIsNotNone(match)
+        self.assertEqual(match.tool_name, "system.get_time")
+        self.assertEqual(match.risk_tier, "GREEN")
+
+    def test_enqueue_for_speech(self):
+        import queue
+        import threading
+
+        session = GeminiLiveSession(
+            api_key="fake-key-for-test",
+        )
+        q = queue.Queue()
+        lock = threading.Lock()
+        pending = [0]
+
+        session._enqueue_for_speech("Hello Boss!", q, lock, pending)
+        self.assertEqual(pending[0], 1)
+        self.assertFalse(q.empty())
+        item = q.get()
+        self.assertEqual(item[0], "Hello Boss!")
+
+        # Raw tool call leakage should be stripped
+        session._enqueue_for_speech("terminal_run_host{command='pwd'} All good.", q, lock, pending)
+        self.assertEqual(pending[0], 2)
+        item2 = q.get()
+        self.assertEqual(item2[0], "All good.")
+
+    def test_fastpath_execution_and_format_reply(self):
+        session = GeminiLiveSession(
+            api_key="fake-key-for-test",
+            tool_registry=self.registry,
+        )
+        match = session._fastpath.match("open notepad")
+        self.assertIsNotNone(match)
+        self.assertEqual(match.risk_tier, "GREEN")
+        res = session._execute_local_tool(match.tool_name, match.arguments)
+        self.assertEqual(res["tool"], "applications.open")
+
 
 if __name__ == "__main__":
     unittest.main()

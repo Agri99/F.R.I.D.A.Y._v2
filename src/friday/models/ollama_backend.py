@@ -46,14 +46,8 @@ class OllamaProvider(ModelProvider):
     def supports_tools(self) -> bool:
         if self._supports_tools_cache is not None:
             return self._supports_tools_cache
-        
-        info = self._fetch_model_info()
-        if info:
-            info.get("template", "")
-            # Modern Ollama models (Qwen, Llama, Mistral) support tools natively
-            self._supports_tools_cache = True
-        else:
-            self._supports_tools_cache = True
+        # Modern Ollama models (Qwen, Llama, Mistral) support tools natively
+        self._supports_tools_cache = True
         return self._supports_tools_cache
 
 

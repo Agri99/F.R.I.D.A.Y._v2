@@ -95,6 +95,7 @@ class BrowserSession:
             accept_downloads=True,
             downloads_path=self.config.downloads_dir,
         )
+        self._context = self._browser
 
     async def close(self) -> None:
         """Close the browser context and clean up."""

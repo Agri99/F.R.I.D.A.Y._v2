@@ -15,6 +15,7 @@ else:
 
 import psutil
 import os
+from pathlib import Path
 from dataclasses import dataclass
 
 
@@ -27,8 +28,15 @@ class WindowInfo:
     is_foreground: bool
 
 
+_LOCAL_APPDATA = os.environ.get("LOCALAPPDATA", "")
+_DEFAULT_VSCODE = (
+    str(Path(_LOCAL_APPDATA) / "Programs" / "Microsoft VS Code" / "Code.exe")
+    if _LOCAL_APPDATA
+    else "code.exe"
+)
+
 APPS: dict[str, str] = {
-    "vscode": r"C:\Users\agria\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+    "vscode": _DEFAULT_VSCODE,
     "notepad": "notepad.exe",
     "explorer": "explorer.exe",
     "calculator": "calc.exe",
@@ -39,13 +47,13 @@ APPS: dict[str, str] = {
 
 class WindowManager:
     """Manages OS windows."""
-    
+
+    def __init__(self):
+        if sys.platform != "win32":
+            raise RuntimeError("WindowManager is only available on Windows")
+
     def get_active_window(self) -> WindowInfo:
         """Get the active window information."""
-
-        def __init__(self):
-            if sys.platform != "win32":
-                raise RuntimeError("WindowManager is only available on Windows")
         
         if not win32gui:
             raise RuntimeError("WindowManager is only available on Windows")

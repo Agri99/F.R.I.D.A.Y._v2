@@ -181,7 +181,6 @@ class RetentionManager:
             confidence = float(row["confidence"])
             evidence_count = int(row["evidence_count"])
             source = row["source"] if "source" in row.keys() else "inferred"
-            row["created_at"] if "created_at" in row.keys() else None
 
             if new_evidence and verification_passed:
                 evidence_count += 1
@@ -222,7 +221,6 @@ class RetentionManager:
         with self.db.connection() as conn:
             for category, table in [("fact", "facts"), ("preference", "preferences"), ("episode", "episodes")]:
                 policy = policies.get(category, {})
-                policy.get("decay_rate", 0.01)
                 max_age_days = policy.get("max_age_days", 365)
 
                 rows = conn.execute(

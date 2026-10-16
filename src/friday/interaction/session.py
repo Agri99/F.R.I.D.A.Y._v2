@@ -347,7 +347,6 @@ class VoiceSession:
                     from friday.interaction.tts import detect_language
                     self.tts.set_turn_language(detect_language(transcript))
 
-                time.time()
                 fastpath_match = getattr(self, "_fastpath", None).match(transcript) if getattr(self, "_fastpath", None) else None
                 if fastpath_match:
                     # FastPath intent (time, apps, window control, volume, orb, shutdown).
@@ -557,13 +556,6 @@ class VoiceSession:
             final_text = current_partial or None
         return (final_text or "").strip() or None
 
-    @staticmethod
-    def _collect_final_transcript(transcriber: Any) -> str | None:
-        events = transcriber.drain_events()
-        if not events:
-            return None
-        return events[-1].text
-
     def _speak_event_driven(
         self,
         pipeline: Any,
@@ -577,11 +569,7 @@ class VoiceSession:
         """
 
         # Render text through Speech Director before TTS
-        rendered_text = text
-        if self.speech_director is not None:
-            from friday.interaction.speech_director import SpeechContext
-            context = SpeechContext(user_text=self._last_user_transcript)
-            rendered_text = self.speech_director.render(text, context)
+        rendered_text = self._render_for_tts(text)
 
         streaming_tts = pipeline.streaming_tts
         interruption = pipeline.interruption
@@ -777,41 +765,6 @@ class VoiceSession:
                 stream.close()
             except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                 pass
-
-    def _wait_for_followup_event_driven(self, pipeline: Any) -> bool:
-        """Wait briefly for follow-up audio. Return True if user spoke, False on timeout.
-
-        Mic stays open — just monitors the queue for VAD speech events.
-        """
-        from friday.interaction.vad import VadEventKind
-
-        audio_in = pipeline.audio_input
-        vad = pipeline.vad
-
-        # Reset VAD so stale internal state doesn't bias the next decision.
-        if hasattr(vad, "reset"):
-            try:
-                vad.reset()
-            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-                pass
-
-        # Drain any leftover audio from TTS playback
-        try:
-            while True:
-                audio_in.queue.get(timeout=0.0)
-        except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-            pass
-
-        deadline = time.time() + self.followup_window_seconds
-        while time.time() < deadline and not self.cancelled:
-            try:
-                chunk = audio_in.queue.get(timeout=0.05)
-            except (queue.Empty, OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-                continue
-            vad_event = vad.process(chunk.data, chunk.timestamp)
-            if vad_event.kind in (VadEventKind.SPEECH_STARTED, VadEventKind.SPEECH_CONTINUED):
-                return True
-        return False
 
     def run_loop(self) -> None:
         import friday.tools.system as sys_tools

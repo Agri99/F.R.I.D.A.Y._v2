@@ -40,6 +40,8 @@ except ImportError:
     genai = None  # type: ignore[assignment]
     types = None  # type: ignore[assignment]
 
+from friday.agent.fastpath import FastPathRouter
+from friday.agent.orchestrator import _format_natural_reply
 from friday.interaction.segmenter import segment
 from friday.interaction.session import SessionState
 from friday.security.secrets import SecretsManager
@@ -154,7 +156,7 @@ class GeminiLiveSession:
         self._stop_requested = False
         self._shutdown_pending = False
         self._interrupted = threading.Event()
-        self._user_spoke_in_turn = asyncio.Event()
+        self._fastpath = FastPathRouter()
 
     @property
     def effective_system_prompt(self) -> str:
@@ -263,12 +265,47 @@ class GeminiLiveSession:
             print(f"FRIDAY [Live Tool]: Execution error: {exc}")
             return {"error": str(exc)}
 
+    def _enqueue_for_speech(
+        self,
+        text: str,
+        tts_queue: queue.Queue,
+        tts_lock: threading.Lock,
+        pending_count: list[int],
+    ) -> None:
+        """Process speech through Speech Director (if present) and enqueue to Chatterbox TTS."""
+        cleaned = clean_live_speech_text(text)
+        if not cleaned:
+            return
+
+        tts_text = cleaned
+        emotion_key = None
+        blend_weight = None
+
+        if self.speech_director is not None:
+            try:
+                from friday.interaction.speech_director import SpeechContext
+
+                ctx = SpeechContext(user_text=self._last_user_text)
+                decision = self.speech_director.decide(cleaned, ctx)
+                emotion_key = self.speech_director.get_condition_key(decision)
+                blend_weight = (
+                    self.speech_director.get_blend_weight(decision)
+                    if hasattr(self.speech_director, "get_blend_weight")
+                    else getattr(decision, "intensity", None)
+                )
+                tts_text = self.speech_director.render(cleaned, ctx)
+            except Exception:  # noqa: BLE001
+                pass
+
+        with tts_lock:
+            pending_count[0] += 1
+        tts_queue.put((tts_text, emotion_key, blend_weight))
+
     async def _live_conversation_loop(self) -> None:
         """Single live session loop over WebSockets until 10s silence or shutdown."""
         import sounddevice as sd
 
         self._interrupted.clear()
-        self._user_spoke_in_turn.clear()
 
         tools = self._build_tools_declaration()
 
@@ -425,6 +462,8 @@ class GeminiLiveSession:
         turn_in_progress = [False]
         playback_started_at = [0.0]
         last_playback_ended_at = [0.0]
+        suppress_turn = [False]
+        cached_fastpath_result: list[tuple[str, Any] | None] = [None]
 
         BARGE_IN_RMS_THRESHOLD = getattr(self, "barge_in_rms", 1200.0)
         BARGE_IN_GRACE_PERIOD_S = 0.25
@@ -627,8 +666,18 @@ class GeminiLiveSession:
                                     for fc in response.tool_call.function_calls:
                                         call_id = fc.id
                                         call_name = fc.name
-                                        call_args = dict(fc.args) if fc.args else {}
-                                        result = self._execute_local_tool(call_name, call_args)
+                                        if (
+                                            suppress_turn[0]
+                                            and cached_fastpath_result[0]
+                                            and (
+                                                cached_fastpath_result[0][0] == call_name
+                                                or cached_fastpath_result[0][0].replace(".", "_") == call_name
+                                            )
+                                        ):
+                                            result = cached_fastpath_result[0][1]
+                                        else:
+                                            call_args = dict(fc.args) if fc.args else {}
+                                            result = self._execute_local_tool(call_name, call_args)
                                         tool_responses.append(
                                             types.FunctionResponse(
                                                 name=call_name,
@@ -686,6 +735,26 @@ class GeminiLiveSession:
                                         if hasattr(self.speech_synthesizer, "reset_interrupt"):
                                             self.speech_synthesizer.reset_interrupt()
 
+                                        # FastPath Direct Workstation Bypass
+                                        fast_match = self._fastpath.match(text)
+                                        if fast_match and fast_match.risk_tier == "GREEN":
+                                            tool_name = fast_match.tool_name
+                                            tool_args = fast_match.arguments
+                                            print(f"FRIDAY [FastPath Bypass]: Matched '{text}' -> {tool_name}({tool_args})")
+                                            tool_result = self._execute_local_tool(tool_name, tool_args)
+                                            cached_fastpath_result[0] = (tool_name, tool_result)
+                                            suppress_turn[0] = True
+
+                                            reply = _format_natural_reply(tool_name, tool_result)
+                                            if not reply or reply == str(tool_result):
+                                                reply = fast_match.success_reply or str(tool_result)
+
+                                            turn_in_progress[0] = True
+                                            self._interrupted.clear()
+                                            self.set_state(SessionState.SPEAKING)
+                                            print(f"\n[FRIDAY (FastPath)]: {reply}")
+                                            self._enqueue_for_speech(reply, tts_queue, tts_lock, pending_count)
+
                                 # 4. Model output transcription -> streamed into Chatterbox Turbo TTS
                                 # Note: Gemini's inline audio chunks in model_turn.parts are intentionally
                                 # NOT played, so Friday exclusively speaks using Chatterbox Turbo TTS.
@@ -700,6 +769,10 @@ class GeminiLiveSession:
                                             transcription_text += part.text
 
                                 if transcription_text:
+                                    if suppress_turn[0]:
+                                        # Discard cloud output tokens because FastPath already delivered local reply
+                                        continue
+
                                     turn_in_progress[0] = True
                                     self._interrupted.clear()
                                     if hasattr(self.speech_synthesizer, "reset_interrupt"):
@@ -716,43 +789,21 @@ class GeminiLiveSession:
                                     if sentences:
                                         *ready, sentence_buffer = sentences
                                         for s in ready:
-                                            cleaned_s = clean_live_speech_text(s)
-                                            if not cleaned_s:
-                                                continue
-                                            tts_text = cleaned_s
-                                            emotion_key = None
-                                            blend_weight = None
-                                            if self.speech_director is not None:
-                                                from friday.interaction.speech_director import SpeechContext
-                                                ctx = SpeechContext(user_text=self._last_user_text)
-                                                decision = self.speech_director.decide(cleaned_s, ctx)
-                                                emotion_key = self.speech_director.get_condition_key(decision)
-                                                blend_weight = self.speech_director.get_blend_weight(decision) if hasattr(self.speech_director, "get_blend_weight") else getattr(decision, "intensity", None)
-                                                tts_text = self.speech_director.render(cleaned_s, ctx)
-                                            with tts_lock:
-                                                pending_count[0] += 1
-                                            tts_queue.put((tts_text, emotion_key, blend_weight))
+                                            self._enqueue_for_speech(s, tts_queue, tts_lock, pending_count)
 
                                 # 5. Turn Complete (Gemini finished emitting tokens for this turn)
                                 if getattr(server_content, "turn_complete", False):
                                     print()
                                     turn_in_progress[0] = False
-                                    leftover = clean_live_speech_text(sentence_buffer)
-                                    sentence_buffer = ""
-                                    if leftover:
-                                        tts_text = leftover
-                                        emotion_key = None
-                                        blend_weight = None
-                                        if self.speech_director is not None:
-                                            from friday.interaction.speech_director import SpeechContext
-                                            ctx = SpeechContext(user_text=self._last_user_text)
-                                            decision = self.speech_director.decide(leftover, ctx)
-                                            emotion_key = self.speech_director.get_condition_key(decision)
-                                            blend_weight = self.speech_director.get_blend_weight(decision) if hasattr(self.speech_director, "get_blend_weight") else getattr(decision, "intensity", None)
-                                            tts_text = self.speech_director.render(leftover, ctx)
-                                        with tts_lock:
-                                            pending_count[0] += 1
-                                        tts_queue.put((tts_text, emotion_key, blend_weight))
+                                    if suppress_turn[0]:
+                                        suppress_turn[0] = False
+                                        cached_fastpath_result[0] = None
+                                        sentence_buffer = ""
+                                    else:
+                                        leftover = sentence_buffer
+                                        sentence_buffer = ""
+                                        if leftover:
+                                            self._enqueue_for_speech(leftover, tts_queue, tts_lock, pending_count)
 
                                     if self._shutdown_pending:
                                         # Allow farewell speech to finish playing completely before closing session

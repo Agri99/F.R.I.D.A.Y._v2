@@ -110,11 +110,12 @@ class ComputerController(Protocol):
 class WindowsComputerController:
     """Full implementation of ComputerController for Windows with observe-act-verify."""
 
-    def __init__(self):
+    def __init__(self, tool_registry: Any = None):
         self.accessibility = AccessibilityProvider()
         self.window_manager = WindowManager()
         self.target_resolver = TargetResolver(self.accessibility)
         self.screen_observer = ScreenObserver()
+        self.tool_registry = tool_registry
         self._last_observation: ControllerObservation | None = None
 
     def _capture_observation(self) -> ControllerObservation:
@@ -132,11 +133,6 @@ class WindowsComputerController:
         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
             screen_hash = "no_screen_available"
             img = None
-
-        try:
-            self.accessibility.get_ui_tree()
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-            pass
         
         ocr_text = ""
         vlm_desc = ""
@@ -345,39 +341,41 @@ class WindowsComputerController:
             )
 
     def _get_tool_from_registry(self, tool_name: str):
-        """Get a tool from the global tool registry."""
-        try:
-            from friday.tools.registry import ToolRegistry
-            from friday.tools.system import register_all_tools as reg_sys
-            from friday.tools.filesystem import register_all_tools as reg_fs
-            from friday.tools.applications import register_all_tools as reg_app
-            from friday.tools.computer import register_all_tools as reg_comp
-            from friday.tools.browser import register_all_tools as reg_browser
-            from friday.tools.gmail import register_all_tools as reg_gmail
-            from friday.tools.calendar import register_all_tools as reg_cal
-            from friday.tools.scheduling import register_all_tools as reg_sched
-            from friday.tools.audio import register_all_tools as reg_audio
-            from friday.tools.terminal import register_all_tools as reg_term
-            from friday.tools.online import register_all_tools as reg_online
-            from friday.tools.conversation import register_all_tools as reg_conv
+        """Get a tool from the cached tool registry."""
+        if self.tool_registry is not None:
+            return self.tool_registry.get(tool_name)
+        global _CACHED_CONTROLLER_REGISTRY
+        if "_CACHED_CONTROLLER_REGISTRY" not in globals() or globals()["_CACHED_CONTROLLER_REGISTRY"] is None:
+            try:
+                from friday.tools.registry import ToolRegistry
+                from friday.tools.system import register_all_tools as reg_sys
+                from friday.tools.filesystem import register_all_tools as reg_fs
+                from friday.tools.applications import register_all_tools as reg_app
+                from friday.tools.computer import register_all_tools as reg_comp
+                from friday.tools.browser import register_all_tools as reg_browser
+                from friday.tools.gmail import register_all_tools as reg_gmail
+                from friday.tools.calendar import register_all_tools as reg_cal
+                from friday.tools.scheduling import register_all_tools as reg_sched
+                from friday.tools.audio import register_all_tools as reg_audio
+                from friday.tools.terminal import register_all_tools as reg_term
+                from friday.tools.online import register_all_tools as reg_online
 
-            registry = ToolRegistry()
-            reg_sys(registry)
-            reg_fs(registry)
-            reg_app(registry)
-            reg_comp(registry)
-            reg_browser(registry)
-            reg_gmail(registry)
-            reg_cal(registry)
-            reg_sched(registry)
-            reg_audio(registry)
-            reg_term(registry)
-            reg_online(registry)
-            reg_conv(registry)
-
-            return registry.get(tool_name)
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
-            return None
+                reg = ToolRegistry()
+                reg_sys(reg)
+                reg_fs(reg)
+                reg_app(reg)
+                reg_comp(reg)
+                reg_browser(reg)
+                reg_gmail(reg)
+                reg_cal(reg)
+                reg_sched(reg)
+                reg_audio(reg)
+                reg_term(reg)
+                reg_online(reg)
+                globals()["_CACHED_CONTROLLER_REGISTRY"] = reg
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
+                return None
+        return globals()["_CACHED_CONTROLLER_REGISTRY"].get(tool_name)
 
     def verify_action(self, before: ControllerObservation, after: ControllerObservation,
                       expected_change: str) -> tuple[bool, str]:

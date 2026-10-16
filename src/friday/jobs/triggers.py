@@ -79,7 +79,6 @@ class TriggerMonitor:
         try:
             # Check CPU and input activity as proxy for user activity
             cpu_percent = psutil.cpu_percent(interval=0.1)
-            time.time()
 
             if cpu_percent < 5.0:  # Low CPU usage indicates potential idle
                 if self._last_idle_check == 0:

@@ -337,7 +337,6 @@ class AgentOrchestrator:
 
         fast_intent = self.fastpath.match(goal)
         if fast_intent:
-            self.tools.get(fast_intent.tool_name) if hasattr(self.tools, "get") else None
             tier = self.tools.tier_of(fast_intent.tool_name) if hasattr(self.tools, "tier_of") else None
             step = Step(
                 action=fast_intent.tool_name,
@@ -387,13 +386,6 @@ class AgentOrchestrator:
         task.current_step_index = max(task.current_step_index, 0)
 
         while task.current_step_index < len(task.plan):
-            if task.steps_used >= task.max_steps:
-                self.state_machine.transition(task, TaskStatus.FAILED, reason="Execution budget exceeded (max_steps)")
-                return task
-            if task.started_at and (time.time() - task.started_at.timestamp() > task.max_time_seconds):
-                self.state_machine.transition(task, TaskStatus.FAILED, reason="Execution budget exceeded (max_time_seconds)")
-                return task
-
             # Check execution budgets before each step
             within_budget, budget_reason = task.check_budgets()
             if not within_budget:

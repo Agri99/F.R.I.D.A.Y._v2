@@ -299,27 +299,9 @@ def register_all_tools(registry) -> None:
         handler=_shutdown_friday,
         critical=False,
     ))
-    registry.register(Tool(
-        name="shutdown_friday",
-        description="Shut down the FRIDAY assistant program.",
-        tier="ORANGE",
-        capability_scope="system.control",
-        input_schema=build_schema({}),
-        handler=_shutdown_friday,
-        critical=False,
-    ))
 
     registry.register(Tool(
         name="system.toggle_orb",
-        description="Show or hide the floating 3D visualizer orb.",
-        tier="GREEN",
-        capability_scope="system.control",
-        input_schema=build_schema({"visible": {"type": "boolean"}}, ["visible"]),
-        handler=_toggle_orb,
-        verify=_verify_toggle_orb,
-    ))
-    registry.register(Tool(
-        name="toggle_orb",
         description="Show or hide the floating 3D visualizer orb.",
         tier="GREEN",
         capability_scope="system.control",

@@ -277,6 +277,34 @@ def get_time_greeting() -> str:
     else:
         return "Evening"
 
+
+def _play_boot_greeting(synthesizer: Any, async_play: bool = False, session: Any = None) -> None:
+    """Deliver a natural, time-appropriate spoken greeting upon startup."""
+    import random
+    import threading
+    time_period = get_time_greeting()
+    greetings = [
+        f"Good {time_period.lower()}, Boss. All systems are online and ready.",
+        f"Online and at your service, Boss. Good {time_period.lower()}.",
+        f"Good {time_period.lower()}, Boss. Systems initialized and standing by.",
+        "All systems operational, Boss. Ready when you are.",
+        f"Good {time_period.lower()}. Systems active and listening.",
+    ]
+    boot_msg = random.choice(greetings)
+    print(f"FRIDAY [Boot]: {boot_msg}")
+    if session is not None and hasattr(session, "set_state"):
+        from friday.interaction.session import SessionState
+        session.set_state(SessionState.SPEAKING)
+
+    if async_play:
+        threading.Thread(target=synthesizer.speak, args=(boot_msg,), daemon=True).start()
+    else:
+        try:
+            synthesizer.speak(boot_msg)
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
+            print(f"FRIDAY [Boot]: Greeting playback error: {e}")
+
+
 def run_voice(brain: str = "qwen") -> None:
     """Run the full voice-enabled FRIDAY loop with orb UI."""
     import subprocess
@@ -400,17 +428,6 @@ def run_voice(brain: str = "qwen") -> None:
             _check_shutdown_requested()
             return task
 
-        controls = {
-            "offline": lambda: (_set_offline(orch, True), announce("I'm offline now")),
-            "online": lambda: (_set_offline(orch, False), announce("I'm online now")),
-            "fast": lambda: (_set_model_pref(orch, "fast"), announce("I'll use fast mode")),
-            "deep": lambda: (_set_model_pref(orch, "deep"), announce("I'll use deep reasoning")),
-            "safer": lambda: (setattr(orch, "_safer_mode", True), announce("I'll use safer mode")),
-            "pause": lambda: (orch._pause_execution(), announce("Paused")),
-            "explain": lambda: (_explain_progress(orch), announce("Here's what I'm doing")),
-            "stop": lambda: (announce("Shutting down. Goodbye, Boss."), session.request_shutdown()),
-        }
-
         def on_state(state: SessionState):
             set_state(state.value)
 
@@ -434,22 +451,7 @@ def run_voice(brain: str = "qwen") -> None:
                 print("FRIDAY [Boot]: Gemini Live Bidirectional Voice Engine active.")
 
                 # --- BOOT GREETING ---
-                import random
-                time_period = get_time_greeting()
-                greetings = [
-                    f"Good {time_period.lower()}, Boss. All systems are online and ready.",
-                    f"Online and at your service, Boss. Good {time_period.lower()}.",
-                    f"Good {time_period.lower()}, Boss. Systems initialized and standing by.",
-                    "All systems operational, Boss. Ready when you are.",
-                    f"Good {time_period.lower()}. Systems active and listening.",
-                ]
-                boot_msg = random.choice(greetings)
-                print(f"FRIDAY [Boot]: {boot_msg}")
-                try:
-                    import threading
-                    threading.Thread(target=synthesizer.speak, args=(boot_msg,), daemon=True).start()
-                except Exception as e:  # noqa: BLE001
-                    print(f"FRIDAY [Boot]: Greeting playback error: {e}")
+                _play_boot_greeting(synthesizer, async_play=True)
 
                 print("FRIDAY v3 is ready.")
                 live_session.run_loop()
@@ -515,23 +517,7 @@ def run_voice(brain: str = "qwen") -> None:
         session.controls = controls
 
         # --- BOOT GREETING ---
-        time_period = get_time_greeting()
-        try:
-            import random
-            greetings = [
-                f"Good {time_period.lower()}, Boss. All systems are online and ready.",
-                f"Online and at your service, Boss. Good {time_period.lower()}.",
-                f"Good {time_period.lower()}. Systems online.",
-            ]
-            boot_msg = random.choice(greetings)
-            print(f"FRIDAY [Boot]: {boot_msg}")
-            session.set_state(SessionState.SPEAKING)
-            try:
-                synthesizer.speak(boot_msg)
-            except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
-                print(f"FRIDAY [Boot]: Greeting playback error: {e}")
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as e:
-            print(f"FRIDAY [Boot]: Online and ready. (Greeting failed: {e})")
+        _play_boot_greeting(synthesizer, async_play=False, session=session)
 
         print("FRIDAY v3 is ready.")
         session.run_loop()

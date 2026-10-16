@@ -157,11 +157,18 @@ def _open_app(app_id: str, force_new: bool = False, confirmed: bool = False) -> 
                     # Try to restore the window if minimized
                     if sys.platform == "win32":
                         try:
-                            import ctypes
-                            hwnd = ctypes.windll.user32.FindWindowW(None, None)
-                            if hwnd:
-                                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
-                                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            from friday.computer.windows import WindowManager
+                            wm = WindowManager()
+                            windows = wm.list_windows()
+                            target_hwnd = None
+                            for w in windows:
+                                if app_name.lower() in w.title.lower() or (p_name and p_name.lower().replace(".exe", "") in w.title.lower()):
+                                    target_hwnd = w.handle
+                                    break
+                            if target_hwnd:
+                                import ctypes
+                                ctypes.windll.user32.ShowWindow(target_hwnd, 9)  # SW_RESTORE = 9
+                                ctypes.windll.user32.SetForegroundWindow(target_hwnd)
                         except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError):
                             pass
                     return {

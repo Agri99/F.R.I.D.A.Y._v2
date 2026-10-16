@@ -31,12 +31,15 @@ def _get_volume_interface():
     )
     return interface.QueryInterface(IAudioEndpointVolume)
 
-def _set_volume(level: int) -> dict:
+def _set_volume(level: int | None = None, volume: int | None = None) -> dict:
+    val = level if level is not None else volume
+    if val is None:
+        val = 50
     try:
-        level = max(0, min(100, level))
-        volume = _get_volume_interface()
-        volume.SetMasterVolumeLevelScalar(level / 100.0, None)
-        return {"status": "ok", "volume": level}
+        val = max(0, min(100, int(val)))
+        vol_iface = _get_volume_interface()
+        vol_iface.SetMasterVolumeLevelScalar(val / 100.0, None)
+        return {"status": "ok", "volume": val}
     except (OSError, RuntimeError, ValueError, KeyError, TypeError, AttributeError, IndexError, ImportError) as exc:
         return {"status": "error", "message": str(exc)}
 
