@@ -225,8 +225,15 @@ python -m venv .venv
 pip install -r requirements.txt
 pip install -e .
 
-# 4. Configure Gemini API Key (if using Gemini Live mode)
+# 4. Configure Environment & API Keys
+Copy `.env.example` to `.env` and set your configuration (e.g. `GEMINI_API_KEY`, `OLLAMA_HOST`):
+```powershell
+copy .env.example .env
+```
+Alternatively, store your Gemini API key securely in the encrypted secrets manager:
+```powershell
 python -c "from friday.security.secrets import SecretsManager; SecretsManager().set('gemini_api_key', 'YOUR_KEY_HERE')"
+```
 
 # 5. Run first-time setup wizard
 python scripts/setup.py

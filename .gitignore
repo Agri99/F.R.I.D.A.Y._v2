@@ -25,6 +25,8 @@ ENV/
 
 # ── Secrets & credentials (NEVER commit) ────────────────────────
 .env
+.env.*
+!.env.example
 secrets/
 config/*.local.yaml
 config/personas.local.yaml
@@ -33,6 +35,8 @@ config/personas.local.yaml
 token.json
 ops/searxng/.env
 ops/searxng/valkey/
+*.log
+
 
 # ── Audio recordings & references ───────────────────────────────
 audio.wav
